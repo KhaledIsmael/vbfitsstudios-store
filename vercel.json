@@ -5,9 +5,15 @@
   "framework": null,
   "functions": {
     "api/**/*.ts": {
-      "runtime": "@vercel/node@5"
+      "runtime": "@vercel/node"
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/abandoned-carts",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
