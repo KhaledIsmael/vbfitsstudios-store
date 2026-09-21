@@ -23,8 +23,10 @@ dist-ssr/
 
 # Editor & System
 .DS_Store
+Thumbs.db
 *.local
 .vscode/
+!.vscode/extensions.json
 .idea/
 
 # Test Results & Reports
@@ -32,6 +34,22 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+coverage/
 
-# Vercel
-.vercel/
+# TypeScript
+*.tsbuildinfo
+
+# Vite / Build Cache
+.vite/
+node_modules/.vite/
+node_modules/.cache/
+
+# Supabase local dev
+.supabase/
+
+# Temp & misc
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
