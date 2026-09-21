@@ -8,12 +8,6 @@
       "runtime": "@vercel/node@5"
     }
   },
-  "crons": [
-    {
-      "path": "/api/cron/abandoned-carts",
-      "schedule": "0 * * * *"
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
