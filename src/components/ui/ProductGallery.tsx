@@ -92,13 +92,15 @@ const PrimaryViewer: React.FC<PrimaryViewerProps> = ({ item, productName, viewer
 
   // Re-load and play whenever the video source changes (item key change remounts this)
   useEffect(() => {
-    if (item.type === 'video' && videoRef.current) {
+    if (item && item.type === 'video' && videoRef.current) {
       videoRef.current.load();
       videoRef.current.play().catch(() => {
         // Autoplay blocked (uncommon for muted video, but guard it silently)
       });
     }
-  }, [item.url, item.type]);
+  }, [item?.url, item?.type]);
+
+  if (!item) return null;
 
   if (item.type === 'video') {
     return (
@@ -162,13 +164,13 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
 
   // Synthesise a 1-item fallback so we never render an empty gallery
   const items: MediaItem[] =
-    mediaItems.length > 0
+    mediaItems && mediaItems.length > 0
       ? mediaItems
       : [{ url: '/assets/products/black-shirt.jpeg', type: 'image', displayOrder: 0 }];
 
   // Clamp selectedIndex in case it's stale after colorway switch
-  const safeIndex = Math.min(selectedIndex, items.length - 1);
-  const activeItem = items[safeIndex];
+  const safeIndex = Math.max(0, Math.min(selectedIndex || 0, items.length - 1));
+  const activeItem = items[safeIndex] || items[0];
 
   // Sync mobile scroll position when selectedIndex changes externally
   useEffect(() => {

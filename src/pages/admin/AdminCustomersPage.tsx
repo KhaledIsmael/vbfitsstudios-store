@@ -140,8 +140,8 @@ export const AdminCustomersPage: React.FC = () => {
     switch (role) {
       case 'admin':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[9px] font-mono uppercase bg-amber-950/40 text-amber-300 border border-amber-500/30">
-            <ShieldAlert className="w-2.5 h-2.5 text-amber-400" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[9px] font-mono uppercase bg-zinc-800 text-zinc-200 border border-zinc-700">
+            <ShieldAlert className="w-2.5 h-2.5 text-zinc-300" />
             Admin
           </span>
         );
@@ -218,15 +218,15 @@ export const AdminCustomersPage: React.FC = () => {
           <span className="text-[10px] font-mono text-white/40 mt-1 block">Privileged operators</span>
         </div>
 
-        <div className="p-4 bg-[#121215] border border-amber-500/30">
-          <div className="flex items-center justify-between text-amber-300">
+        <div className="p-4 bg-[#121215] border border-zinc-700">
+          <div className="flex items-center justify-between text-zinc-300">
             <span className="text-[10px] font-mono uppercase tracking-wider">Circulating Loyalty</span>
             <Sparkles className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-light font-mono text-amber-300 mt-1">
+          <p className="text-2xl font-light font-mono text-white mt-1">
             {totalCirculatingPoints.toLocaleString()} <span className="text-xs font-normal">Pts</span>
           </p>
-          <span className="text-[10px] font-mono text-amber-400/60 mt-1 block">Phase 6 Loyalty Program</span>
+          <span className="text-[10px] font-mono text-zinc-400 mt-1 block">Phase 6 Loyalty Program</span>
         </div>
       </div>
 
@@ -380,8 +380,8 @@ export const AdminCustomersPage: React.FC = () => {
 
                     {/* Loyalty Points */}
                     <td className="py-3.5 px-4 font-mono">
-                      <span className="inline-flex items-center gap-1 text-amber-300 font-bold">
-                        <Sparkles className="w-3 h-3 text-amber-400" />
+                      <span className="inline-flex items-center gap-1 text-zinc-200 font-bold">
+                        <Sparkles className="w-3 h-3 text-zinc-400" />
                         {c.loyalty_points} Pts
                       </span>
                     </td>

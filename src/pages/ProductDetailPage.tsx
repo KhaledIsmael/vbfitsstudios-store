@@ -264,23 +264,39 @@ export const ProductDetailPage: React.FC = () => {
 
     if (id) {
       addRecentlyViewed(id);
-      getProductById(id).then((found) => {
-        if (isMounted) {
-          setProduct(found);
-          if (found) {
-            addRecentlyViewed(found.id);
-            if (found.sizes.length > 0) setSelectedSize(found.sizes[0]);
+      getProductById(id)
+        .then((found) => {
+          if (isMounted) {
+            setProduct(found);
+            if (found) {
+              addRecentlyViewed(found.id);
+              if (found.sizes && found.sizes.length > 0) {
+                setSelectedSize(found.sizes[0]);
+              }
+            }
           }
-          setLoading(false);
-        }
-      });
+        })
+        .catch((err) => {
+          console.warn('Failed to load product detail:', err);
+        })
+        .finally(() => {
+          if (isMounted) {
+            setLoading(false);
+          }
+        });
+    } else {
+      setLoading(false);
     }
 
-    getAllProducts().then((all) => {
-      if (isMounted) {
-        setRelatedProducts(all.filter((p) => p.id !== id).slice(0, 4));
-      }
-    });
+    getAllProducts()
+      .then((all) => {
+        if (isMounted && all) {
+          setRelatedProducts(all.filter((p) => p.id !== id).slice(0, 4));
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load related products:', err);
+      });
 
     return () => { isMounted = false; };
   }, [id]);
@@ -339,11 +355,16 @@ export const ProductDetailPage: React.FC = () => {
   const isSaved = isItemSaved(product.id);
 
   // Primary viewer image (for lightbox)
-  const primaryMediaItem = (product.mediaItems ?? [])[selectedImageIndex];
+  const mediaList = product.mediaItems && product.mediaItems.length > 0
+    ? product.mediaItems
+    : (product.images || []).map((url, i) => ({ url, type: 'image' as const, displayOrder: i }));
+
+  const safeImgIndex = Math.max(0, Math.min(selectedImageIndex || 0, Math.max(0, mediaList.length - 1)));
+  const primaryMediaItem = mediaList[safeImgIndex] || mediaList[0];
   const primaryIsImage = !primaryMediaItem || primaryMediaItem.type === 'image' || primaryMediaItem.type === 'gif';
   const lightboxTriggerSrc = primaryMediaItem?.type === 'video'
     ? (primaryMediaItem.posterUrl ?? primaryMediaItem.url)
-    : primaryMediaItem?.url ?? product.images[0];
+    : primaryMediaItem?.url ?? product.images?.[0] ?? '';
 
   return (
     <div className="pt-24 sm:pt-32 min-h-screen bg-white">

@@ -299,16 +299,16 @@ export const AdminProductsPage: React.FC = () => {
             onClick={() => exportProductsToExcel(filteredProducts)}
             className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2.5 text-xs font-bold rounded-lg border border-slate-200 transition-all shadow-2xs cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-amber-500" />
+            <Download className="w-3.5 h-3.5 text-zinc-600" />
             <span>تصدير الكتالوج (Excel)</span>
           </button>
 
           <button
             type="button"
             onClick={handleCreateNew}
-            className="flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800 px-4 py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm cursor-pointer"
+            className="flex items-center gap-2 bg-zinc-950 text-white hover:bg-zinc-800 px-4 py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm cursor-pointer"
           >
-            <Plus className="w-4 h-4 text-amber-400" />
+            <Plus className="w-4 h-4 text-white" />
             <span>إضافة قطعة ملابس جديدة</span>
           </button>
         </div>
@@ -319,7 +319,7 @@ export const AdminProductsPage: React.FC = () => {
         {[
           { label: 'إجمالي منتجات البراند', count: stats.total, color: 'text-slate-900', bg: 'bg-white' },
           { label: 'معروض للبيع بالمتجر لايف', count: stats.active, color: 'text-emerald-700', bg: 'bg-emerald-50/60 border-emerald-200' },
-          { label: 'مسودات (غير منشورة بعد)', count: stats.drafts, color: 'text-amber-700', bg: 'bg-amber-50/60 border-amber-200' },
+          { label: 'مسودات (غير منشورة بعد)', count: stats.drafts, color: 'text-zinc-700', bg: 'bg-zinc-100 border-zinc-200' },
           { label: 'منتجات مؤرشفة (مخفية)', count: stats.archived, color: 'text-slate-500', bg: 'bg-slate-100 border-slate-200' }
         ].map((item, idx) => (
           <div key={idx} className={`p-4 rounded-xl border border-slate-200 shadow-2xs ${item.bg}`}>
@@ -342,7 +342,7 @@ export const AdminProductsPage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="ابحث باسم الموديل أو القسم أو المقاس..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition-all"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-zinc-900 focus:bg-white transition-all"
           />
           {searchQuery && (
             <button
@@ -366,7 +366,7 @@ export const AdminProductsPage: React.FC = () => {
               onClick={() => setStatusFilter(tab.id as StatusFilter)}
               className={`px-3.5 py-2 rounded-lg whitespace-nowrap text-xs font-bold transition-all cursor-pointer ${
                 statusFilter === tab.id
-                  ? 'bg-slate-900 text-white shadow-2xs'
+                  ? 'bg-zinc-950 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
@@ -430,13 +430,13 @@ export const AdminProductsPage: React.FC = () => {
 
                       <td className="py-3.5 px-4 text-slate-600">
                         <div className="font-semibold text-slate-800">{prod.category?.name || 'ملابس عامة'}</div>
-                        <span className="text-[10px] bg-slate-100 text-amber-700 border border-slate-200 px-1.5 py-0.5 rounded font-mono inline-block mt-0.5 font-bold">
+                        <span className="text-[10px] bg-slate-100 text-zinc-700 border border-slate-200 px-1.5 py-0.5 rounded font-mono inline-block mt-0.5 font-bold">
                           {prod.collection_tag || 'all'}
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4 font-mono font-extrabold text-slate-900 text-sm">
-                        {prod.price.toLocaleString()} <span className="text-[10px] font-sans text-amber-600 font-bold">ج.م</span>
+                        {prod.price.toLocaleString()} <span className="text-[10px] font-sans text-zinc-500 font-bold">ج.م</span>
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -470,7 +470,7 @@ export const AdminProductsPage: React.FC = () => {
                             معروض بالمتجر لايف
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 rounded-full">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold bg-zinc-100 text-zinc-700 border border-zinc-200 rounded-full">
                             مسودة غير منشورة
                           </span>
                         )}
@@ -592,7 +592,7 @@ export const AdminProductsPage: React.FC = () => {
                       value={formData.name || ''}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="مثال: Heavyweight Boxy Tee - Charcoal"
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-zinc-900 focus:bg-white"
                     />
                   </div>
 
@@ -603,7 +603,7 @@ export const AdminProductsPage: React.FC = () => {
                         type="number"
                         value={formData.price ?? 650}
                         onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white"
+                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs font-mono font-bold focus:outline-none focus:border-zinc-900 focus:bg-white"
                       />
                     </div>
 
@@ -612,7 +612,7 @@ export const AdminProductsPage: React.FC = () => {
                       <select
                         value={formData.category_id || ''}
                         onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
+                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-zinc-900 focus:bg-white font-medium"
                       >
                         {categories.map((c) => (
                           <option key={c.id} value={c.id}>
@@ -629,7 +629,7 @@ export const AdminProductsPage: React.FC = () => {
                       <select
                         value={formData.collection_tag || 'all'}
                         onChange={(e) => setFormData({ ...formData, collection_tag: e.target.value })}
-                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-amber-500 focus:bg-white font-mono font-bold"
+                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-zinc-900 focus:bg-white font-mono font-bold"
                       >
                         <option value="all">جميع الموديلات (All)</option>
                         <option value="new">وصل حديثاً (New Arrivals)</option>
@@ -647,7 +647,7 @@ export const AdminProductsPage: React.FC = () => {
                         value={formData.subtitle || ''}
                         onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
                         placeholder="مثال: قطن مصري 100% ثقيل"
-                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-zinc-900 focus:bg-white"
                       />
                     </div>
                   </div>
@@ -659,7 +659,7 @@ export const AdminProductsPage: React.FC = () => {
                       value={formData.description || ''}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       placeholder="اكتب وصفاً جذاباً يشرح مميزات الخامة والقصة وتنسيق اللبس..."
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-zinc-900 focus:bg-white"
                     />
                   </div>
 
@@ -690,7 +690,7 @@ export const AdminProductsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleAddVariant}
-                      className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md"
+                      className="inline-flex items-center gap-1 text-xs text-zinc-900 hover:text-black font-bold bg-zinc-100 border border-zinc-200 px-2.5 py-1 rounded-md"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>إضافة مقاس جديد</span>
@@ -766,7 +766,7 @@ export const AdminProductsPage: React.FC = () => {
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving}
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-zinc-950 text-white font-bold text-xs rounded-xl hover:bg-zinc-800 transition-all shadow-md disabled:opacity-50 cursor-pointer"
               >
                 {isSaving ? (
                   <>
@@ -775,7 +775,7 @@ export const AdminProductsPage: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4 text-amber-400" />
+                    <Save className="w-4 h-4 text-white" />
                     <span>حفظ ونشر على المتجر لايف</span>
                   </>
                 )}

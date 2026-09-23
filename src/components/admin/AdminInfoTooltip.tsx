@@ -124,7 +124,7 @@ export const AdminInfoTooltip: React.FC<AdminInfoTooltipProps> = ({
           }, 150);
         }}
         aria-label={title}
-        className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 transition-all duration-200 focus:outline-none ${iconClassName}`}
+        className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition-all duration-200 focus:outline-none ${iconClassName}`}
       >
         <Info className="w-3.5 h-3.5" />
       </button>
@@ -147,27 +147,27 @@ export const AdminInfoTooltip: React.FC<AdminInfoTooltipProps> = ({
               zIndex: 99999,
               width: 'min(320px, calc(100vw - 32px))'
             }}
-            className="p-4 bg-slate-900 text-slate-100 border border-slate-700/80 rounded-xl shadow-2xl backdrop-blur-xl transition-all duration-200 animate-fade-in text-right ring-1 ring-black/40 pointer-events-auto"
+            className="p-4 bg-[#18181B] text-zinc-100 border border-zinc-700/80 rounded-xl shadow-2xl backdrop-blur-xl transition-all duration-200 animate-fade-in text-right ring-1 ring-black/40 pointer-events-auto"
           >
             {/* Header */}
-            <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-800">
-              <div className="w-6 h-6 rounded-md bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0">
-                <Sparkles className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-zinc-800">
+              <div className="w-6 h-6 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 flex-shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
               </div>
               <h4 className="text-xs font-bold text-white tracking-wide">{title}</h4>
             </div>
 
             {/* Description in Egyptian Arabic */}
-            <p className="text-xs text-slate-300 leading-relaxed font-normal mb-3">
+            <p className="text-xs text-zinc-300 leading-relaxed font-normal mb-3">
               {description}
             </p>
 
             {/* Impact on Live Storefront */}
             {impact && (
-              <div className="mb-2 p-2.5 bg-slate-800/80 border border-slate-700/60 rounded-lg flex items-start gap-2 text-[11px] text-slate-300">
+              <div className="mb-2 p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg flex items-start gap-2 text-[11px] text-zinc-300">
                 <Zap className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold text-emerald-400 ml-1">تأثيره على الموقع:</span>
+                  <span className="font-bold text-emerald-400 ml-1">تأثيره على المتجر:</span>
                   <span>{impact}</span>
                 </div>
               </div>
@@ -175,10 +175,10 @@ export const AdminInfoTooltip: React.FC<AdminInfoTooltipProps> = ({
 
             {/* Brand Pro-Tip */}
             {tip && (
-              <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2 text-[11px] text-amber-200/90">
-                <Lightbulb className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="p-2.5 bg-zinc-900/90 border border-zinc-800 rounded-lg flex items-start gap-2 text-[11px] text-zinc-300">
+                <Lightbulb className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold text-amber-400 ml-1">نصيحة للبراند:</span>
+                  <span className="font-bold text-zinc-200 ml-1">نصيحة عملية:</span>
                   <span>{tip}</span>
                 </div>
               </div>

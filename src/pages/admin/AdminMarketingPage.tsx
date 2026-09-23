@@ -231,9 +231,9 @@ export const AdminMarketingPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800 px-4 py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm self-start sm:self-auto cursor-pointer"
+            className="flex items-center gap-2 bg-zinc-950 text-white hover:bg-zinc-800 px-4 py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm self-start sm:self-auto cursor-pointer"
           >
-            <Plus className="w-4 h-4 text-amber-400" />
+            <Plus className="w-4 h-4 text-white" />
             <span>إنشاء كود خصم جديد</span>
           </button>
         )}
@@ -248,11 +248,11 @@ export const AdminMarketingPage: React.FC = () => {
           onClick={() => setActiveTab('discounts')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all cursor-pointer ${
             activeTab === 'discounts'
-              ? 'bg-slate-900 text-white shadow-2xs'
+              ? 'bg-zinc-950 text-white shadow-2xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <Tag className="w-3.5 h-3.5 text-amber-400" />
+          <Tag className="w-3.5 h-3.5 text-zinc-300" />
           <span>أكواد الخصم والبروموكود ({codes.length})</span>
         </button>
 
@@ -296,7 +296,7 @@ export const AdminMarketingPage: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ابحث باسم كود الخصم (مثال: VB10)..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-zinc-900 focus:bg-white"
               />
             </div>
             <span className="text-xs text-slate-500 hidden sm:inline font-medium">
@@ -329,7 +329,7 @@ export const AdminMarketingPage: React.FC = () => {
                       <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-extrabold text-slate-900 text-sm tracking-wider bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                            <span className="font-mono font-extrabold text-slate-900 text-sm tracking-wider bg-zinc-100 px-2.5 py-1 rounded-md border border-zinc-200">
                               {c.code}
                             </span>
                             <button
@@ -426,8 +426,8 @@ export const AdminMarketingPage: React.FC = () => {
           {/* المعاينة الحية */}
           <div>
             <span className="text-[11px] font-mono text-slate-500 block mb-1.5 font-bold">معاينة مباشرة كيف سيظهر للزبون:</span>
-            <div className="bg-slate-900 border border-slate-800 p-3 text-center text-xs font-mono text-amber-400 font-bold tracking-wider rounded-xl shadow-xs">
-              {banner.enabled ? banner.text : <span className="text-slate-400">الشريط الإعلاني مغلق حالياً ولا يظهر للزبائن</span>}
+            <div className="bg-zinc-950 border border-zinc-800 p-3 text-center text-xs font-mono text-white font-bold tracking-wider rounded-xl shadow-xs">
+              {banner.enabled ? banner.text : <span className="text-zinc-500">الشريط الإعلاني مغلق حالياً ولا يظهر للزبائن</span>}
             </div>
           </div>
 
@@ -444,7 +444,7 @@ export const AdminMarketingPage: React.FC = () => {
                   onChange={(e) => setBanner({ ...banner, enabled: e.target.checked })}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
               </label>
             </div>
 
@@ -455,7 +455,7 @@ export const AdminMarketingPage: React.FC = () => {
                 value={banner.text}
                 onChange={(e) => setBanner({ ...banner, text: e.target.value })}
                 placeholder="مثال: شحن مجاني لجميع المحافظات بمناسبة الصيف"
-                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-zinc-900 focus:bg-white"
               />
             </div>
 
@@ -466,16 +466,16 @@ export const AdminMarketingPage: React.FC = () => {
                 value={banner.link || '/shop'}
                 onChange={(e) => setBanner({ ...banner, link: e.target.value })}
                 placeholder="/shop"
-                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs font-mono focus:outline-none focus:border-amber-500 focus:bg-white"
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 text-xs font-mono focus:outline-none focus:border-zinc-900 focus:bg-white"
               />
             </div>
 
             <div className="pt-2 flex items-center gap-3">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-5 py-3 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-all shadow-md cursor-pointer"
+                className="flex items-center gap-2 px-5 py-3 bg-zinc-950 text-white font-bold text-xs rounded-xl hover:bg-zinc-800 transition-all shadow-md cursor-pointer"
               >
-                <Save className="w-4 h-4 text-amber-400" />
+                <Save className="w-4 h-4 text-white" />
                 <span>حفظ ونشر الإعلان لايف على المتجر</span>
               </button>
 
@@ -626,7 +626,7 @@ export const AdminMarketingPage: React.FC = () => {
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
+                <Sparkles className="w-4 h-4 text-zinc-900" />
                 <h3 className="text-sm font-extrabold text-slate-900">إنشاء كود خصم جديد للبراند</h3>
               </div>
               <button
@@ -652,7 +652,7 @@ export const AdminMarketingPage: React.FC = () => {
                   value={newCodeName}
                   onChange={(e) => setNewCodeName(e.target.value.toUpperCase())}
                   placeholder="مثال: VB15 أو VIP2026 أو SUMMER10"
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-mono font-bold tracking-wider focus:outline-none focus:border-amber-500 focus:bg-white uppercase"
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-mono font-bold tracking-wider focus:outline-none focus:border-zinc-900 focus:bg-white uppercase"
                 />
               </div>
 
@@ -662,7 +662,7 @@ export const AdminMarketingPage: React.FC = () => {
                   <select
                     value={newCodeType}
                     onChange={(e) => setNewCodeType(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-zinc-900 focus:bg-white"
                   >
                     <option value="percentage">نسبة مئوية (%)</option>
                     <option value="fixed">مبلغ ثابت (ج.م)</option>
@@ -678,7 +678,7 @@ export const AdminMarketingPage: React.FC = () => {
                     min="1"
                     value={newCodeValue}
                     onChange={(e) => setNewCodeValue(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-mono font-bold focus:outline-none focus:border-zinc-900 focus:bg-white"
                   />
                 </div>
               </div>
@@ -691,7 +691,7 @@ export const AdminMarketingPage: React.FC = () => {
                   value={newCodeMinSpend}
                   onChange={(e) => setNewCodeMinSpend(Number(e.target.value))}
                   placeholder="0 (بدون حد أدنى)"
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-mono focus:outline-none focus:border-amber-500 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-mono focus:outline-none focus:border-zinc-900 focus:bg-white"
                 />
                 <span className="text-[10px] text-slate-400 block mt-0.5 font-medium">
                   مثال: اتركه 0 إذا كان الخصم يعمل على أي طلب مهما كانت قيمته.
@@ -701,7 +701,7 @@ export const AdminMarketingPage: React.FC = () => {
               <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold rounded-xl transition-colors shadow-md text-xs cursor-pointer"
+                  className="flex-1 py-3 bg-zinc-950 hover:bg-zinc-800 text-white font-bold rounded-xl transition-colors shadow-md text-xs cursor-pointer"
                 >
                   تفعيل وحفظ الكود
                 </button>

@@ -606,8 +606,36 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, se
 TRUNCATE TABLE public.order_items, public.orders CASCADE;
 TRUNCATE TABLE public.return_requests CASCADE;
 
--- Ensure all customer accounts (like sowar) default to customer role and are not elevated
-UPDATE public.customers SET role = 'customer' WHERE email != 'admin@vbfitsstudios.com';
+-- Ensure regular accounts (like sowar) are strictly 'customer'
+UPDATE public.customers
+SET role = 'customer'
+WHERE email ILIKE '%sowar%' 
+   OR full_name ILIKE '%sowar%'
+   OR (
+     email NOT ILIKE '%pvfits%' 
+     AND email NOT ILIKE '%vbfits%' 
+     AND email != 'admin@vbfitsstudios.com'
+     AND full_name NOT ILIKE '%pvfits%'
+     AND full_name NOT ILIKE '%vbfits%'
+   );
+
+-- Permanently lock and ensure admin privileges for pvfits studios and brand admins
+UPDATE public.customers
+SET role = 'admin'
+WHERE email ILIKE '%pvfits%'
+   OR email ILIKE '%vbfits%'
+   OR full_name ILIKE '%pvfits%'
+   OR full_name ILIKE '%vbfits%'
+   OR email = 'admin@vbfitsstudios.com';
+
+UPDATE auth.users
+SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || '{"role": "admin"}'::jsonb
+WHERE email ILIKE '%pvfits%'
+   OR email ILIKE '%vbfits%'
+   OR email = 'admin@vbfitsstudios.com'
+   OR raw_user_meta_data->>'full_name' ILIKE '%pvfits%'
+   OR raw_user_meta_data->>'name' ILIKE '%pvfits%';
+
 ALTER TABLE public.customers ALTER COLUMN role SET DEFAULT 'customer';
 
 -- Re-reads schema immediately, eliminating any schema cache errors:

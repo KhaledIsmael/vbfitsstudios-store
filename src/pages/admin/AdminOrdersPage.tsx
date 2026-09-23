@@ -230,8 +230,8 @@ export const AdminOrdersPage: React.FC = () => {
     }
     if (s === 'placed' || s === 'pending') {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-          <Clock className="w-3 h-3 text-amber-600" />
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full bg-zinc-100 text-zinc-800 border border-zinc-200">
+          <Clock className="w-3 h-3 text-zinc-600" />
           طلب جديد (قيد المراجعة)
         </span>
       );
@@ -279,7 +279,7 @@ export const AdminOrdersPage: React.FC = () => {
             disabled={loading}
             className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 text-xs font-bold border border-slate-200 transition-colors rounded-lg shadow-2xs cursor-pointer"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-500' : 'text-slate-400'}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-zinc-900' : 'text-slate-400'}`} />
             <span>تحديث الطلبات</span>
           </button>
 
@@ -288,7 +288,7 @@ export const AdminOrdersPage: React.FC = () => {
             onClick={() => exportOrdersToExcel(filteredOrders)}
             className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 text-xs font-bold transition-all rounded-lg shadow-sm cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-amber-400" />
+            <Download className="w-3.5 h-3.5 text-zinc-300" />
             <span>تصدير Excel</span>
           </button>
 
@@ -311,18 +311,18 @@ export const AdminOrdersPage: React.FC = () => {
           onClick={() => setStatusFilter('all')}
           className={`p-4 rounded-xl border cursor-pointer transition-all ${
             statusFilter === 'all'
-              ? 'bg-slate-900 text-white border-slate-900 shadow-md'
+              ? 'bg-zinc-950 text-white border-zinc-950 shadow-md'
               : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-xs font-bold ${statusFilter === 'all' ? 'text-slate-300' : 'text-slate-500'}`}>
+            <span className={`text-xs font-bold ${statusFilter === 'all' ? 'text-zinc-300' : 'text-slate-500'}`}>
               إجمالي الطلبات
             </span>
-            <ShoppingBag className={`w-4 h-4 ${statusFilter === 'all' ? 'text-amber-400' : 'text-slate-400'}`} />
+            <ShoppingBag className={`w-4 h-4 ${statusFilter === 'all' ? 'text-zinc-300' : 'text-slate-400'}`} />
           </div>
           <span className="text-2xl font-extrabold font-mono mt-1 block">{stats.totalCount}</span>
-          <span className={`text-[11px] font-mono mt-1 block font-bold ${statusFilter === 'all' ? 'text-amber-400' : 'text-slate-500'}`}>
+          <span className={`text-[11px] font-mono mt-1 block font-bold ${statusFilter === 'all' ? 'text-zinc-300' : 'text-slate-500'}`}>
             {stats.grossVolume.toLocaleString()} ج.م مبيعات
           </span>
         </div>
@@ -331,20 +331,20 @@ export const AdminOrdersPage: React.FC = () => {
           onClick={() => setStatusFilter(statusFilter === 'unfulfilled' ? 'all' : 'unfulfilled')}
           className={`p-4 rounded-xl border cursor-pointer transition-all ${
             statusFilter === 'unfulfilled'
-              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-md'
-              : 'bg-amber-50/70 border-amber-200 hover:border-amber-300 shadow-2xs'
+              ? 'bg-zinc-950 text-white border-zinc-950 shadow-md'
+              : 'bg-zinc-100/80 border-zinc-200 hover:border-zinc-300 shadow-2xs'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-xs font-bold ${statusFilter === 'unfulfilled' ? 'text-slate-950' : 'text-amber-800'}`}>
+            <span className={`text-xs font-bold ${statusFilter === 'unfulfilled' ? 'text-white' : 'text-zinc-800'}`}>
               تحتاج تجهيز وتغليف
             </span>
-            <Clock className={`w-4 h-4 ${statusFilter === 'unfulfilled' ? 'text-slate-950' : 'text-amber-600'}`} />
+            <Clock className={`w-4 h-4 ${statusFilter === 'unfulfilled' ? 'text-white' : 'text-zinc-600'}`} />
           </div>
-          <span className={`text-2xl font-extrabold font-mono mt-1 block ${statusFilter === 'unfulfilled' ? 'text-slate-950' : 'text-amber-900'}`}>
+          <span className={`text-2xl font-extrabold font-mono mt-1 block ${statusFilter === 'unfulfilled' ? 'text-white' : 'text-zinc-900'}`}>
             {stats.unfulfilledCount}
           </span>
-          <span className={`text-[11px] mt-1 block font-medium ${statusFilter === 'unfulfilled' ? 'text-slate-900' : 'text-amber-700'}`}>
+          <span className={`text-[11px] mt-1 block font-medium ${statusFilter === 'unfulfilled' ? 'text-zinc-300' : 'text-zinc-600'}`}>
             جاهزة للتجهيز والشحن
           </span>
         </div>
@@ -406,7 +406,7 @@ export const AdminOrdersPage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="ابحث برقم الأوردر، اسم العميل، رقم الهاتف، أو المحافظة..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition-all"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-zinc-900 focus:bg-white transition-all"
           />
           {searchQuery && (
             <button
@@ -479,7 +479,7 @@ export const AdminOrdersPage: React.FC = () => {
                       }}
                       className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                     >
-                      <td className="py-3.5 px-4 font-mono font-extrabold text-slate-900 group-hover:text-amber-600 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-extrabold text-slate-900 group-hover:text-zinc-950 transition-colors">
                         #{order.order_number || order.id.slice(0, 8)}
                       </td>
 
@@ -520,7 +520,7 @@ export const AdminOrdersPage: React.FC = () => {
 
                       <td className="py-3.5 px-4">
                         {order.payment_method === 'COD' ? (
-                          <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-800 border border-amber-200">
+                          <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-zinc-100 text-zinc-800 border border-zinc-200">
                             كاش عند الاستلام
                           </span>
                         ) : (
@@ -531,7 +531,7 @@ export const AdminOrdersPage: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4 font-mono font-extrabold text-slate-900">
-                        {order.total.toLocaleString()} <span className="text-[10px] font-sans text-amber-600 font-bold">ج.م</span>
+                        {order.total.toLocaleString()} <span className="text-[10px] font-sans text-zinc-500 font-bold">ج.م</span>
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -635,7 +635,7 @@ export const AdminOrdersPage: React.FC = () => {
                       onClick={() => handleStatusChange(selectedOrder.id, st.id)}
                       className={`p-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
                         selectedOrder.status === st.id
-                          ? 'bg-amber-400 text-slate-950 font-extrabold border-amber-400 shadow-sm'
+                          ? 'bg-zinc-950 text-white font-extrabold border-zinc-950 shadow-sm'
                           : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                       }`}
                     >
@@ -691,7 +691,7 @@ export const AdminOrdersPage: React.FC = () => {
                         {(selectedOrder.shipping_address as any)?.apartment ? ` - شقة: ${(selectedOrder.shipping_address as any).apartment}` : ''}
                       </p>
                       {(selectedOrder.shipping_address as any)?.notes && (
-                        <p className="text-[11px] text-amber-700 bg-amber-50 p-2 border border-amber-200 rounded mt-1.5 font-medium">
+                        <p className="text-[11px] text-zinc-700 bg-zinc-100 p-2 border border-zinc-200 rounded mt-1.5 font-medium">
                           علامة مميزة / ملاحظة العميل: {(selectedOrder.shipping_address as any).notes}
                         </p>
                       )}
@@ -735,7 +735,7 @@ export const AdminOrdersPage: React.FC = () => {
 
                           <div className="text-left font-mono font-bold text-slate-900">
                             {(itemPrice * item.quantity).toLocaleString()}{' '}
-                            <span className="text-[10px] font-sans text-amber-600 font-bold">ج.م</span>
+                            <span className="text-[10px] font-sans text-zinc-500 font-bold">ج.م</span>
                           </div>
                         </div>
                       );
@@ -764,7 +764,7 @@ export const AdminOrdersPage: React.FC = () => {
                     value={internalNotesInput}
                     onChange={(e) => setInternalNotesInput(e.target.value)}
                     placeholder="مثال: تم التأكيد تليفونياً، ميعاد التسليم غداً من 2 لـ 6 مساءً..."
-                    className="w-full bg-white border border-slate-200 p-2.5 text-xs text-slate-900 placeholder-slate-400 rounded-lg focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-200 p-2.5 text-xs text-slate-900 placeholder-slate-400 rounded-lg focus:outline-none focus:border-zinc-900"
                   />
                   <div className="mt-2 flex justify-end">
                     <button
@@ -785,9 +785,9 @@ export const AdminOrdersPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => printOrderInvoice(selectedOrder)}
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all shadow-sm cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-zinc-950 hover:bg-zinc-800 text-white font-bold text-xs rounded-xl transition-all shadow-sm cursor-pointer"
               >
-                <Printer className="w-4 h-4 text-amber-400" />
+                <Printer className="w-4 h-4 text-zinc-300" />
                 <span>طباعة الفاتورة كـ PDF</span>
               </button>
 

@@ -93,6 +93,18 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (customerRecord.full_name) name = customerRecord.full_name;
       }
 
+      // Auto-recognize pvfits / vbfits brand admin accounts even if customers table was truncated
+      const isKnownAdmin =
+        cleanEmail.includes('pvfits') ||
+        cleanEmail.includes('vbfits') ||
+        cleanEmail.startsWith('admin@') ||
+        name.toLowerCase().includes('pvfits') ||
+        name.toLowerCase().includes('vbfits');
+
+      if (isKnownAdmin && (!role || role === 'customer')) {
+        role = 'admin';
+      }
+
       // STRICT ISOLATION: Normal customer accounts (like sowar) cannot log into the Admin Dashboard!
       if (role !== 'admin' && role !== 'support') {
         await adminSupabase.auth.signOut();

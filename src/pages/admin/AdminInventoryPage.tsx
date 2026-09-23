@@ -207,20 +207,20 @@ export const AdminInventoryPage: React.FC = () => {
           onClick={() => setStockFilter(stockFilter === 'low' ? 'all' : 'low')}
           className={`p-4 border transition-all cursor-pointer ${
             stats.lowCount > 0
-              ? 'bg-amber-950/30 border-amber-500/40 hover:border-amber-400'
+              ? 'bg-zinc-900 border-zinc-700 hover:border-zinc-500'
               : 'bg-[#121215] border-white/10'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-mono uppercase tracking-widest text-amber-400 block">
+            <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-300 block">
               Low Stock (≤ Threshold)
             </span>
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+            <AlertTriangle className="w-3.5 h-3.5 text-zinc-300" />
           </div>
-          <span className="text-2xl font-light font-mono text-amber-300 mt-1 block">
+          <span className="text-2xl font-light font-mono text-white mt-1 block">
             {stats.lowCount}
           </span>
-          <span className="text-[10px] font-mono text-amber-300/70 mt-1 block">
+          <span className="text-[10px] font-mono text-zinc-400 mt-1 block">
             Under minimum buffer
           </span>
         </div>
@@ -505,8 +505,8 @@ export const AdminInventoryPage: React.FC = () => {
                           Out of Stock
                         </span>
                       ) : isLow ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] uppercase font-bold bg-amber-950/50 text-amber-300 border border-amber-500/40">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] uppercase font-bold bg-zinc-800 text-zinc-200 border border-zinc-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
                           Low Stock ({v.stock})
                         </span>
                       ) : (

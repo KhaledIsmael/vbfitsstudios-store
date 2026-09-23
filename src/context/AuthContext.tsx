@@ -107,19 +107,32 @@ async function fetchCustomerProfile(userIdOrUser: string | SupabaseUser): Promis
       return { role: assignedRole, phone: data.phone || undefined };
     }
 
-    // Auto-create customers record if missing (e.g. GitHub OAuth or new email signup)
+    // Auto-create customers record if missing (e.g. OAuth or new email signup)
     if (sbUser) {
       const metadata = sbUser.user_metadata || {};
       const rawName = metadata.full_name || metadata.name || (sbUser.email ? sbUser.email.split('@')[0] : 'Client');
+      
+      // Check if user already has an admin/staff role in metadata or email
+      const isAdminIdent = 
+        metadata.role === 'admin' ||
+        metadata.role === 'support' ||
+        (sbUser.email && (sbUser.email.toLowerCase().includes('pvfits') || sbUser.email.toLowerCase().includes('vbfits') || sbUser.email.toLowerCase().startsWith('admin@'))) ||
+        (typeof rawName === 'string' && (rawName.toLowerCase().includes('pvfits') || rawName.toLowerCase().includes('vbfits')));
+
+      const initialRole: CustomerRole = isAdminIdent ? 'admin' : ((metadata.role as CustomerRole) || 'customer');
+
       const { data: created } = await supabase
         .from('customers')
-        .upsert({
-          id: sbUser.id,
-          email: sbUser.email || '',
-          full_name: rawName,
-          phone: metadata.phone || sbUser.phone || null,
-          role: 'customer'
-        })
+        .upsert(
+          {
+            id: sbUser.id,
+            email: sbUser.email || '',
+            full_name: rawName,
+            phone: metadata.phone || sbUser.phone || null,
+            role: initialRole
+          },
+          { onConflict: 'id' }
+        )
         .select('role, phone')
         .maybeSingle();
 
@@ -127,7 +140,7 @@ async function fetchCustomerProfile(userIdOrUser: string | SupabaseUser): Promis
         return {
           role: (created.role && ['customer', 'support', 'admin'].includes(created.role))
             ? (created.role as CustomerRole)
-            : 'customer',
+            : initialRole,
           phone: created.phone || undefined
         };
       }

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Product } from '../../config/assets';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -177,16 +177,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     const secondaryImg = product.images.slice(1).find((img) => !isModelPhoto(img));
 
     return (
-      <div
-        ref={cardRef}
-        role="link"
-        tabIndex={0}
+      <Link
+        to={`/product/${product.id}`}
+        ref={cardRef as any}
         aria-label={`${product.name}, ${product.currency}${product.price.toFixed(2)}`}
-        onClick={handleCardClick}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
+        onClick={(e) => {
+          if (isLongPressRef.current) {
             e.preventDefault();
-            handleCardClick(e as any);
+            e.stopPropagation();
+            isLongPressRef.current = false;
           }
         }}
         onTouchStart={handleTouchStart}
@@ -353,6 +352,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {product.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
         </p>
       </div>
-    </div>
+    </Link>
   );
 };

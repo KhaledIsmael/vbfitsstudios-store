@@ -138,7 +138,7 @@ export const AdminShippingPage: React.FC = () => {
           disabled={loading}
           className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 text-xs font-bold border border-slate-200 transition-colors rounded-lg shadow-2xs self-start sm:self-auto cursor-pointer"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-500' : 'text-slate-400'}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-zinc-900' : 'text-slate-400'}`} />
           <span>تحديث الأسعار لايف</span>
         </button>
       </div>
@@ -167,11 +167,11 @@ export const AdminShippingPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl shadow-2xs">
-          <span className="text-xs font-bold text-amber-800 block">متوسط سعر الشحن</span>
-          <span className="text-2xl font-extrabold font-mono text-amber-900 mt-1 block">
+        <div className="p-4 bg-zinc-100/80 border border-zinc-200 rounded-xl shadow-2xs">
+          <span className="text-xs font-bold text-zinc-700 block">متوسط سعر الشحن</span>
+          <span className="text-2xl font-extrabold font-mono text-zinc-900 mt-1 block">
             {Math.round(zones.reduce((acc, z) => acc + (z.shipping_rate || 65), 0) / (zones.length || 1))}{' '}
-            <span className="text-xs font-sans font-bold text-amber-700">ج.م للطلب</span>
+            <span className="text-xs font-sans font-bold text-zinc-500">ج.م للطلب</span>
           </span>
         </div>
       </div>
@@ -187,7 +187,7 @@ export const AdminShippingPage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="ابحث باسم المحافظة (مثال: القاهرة، الإسكندرية، أسيوط)..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition-all"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-zinc-900 focus:bg-white transition-all"
           />
           {searchQuery && (
             <button
@@ -247,7 +247,7 @@ export const AdminShippingPage: React.FC = () => {
                   <tr key={z.governorate} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-2">
-                        <MapPin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                        <MapPin className="w-3.5 h-3.5 text-zinc-600 flex-shrink-0" />
                         <span className="font-bold text-slate-900 text-sm">{z.governorate_ar || z.governorate}</span>
                       </div>
                     </td>
@@ -259,7 +259,7 @@ export const AdminShippingPage: React.FC = () => {
                     <td className="py-3.5 px-4">
                       <span className="font-mono font-extrabold text-slate-900 text-sm">
                         {z.shipping_rate}{' '}
-                        <span className="text-[10px] font-sans text-amber-600 font-bold">ج.م</span>
+                        <span className="text-[10px] font-sans text-zinc-500 font-bold">ج.م</span>
                       </span>
                     </td>
 
@@ -319,7 +319,7 @@ export const AdminShippingPage: React.FC = () => {
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4 text-amber-500" />
+                <Truck className="w-4 h-4 text-zinc-900" />
                 <h3 className="text-sm font-extrabold text-slate-900">
                   تعديل شحن محافظة: {editingZone.governorate_ar || editingZone.governorate}
                 </h3>
@@ -343,7 +343,7 @@ export const AdminShippingPage: React.FC = () => {
                   min="0"
                   value={editRate}
                   onChange={(e) => setEditRate(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-mono font-bold text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-900 font-mono font-bold text-sm focus:outline-none focus:border-zinc-900 focus:bg-white"
                 />
               </div>
 
@@ -355,7 +355,7 @@ export const AdminShippingPage: React.FC = () => {
                     min="1"
                     value={editMinDays}
                     onChange={(e) => setEditMinDays(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-slate-900 font-mono font-bold focus:outline-none focus:border-zinc-900 focus:bg-white"
                   />
                 </div>
 
@@ -366,7 +366,7 @@ export const AdminShippingPage: React.FC = () => {
                     min="1"
                     value={editMaxDays}
                     onChange={(e) => setEditMaxDays(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-slate-900 font-mono font-bold focus:outline-none focus:border-zinc-900 focus:bg-white"
                   />
                 </div>
               </div>
@@ -391,9 +391,9 @@ export const AdminShippingPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-md text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="flex-1 py-3 bg-zinc-950 hover:bg-zinc-800 text-white font-bold rounded-xl transition-all shadow-md text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Save className="w-3.5 h-3.5 text-amber-400" />
+                  <Save className="w-3.5 h-3.5 text-white" />
                   <span>{saving ? 'جاري الحفظ...' : 'حفظ التعديلات لايف'}</span>
                 </button>
                 <button

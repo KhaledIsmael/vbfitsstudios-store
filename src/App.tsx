@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Outlet } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { AdminAuthProvider } from './context/AdminAuthContext';
@@ -114,30 +114,7 @@ const StorefrontLayout: React.FC = () => {
       {/* Storefront Page Views with Suspense */}
       <main id="main-content" className="flex-1">
         <Suspense fallback={<RouteLoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/shop" element={<ShopPage />} />
-            <Route path="/product/:id" element={<ProductDetailPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/auth/callback" element={<AuthCallbackPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
-            <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
-            <Route path="/orders/:orderId/track" element={<OrderTrackPage />} />
-            <Route path="/track-order" element={<TrackOrderPage />} />
-            <Route path="/payment-callback" element={<PaymentCallbackPage />} />
-            <Route path="/collections" element={<CollectionsPage />} />
-            <Route path="/lookbook" element={<CollectionsPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/policies/:type" element={<PoliciesPage />} />
-            <Route path="/verify" element={<VerifyPage />} />
-            <Route path="/authenticate" element={<VerifyPage />} />
-            <Route path="*" element={<ShopPage />} />
-          </Routes>
+          <Outlet />
         </Suspense>
       </main>
 
@@ -177,8 +154,31 @@ export const App: React.FC = () => {
                   </Route>
                 </Route>
 
-                {/* 3. Customer Storefront (All other routes) */}
-                <Route path="/*" element={<StorefrontLayout />} />
+                {/* 3. Customer Storefront Layout (Unified Route Tree) */}
+                <Route element={<StorefrontLayout />}>
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/shop" element={<ShopPage />} />
+                  <Route path="/product/:id" element={<ProductDetailPage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/checkout" element={<CheckoutPage />} />
+                  <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
+                  <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
+                  <Route path="/orders/:orderId/track" element={<OrderTrackPage />} />
+                  <Route path="/track-order" element={<TrackOrderPage />} />
+                  <Route path="/payment-callback" element={<PaymentCallbackPage />} />
+                  <Route path="/collections" element={<CollectionsPage />} />
+                  <Route path="/lookbook" element={<CollectionsPage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/policies/:type" element={<PoliciesPage />} />
+                  <Route path="/verify" element={<VerifyPage />} />
+                  <Route path="/authenticate" element={<VerifyPage />} />
+                  <Route path="*" element={<ShopPage />} />
+                </Route>
               </Routes>
             </Suspense>
 

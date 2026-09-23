@@ -128,7 +128,7 @@ export const AdminReturnsPage: React.FC = () => {
     switch (status) {
       case 'pending':
         return (
-          <span className="px-2.5 py-0.5 text-[9px] font-mono uppercase bg-amber-950/40 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
+          <span className="px-2.5 py-0.5 text-[9px] font-mono uppercase bg-zinc-800 text-zinc-200 border border-zinc-700 inline-flex items-center gap-1">
             <Clock className="w-2.5 h-2.5" />
             Pending Review
           </span>
@@ -190,11 +190,11 @@ export const AdminReturnsPage: React.FC = () => {
 
       {/* ── KPI METRICS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 bg-[#121215] border border-amber-500/20">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400 block">
+        <div className="p-4 bg-[#121215] border border-zinc-700">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-300 block">
             Awaiting Review
           </span>
-          <p className="text-2xl font-light font-mono text-amber-300 mt-1">{pendingCount}</p>
+          <p className="text-2xl font-light font-mono text-white mt-1">{pendingCount}</p>
           <span className="text-[10px] font-mono text-white/40 mt-1 block">Requires staff action</span>
         </div>
 
