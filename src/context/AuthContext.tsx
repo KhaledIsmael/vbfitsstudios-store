@@ -32,6 +32,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone: string;
   avatar: string;
   memberSince: string;
   orders: Order[];
@@ -60,8 +61,10 @@ interface AuthContextType {
   register: (
     name: string,
     email: string,
-    pass: string
+    pass: string,
+    phone?: string
   ) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>;
+  updatePhone: (phone: string) => Promise<{ error: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
   toggleSaveItem: (productId: string) => void;
@@ -86,27 +89,31 @@ function formatMemberSince(createdAt?: string): string {
   }
 }
 
-async function fetchCustomerRole(userId: string): Promise<CustomerRole> {
+async function fetchCustomerProfile(userId: string): Promise<{ role: CustomerRole; phone?: string }> {
   try {
     const { data, error } = await supabase
       .from('customers')
-      .select('role')
+      .select('role, phone')
       .eq('id', userId)
       .maybeSingle();
 
-    if (!error && data?.role && ['customer', 'support', 'admin'].includes(data.role)) {
-      return data.role as CustomerRole;
+    if (!error && data) {
+      const assignedRole = (data.role && ['customer', 'support', 'admin'].includes(data.role))
+        ? (data.role as CustomerRole)
+        : 'customer';
+      return { role: assignedRole, phone: data.phone || undefined };
     }
   } catch (err) {
-    console.warn('Could not fetch customer role:', err);
+    console.warn('Could not fetch customer profile:', err);
   }
-  return 'customer';
+  return { role: 'customer' };
 }
 
 function mapSupabaseUserToAppUser(
   sbUser: SupabaseUser,
   savedIds: string[] = [],
-  role?: CustomerRole
+  role?: CustomerRole,
+  livePhone?: string
 ): User {
   const metadata = sbUser.user_metadata || {};
   const rawName =
@@ -114,10 +121,13 @@ function mapSupabaseUserToAppUser(
     metadata.name ||
     (sbUser.email ? sbUser.email.split('@')[0].replace(/[._]/g, ' ') : 'Private Client');
 
+  const resolvedPhone = livePhone || metadata.phone || sbUser.phone || '';
+
   return {
     id: sbUser.id,
     name: typeof rawName === 'string' ? rawName.toUpperCase() : String(rawName),
     email: sbUser.email || '',
+    phone: typeof resolvedPhone === 'string' ? resolvedPhone : String(resolvedPhone),
     avatar:
       metadata.avatar_url ||
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
@@ -175,12 +185,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(initialSession);
         setSupabaseUser(initialSession?.user ?? null);
         if (initialSession?.user) {
-          const appUser = mapSupabaseUserToAppUser(initialSession.user);
-          setUser(appUser);
-          // Query live role from customers table
-          const liveRole = await fetchCustomerRole(initialSession.user.id);
+          const profile = await fetchCustomerProfile(initialSession.user.id);
+          const appUser = mapSupabaseUserToAppUser(initialSession.user, [], profile.role, profile.phone);
           if (isMounted) {
-            setUser((prev) => (prev ? { ...prev, role: liveRole } : null));
+            setUser(appUser);
           }
         } else {
           setUser(null);
@@ -200,11 +208,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(currentSession);
       setSupabaseUser(currentSession?.user ?? null);
       if (currentSession?.user) {
-        const appUser = mapSupabaseUserToAppUser(currentSession.user);
-        setUser(appUser);
-        const liveRole = await fetchCustomerRole(currentSession.user.id);
+        const profile = await fetchCustomerProfile(currentSession.user.id);
+        const appUser = mapSupabaseUserToAppUser(currentSession.user, [], profile.role, profile.phone);
         if (isMounted) {
-          setUser((prev) => (prev ? { ...prev, role: liveRole } : null));
+          setUser(appUser);
         }
       } else {
         setUser(null);
@@ -229,9 +236,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let assignedRole: CustomerRole =
       (data.user?.user_metadata?.role as CustomerRole) || 'customer';
     if (data.user?.id) {
-      const dbRole = await fetchCustomerRole(data.user.id);
-      if (dbRole) assignedRole = dbRole;
-      setUser((prev) => (prev ? { ...prev, role: assignedRole } : null));
+      const profile = await fetchCustomerProfile(data.user.id);
+      if (profile.role) assignedRole = profile.role;
+      setUser((prev) => (prev ? { ...prev, role: assignedRole, phone: profile.phone || prev.phone } : null));
     }
     return { error: null, role: assignedRole };
   };
@@ -239,16 +246,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (
     name: string,
     email: string,
-    pass: string
+    pass: string,
+    phone?: string
   ): Promise<{ error: string | null; needsEmailConfirmation?: boolean }> => {
+    const cleanPhone = phone ? phone.trim() : '';
     const { data, error } = await supabase.auth.signUp({
       email,
       password: pass,
-      options: { data: { full_name: name, name } }
+      options: {
+        data: {
+          full_name: name,
+          name,
+          phone: cleanPhone
+        }
+      }
     });
     if (error) return { error: error.message };
     const needsEmailConfirmation = Boolean(data.user && !data.session);
     return { error: null, needsEmailConfirmation };
+  };
+
+  const updatePhone = async (newPhone: string): Promise<{ error: string | null }> => {
+    try {
+      const cleanPhone = newPhone.trim();
+      // 1. Update Supabase Auth user metadata
+      const { error: authError } = await supabase.auth.updateUser({
+        data: { phone: cleanPhone }
+      });
+      if (authError) return { error: authError.message };
+
+      // 2. Also update customers row if exists
+      if (supabaseUser?.id) {
+        await supabase
+          .from('customers')
+          .update({ phone: cleanPhone })
+          .eq('id', supabaseUser.id);
+      }
+
+      // 3. Update local user state immediately
+      setUser((prev) => (prev ? { ...prev, phone: cleanPhone } : null));
+      return { error: null };
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to update phone number' };
+    }
   };
 
   const resetPassword = async (email: string): Promise<{ error: string | null }> => {
@@ -331,6 +371,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         wishlistLoading,
         login,
         register,
+        updatePhone,
         resetPassword,
         logout,
         toggleSaveItem,

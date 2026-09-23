@@ -167,9 +167,9 @@ const StickyATCBar: React.FC<{
     }`}
     aria-hidden={!visible}
   >
-    <div className="max-w-[1720px] mx-auto px-4 sm:px-10 lg:px-16 py-3 flex items-center gap-4">
+    <div className="max-w-[1720px] mx-auto px-4 sm:px-10 lg:px-16 py-3 flex items-center gap-3 sm:gap-4">
       {/* Thumbnail */}
-      <div className="hidden sm:block">
+      <div className="flex-shrink-0">
         <ProductImage
           src={product.images[0]}
           alt={product.name}
@@ -180,14 +180,14 @@ const StickyATCBar: React.FC<{
       {/* Name + size */}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium text-[#111111] truncate">{product.name}</p>
-        <p className="text-[10px] text-[#888888] uppercase tracking-wider">
+        <p className="text-[10px] text-[#888888] uppercase tracking-wider whitespace-nowrap">
           Size: {selectedSize}
           {quantity > 1 ? ` · Qty: ${quantity}` : ''}
         </p>
       </div>
 
       {/* Price */}
-      <span className="text-sm font-medium text-[#111111] flex-shrink-0 hidden sm:block">
+      <span className="text-xs sm:text-sm font-medium text-[#111111] flex-shrink-0 whitespace-nowrap overflow-visible">
         {product.currency}{(product.price * quantity).toFixed(2)}
       </span>
 
@@ -196,7 +196,7 @@ const StickyATCBar: React.FC<{
         type="button"
         onClick={isSoldOut ? onRestockMe : onAddToCart}
         className={[
-          'flex-shrink-0 text-xs uppercase tracking-luxury py-3 px-6 font-medium transition-all flex items-center gap-1.5',
+          'flex-shrink-0 text-xs uppercase tracking-luxury py-3 px-5 sm:px-6 font-medium transition-all flex items-center gap-1.5 whitespace-nowrap',
           isSoldOut
             ? 'bg-[#111111] hover:bg-black text-white'
             : 'bg-[#111111] hover:bg-black text-white',
@@ -416,7 +416,7 @@ export const ProductDetailPage: React.FC = () => {
                 {product.name}
               </h1>
               <div className="pt-1 flex items-baseline gap-3">
-                <span className="text-base font-spec font-normal text-[#2D2D2D] tracking-spec">
+                <span className="text-base font-spec font-normal text-[#2D2D2D] tracking-spec whitespace-nowrap overflow-visible">
                   {product.currency}{product.price.toFixed(2)}
                 </span>
               </div>
@@ -538,7 +538,7 @@ export const ProductDetailPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className="w-full text-xs font-spec font-bold uppercase tracking-spec py-3.5 px-6 transition-all duration-default bg-[#4D4D4D] hover:bg-black text-white rounded-none btn-fill-hover shadow-sm"
+                  className="w-full text-xs font-spec font-bold uppercase tracking-spec py-3.5 px-6 transition-all duration-default bg-[#4D4D4D] hover:bg-black text-white rounded-none btn-fill-hover shadow-sm whitespace-nowrap overflow-visible"
                 >
                   Add to Cart — {product.currency}{(product.price * quantity).toFixed(2)}
                 </button>

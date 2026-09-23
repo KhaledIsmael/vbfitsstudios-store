@@ -95,18 +95,15 @@ export const CheckoutPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<OrderSuccessData | null>(null);
 
-  // Populate user data when logged in
+  // Populate user data dynamically when logged in
   useEffect(() => {
     if (isLoggedIn && user) {
       setContactName(user.name || '');
       setContactEmail(user.email || '');
 
-      // Resolve phone: check user_metadata first, then fall through to saved address
-      const metaPhone =
-        supabaseUser?.user_metadata?.phone ||
-        supabaseUser?.phone ||
-        '';
-      if (metaPhone) setContactPhone(metaPhone);
+      // Resolve phone dynamically for the logged in user
+      const userPhone = user.phone || supabaseUser?.user_metadata?.phone || supabaseUser?.phone || '';
+      setContactPhone(userPhone);
 
       setAddressesLoading(true);
       getUserAddresses(user.id)
@@ -115,15 +112,37 @@ export const CheckoutPage: React.FC = () => {
           const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
           if (defaultAddr) {
             setSelectedAddressId(defaultAddr.id);
-            // Only override phone from address if metadata didn't supply one
-            if (!metaPhone && defaultAddr.phone) setContactPhone(defaultAddr.phone);
+            // Only override phone from address if user didn't have one on account
+            if (!userPhone && defaultAddr.phone) {
+              setContactPhone(defaultAddr.phone);
+            }
           } else {
             setSelectedAddressId('new');
           }
         })
         .finally(() => setAddressesLoading(false));
+    } else if (!isLoggedIn) {
+      // Clear data when not logged in so no previous account's details persist
+      setContactName('');
+      setContactEmail('');
+      setContactPhone('');
+      setSavedAddresses([]);
+      setSelectedAddressId('new');
     }
-  }, [isLoggedIn, user]);
+  }, [isLoggedIn, user?.id, user?.phone]);
+
+  const handleSelectAddress = (addrId: string) => {
+    setSelectedAddressId(addrId);
+    if (addrId === 'new') {
+      const uPhone = user?.phone || supabaseUser?.user_metadata?.phone || '';
+      if (uPhone) setContactPhone(uPhone);
+    } else {
+      const chosen = savedAddresses.find((a) => a.id === addrId);
+      if (chosen?.phone) {
+        setContactPhone(chosen.phone);
+      }
+    }
+  };
 
   // Handle promo code
   const handleApplyPromo = async (e: React.FormEvent) => {
@@ -648,7 +667,7 @@ export const CheckoutPage: React.FC = () => {
                         name="shipping_address_choice"
                         value={addr.id}
                         checked={selectedAddressId === addr.id}
-                        onChange={() => setSelectedAddressId(addr.id)}
+                        onChange={() => handleSelectAddress(addr.id)}
                         className="mt-0.5 accent-black"
                       />
                       <div className="text-[13px] text-[#1a1a1a] leading-snug">
@@ -675,7 +694,7 @@ export const CheckoutPage: React.FC = () => {
                       name="shipping_address_choice"
                       value="new"
                       checked={selectedAddressId === 'new'}
-                      onChange={() => setSelectedAddressId('new')}
+                      onChange={() => handleSelectAddress('new')}
                       className="accent-black"
                     />
                     <span className="text-[13px] text-[#1a1a1a] font-medium">+ Use a different address</span>
@@ -1143,20 +1162,20 @@ export const CheckoutPage: React.FC = () => {
           <div className="sticky top-0 px-5 sm:px-8 lg:px-10 xl:px-14 py-8 lg:py-10 space-y-5">
 
             {/* Cart Items */}
-            <div className="space-y-4 max-h-[40vh] lg:max-h-[50vh] overflow-y-auto pr-1">
+            <div className="space-y-4 max-h-[40vh] lg:max-h-[50vh] overflow-y-auto pr-2 pt-2.5 pb-1">
               {cart.map((item) => (
                 <div key={`${item.id}-${item.size}`} className="flex items-center gap-4">
                   {/* Thumbnail with quantity badge */}
                   <div className="relative flex-shrink-0">
-                    <div className="w-[64px] h-[72px] bg-white border border-[#E0E0E0] rounded-md overflow-hidden">
+                    <div className="w-[64px] h-[72px] bg-white border border-[#E0E0E0] rounded-md overflow-hidden flex items-center justify-center">
                       <img
                         src={item.image}
                         alt={item.name}
                         className="w-full h-full object-contain p-1.5 mix-blend-multiply"
                       />
                     </div>
-                    {/* Quantity badge */}
-                    <span className="absolute -top-2 -right-2 w-5 h-5 bg-[#888888] text-white text-[10px] font-semibold rounded-full flex items-center justify-center leading-none">
+                    {/* Quantity badge — sized and positioned to fit completely without clipping */}
+                    <span className="absolute -top-2 -right-2 min-w-[22px] h-[22px] px-1 bg-[#444444] text-white text-[11px] font-bold rounded-full flex items-center justify-center leading-none shadow-sm z-10 overflow-visible">
                       {item.quantity}
                     </span>
                   </div>
@@ -1164,11 +1183,11 @@ export const CheckoutPage: React.FC = () => {
                   {/* Item info */}
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-medium text-[#1a1a1a] truncate leading-snug">{item.name}</p>
-                    <p className="text-[12px] text-[#888888] mt-0.5">Size: {item.size}</p>
+                    <p className="text-[12px] text-[#888888] mt-0.5 whitespace-nowrap">Size: {item.size}</p>
                   </div>
 
                   {/* Price */}
-                  <div className="text-[14px] font-medium text-[#1a1a1a] flex-shrink-0">
+                  <div className="text-[14px] font-medium text-[#1a1a1a] flex-shrink-0 whitespace-nowrap overflow-visible">
                     ${(item.price * item.quantity).toFixed(2)}
                   </div>
                 </div>

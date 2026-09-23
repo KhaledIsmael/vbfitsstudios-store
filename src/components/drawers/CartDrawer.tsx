@@ -226,15 +226,15 @@ export const CartDrawer: React.FC = () => {
                       placement="cart"
                     />
                   </div>
-                  <div className="flex-1 flex flex-col justify-between py-0.5">
+                  <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0">
                     <div>
-                      <h3 className="text-xs font-semibold text-[#111111] uppercase tracking-spec leading-snug">
+                      <h3 className="text-xs font-semibold text-[#111111] uppercase tracking-spec leading-snug truncate">
                         {justAddedItem.name}
                       </h3>
-                      <p className="text-[11px] font-mono text-spec-muted mt-1">Size: {justAddedItem.size}</p>
-                      <p className="text-[11px] font-mono text-spec-muted">Qty: {justAddedItem.quantity}</p>
+                      <p className="text-[11px] font-mono text-spec-muted mt-1 whitespace-nowrap">Size: {justAddedItem.size}</p>
+                      <p className="text-[11px] font-mono text-spec-muted whitespace-nowrap">Qty: {justAddedItem.quantity}</p>
                     </div>
-                    <p className="text-xs font-semibold text-[#111111] mt-2">
+                    <p className="text-xs font-semibold text-[#111111] mt-2 whitespace-nowrap overflow-visible">
                       {justAddedItem.currency}{justAddedItem.price.toFixed(2)}
                     </p>
                   </div>
@@ -324,8 +324,8 @@ export const CartDrawer: React.FC = () => {
                               Remove
                             </button>
                           </div>
-                          <p className="text-[11px] font-mono text-spec-muted mt-1">Size: {item.size}</p>
-                          <p className="text-xs font-semibold text-[#111111] mt-1">
+                          <p className="text-[11px] font-mono text-spec-muted mt-1 whitespace-nowrap">Size: {item.size}</p>
+                          <p className="text-xs font-semibold text-[#111111] mt-1 whitespace-nowrap overflow-visible">
                             {item.currency}{item.price.toFixed(2)}
                           </p>
                         </div>
@@ -343,7 +343,7 @@ export const CartDrawer: React.FC = () => {
                               aria-label={`Decrease quantity of ${item.name}`}
                             >−</button>
                             <span
-                              className="px-3 text-xs font-mono font-medium text-[#111111]"
+                              className="px-2.5 min-w-[28px] text-center text-xs font-mono font-medium text-[#111111] whitespace-nowrap overflow-visible"
                               aria-live="polite"
                               aria-atomic="true"
                             >{item.quantity}</span>

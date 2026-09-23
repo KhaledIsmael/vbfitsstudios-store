@@ -316,7 +316,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             type="button"
             disabled={isTotalSoldOut}
             onClick={handleAddToCart}
-            className={`w-full py-2.5 px-3 text-[11px] uppercase tracking-spec font-spec transition-colors duration-default flex items-center justify-center gap-2 rounded-none ${
+            className={`w-full py-2.5 px-2 sm:px-3 text-[11px] uppercase tracking-normal sm:tracking-spec font-spec transition-colors duration-default flex items-center justify-center gap-1.5 rounded-none whitespace-nowrap overflow-visible ${
               isTotalSoldOut
                 ? 'bg-spec-badge-restock text-white cursor-not-allowed'
                 : isAdded
@@ -349,7 +349,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {product.name}
         </h3>
 
-        <p className="font-spec font-normal text-[12px] sm:text-[13px] uppercase text-spec-muted tracking-spec">
+        <p className="font-spec font-normal text-[12px] sm:text-[13px] uppercase text-spec-muted tracking-spec whitespace-nowrap overflow-visible">
           {product.currency}{product.price.toFixed(2)}
         </p>
       </div>

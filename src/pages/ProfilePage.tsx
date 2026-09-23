@@ -51,7 +51,7 @@ const GOVERNORATES = [
 ];
 
 export const ProfilePage: React.FC = () => {
-  const { user, isLoggedIn, loading, logout, wishlistProducts, wishlistLoading, toggleSaveItem } = useAuth();
+  const { user, isLoggedIn, loading, logout, wishlistProducts, wishlistLoading, toggleSaveItem, updatePhone } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'orders' | 'saved' | 'address'>('orders');
 
@@ -74,6 +74,31 @@ export const ProfilePage: React.FC = () => {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [addressesError, setAddressesError] = useState<string | null>(null);
+
+  // User Account Phone Editing State
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  const handleStartEditPhone = () => {
+    setPhoneInput(user?.phone || '');
+    setPhoneError(null);
+    setIsEditingPhone(true);
+  };
+
+  const handleSavePhone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPhoneSaving(true);
+    setPhoneError(null);
+    const res = await updatePhone(phoneInput);
+    setPhoneSaving(false);
+    if (res.error) {
+      setPhoneError(res.error);
+    } else {
+      setIsEditingPhone(false);
+    }
+  };
 
   // Address Modal & Form State
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -140,7 +165,7 @@ export const ProfilePage: React.FC = () => {
   const openAddModal = () => {
     setEditingAddress(null);
     setFormName(user?.name || '');
-    setFormPhone('');
+    setFormPhone(user?.phone || '');
     setFormGovernorate('Cairo');
     setFormCity('');
     setFormStreet('');
@@ -342,6 +367,62 @@ export const ProfilePage: React.FC = () => {
               {user.name}
             </h1>
             <p className="text-xs text-[#666666]">{user.email}</p>
+
+            {/* Dynamic Phone Binding & Inline Editor */}
+            <div className="pt-0.5">
+              {isEditingPhone ? (
+                <form onSubmit={handleSavePhone} className="flex flex-wrap items-center gap-2 pt-1">
+                  <input
+                    type="tel"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    placeholder="Enter mobile phone"
+                    className="border border-black px-2.5 py-1 text-xs text-black font-mono w-48 focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    disabled={phoneSaving}
+                    className="bg-black text-white text-[10px] uppercase tracking-wider px-3 py-1 font-medium hover:bg-neutral-800 disabled:opacity-50"
+                  >
+                    {phoneSaving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingPhone(false)}
+                    className="text-[10px] uppercase text-[#777777] hover:text-black underline px-1"
+                  >
+                    Cancel
+                  </button>
+                  {phoneError && <span className="text-[11px] text-red-600 block w-full mt-1">{phoneError}</span>}
+                </form>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-[#555555]">
+                  <span>Phone:</span>
+                  {user.phone ? (
+                    <>
+                      <span className="font-mono text-black font-medium">{user.phone}</span>
+                      <button
+                        type="button"
+                        onClick={handleStartEditPhone}
+                        className="text-[10px] text-[#888888] hover:text-black underline font-mono ml-1"
+                      >
+                        Edit
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStartEditPhone}
+                      className="text-[11px] text-black underline font-medium hover:opacity-70"
+                    >
+                      + Add Phone Number
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
             <p className="text-[11px] text-[#999999] pt-1">Client Member since {user.memberSince}</p>
           </div>
 
