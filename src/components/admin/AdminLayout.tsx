@@ -9,7 +9,8 @@ import {
   Menu,
   X,
   LayoutDashboard,
-  Truck
+  Truck,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { AdminInfoTooltip } from './AdminInfoTooltip';
@@ -80,25 +81,25 @@ export const AdminLayout: React.FC = () => {
   return (
     <div
       dir="rtl"
-      className="min-h-screen bg-[#0C0C0E] text-[#EDEDED] flex flex-col md:flex-row antialiased selection:bg-white selection:text-black font-sans"
+      className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col md:flex-row antialiased selection:bg-amber-400 selection:text-black font-sans"
     >
       {/* ───────────────────────────────────────────────────────────── */}
       {/* RIGHT SIDEBAR (Desktop: sticky, Mobile: slide-over overlay)   */}
       {/* ───────────────────────────────────────────────────────────── */}
       <aside
-        className={`fixed md:sticky top-0 right-0 h-screen z-50 w-72 bg-[#121216] border-l border-white/10 flex flex-col justify-between transition-transform duration-300 md:translate-x-0 ${
+        className={`fixed md:sticky top-0 right-0 h-screen z-40 w-72 bg-[#0F172A] border-l border-slate-800 text-white flex flex-col justify-between transition-transform duration-300 shadow-xl md:translate-x-0 ${
           mobileNavOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         }`}
       >
         <div>
           {/* Atelier Brand Header */}
-          <div className="h-20 px-6 border-b border-white/10 flex items-center justify-between bg-black/30">
+          <div className="h-20 px-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
             <div>
-              <Link to="/admin" className="block text-right">
-                <span className="text-sm font-semibold tracking-wider uppercase text-white block">
+              <Link to="/admin" className="block text-right group">
+                <span className="text-sm font-extrabold tracking-wider uppercase text-white block group-hover:text-amber-400 transition-colors">
                   VB FITS STUDIOS
                 </span>
-                <span className="text-[10px] font-mono tracking-widest text-amber-400/90 uppercase block mt-0.5">
+                <span className="text-[10px] font-mono tracking-widest text-amber-400 block mt-0.5">
                   لوحة تحكم البراند · الإدارة
                 </span>
               </Link>
@@ -107,7 +108,7 @@ export const AdminLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => setMobileNavOpen(false)}
-              className="md:hidden text-white/60 hover:text-white p-1"
+              className="md:hidden text-slate-400 hover:text-white p-1"
               aria-label="إغلاق القائمة"
             >
               <X className="w-5 h-5" />
@@ -116,7 +117,7 @@ export const AdminLayout: React.FC = () => {
 
           {/* Navigation Links */}
           <nav className="p-4 space-y-1.5">
-            <div className="px-3 pb-2 pt-2 flex items-center justify-between text-[11px] font-mono text-white/40">
+            <div className="px-3 pb-2 pt-2 flex items-center justify-between text-[11px] font-mono text-slate-400">
               <span>أقسام المتجر الأساسية</span>
               <AdminInfoTooltip
                 title="أقسام لوحة التحكم"
@@ -136,19 +137,19 @@ export const AdminLayout: React.FC = () => {
                   <NavLink
                     to={item.path}
                     onClick={() => setMobileNavOpen(false)}
-                    className={`flex-1 flex items-center justify-between px-3.5 py-3 rounded-sm text-xs transition-all duration-200 ${
+                    className={`flex-1 flex items-center justify-between px-3.5 py-3 rounded-lg text-xs transition-all duration-200 ${
                       isActive
-                        ? 'bg-white text-black font-semibold shadow-md'
-                        : 'text-white/70 hover:text-white hover:bg-white/5'
+                        ? 'bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-400/20'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-black' : 'text-amber-400'}`} />
+                      <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-slate-950' : 'text-amber-400'}`} />
                       <div className="text-right">
                         <span className="block leading-tight text-[13px]">{item.label}</span>
                         <span
                           className={`block text-[10px] mt-0.5 font-normal ${
-                            isActive ? 'text-black/70' : 'text-white/40'
+                            isActive ? 'text-slate-900 font-medium' : 'text-slate-400'
                           }`}
                         >
                           {item.sublabel}
@@ -171,18 +172,18 @@ export const AdminLayout: React.FC = () => {
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-white/10 space-y-3 bg-black/20">
-          <div className="px-3 py-2.5 bg-emerald-950/20 border border-emerald-500/20 rounded-sm flex items-center justify-between">
+        <div className="p-4 border-t border-slate-800 space-y-3 bg-slate-950/40">
+          <div className="px-3 py-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-lg flex items-center justify-between">
             <span className="text-[11px] font-medium text-emerald-300">مزامنة المتجر لايف</span>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               قاعدة البيانات متصلة
             </span>
           </div>
 
-          <div className="px-3 flex items-center justify-between text-[10px] font-mono text-white/40">
+          <div className="px-3 flex items-center justify-between text-[10px] font-mono text-slate-400">
             <span>VB FITS CORE</span>
-            <span className="text-white/60">EGP EDITION</span>
+            <span className="text-slate-300 font-bold">EGP EDITION</span>
           </div>
         </div>
       </aside>
@@ -191,7 +192,7 @@ export const AdminLayout: React.FC = () => {
       {mobileNavOpen && (
         <div
           onClick={() => setMobileNavOpen(false)}
-          className="fixed inset-0 bg-black/70 z-40 md:hidden backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 bg-slate-900/60 z-30 md:hidden backdrop-blur-xs animate-fade-in"
         />
       )}
 
@@ -200,21 +201,21 @@ export const AdminLayout: React.FC = () => {
       {/* ───────────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* TOP BAR */}
-        <header className="h-16 sticky top-0 z-30 bg-[#121216]/95 backdrop-blur-md border-b border-white/10 px-4 sm:px-8 flex items-center justify-between">
+        <header className="h-16 sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between shadow-2xs">
           {/* Left: Mobile Toggle & Page Title */}
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
-              className="md:hidden text-white/70 hover:text-white p-1"
+              className="md:hidden text-slate-600 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100"
               aria-label="فتح القائمة"
             >
               <Menu className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-2 text-xs font-medium">
-              <span className="text-white/40 hidden sm:inline">لوحة الإدارة</span>
-              <span className="text-white/40 hidden sm:inline">/</span>
-              <span className="text-white font-semibold text-sm">{currentNav.label}</span>
+              <span className="text-slate-400 hidden sm:inline">لوحة الإدارة</span>
+              <span className="text-slate-300 hidden sm:inline">/</span>
+              <span className="text-slate-900 font-bold text-sm sm:text-base">{currentNav.label}</span>
               <AdminInfoTooltip
                 title={currentNav.tooltipTitle}
                 description={currentNav.tooltipDesc}
@@ -224,33 +225,33 @@ export const AdminLayout: React.FC = () => {
           </div>
 
           {/* Right: Storefront Link, Admin Badge & Sign-Out */}
-          <div className="flex items-center gap-3 sm:gap-5">
+          <div className="flex items-center gap-2.5 sm:gap-4">
             {/* Quick link to live storefront */}
             <Link
               to="/"
               target="_blank"
               rel="noopener noreferrer"
               title="معاينة المتجر المباشر للزبائن"
-              className="flex items-center gap-2 text-xs text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 transition-all"
+              className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3 py-1.5 rounded-lg transition-all font-medium shadow-2xs"
             >
-              <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline font-medium">معاينة المتجر للعميل</span>
+              <ExternalLink className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden sm:inline">معاينة المتجر</span>
             </Link>
 
             {/* Admin identity pill */}
-            <div className="flex items-center gap-2.5 border-r border-white/10 pr-3 sm:pr-5">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-black shadow-inner">
+            <div className="flex items-center gap-2.5 border-r border-slate-200 pr-2.5 sm:pr-4">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-slate-950 shadow-xs">
                 {user?.name ? user.name.charAt(0).toUpperCase() : 'A'}
               </div>
               <div className="hidden lg:block text-right">
-                <p className="text-xs font-semibold text-white truncate max-w-[130px]">
+                <p className="text-xs font-bold text-slate-900 truncate max-w-[130px]">
                   {user?.name || 'مدير المتجر'}
                 </p>
                 <div className="flex items-center gap-1.5 justify-end">
-                  <span className="text-[10px] text-amber-300 font-mono">
-                    {role === 'admin' ? 'مدير عام كامل الصلاحيات' : 'فريق الدعم'}
+                  <span className="text-[10px] text-amber-600 font-bold">
+                    {role === 'admin' ? 'مدير عام' : 'فريق الدعم'}
                   </span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 </div>
               </div>
             </div>
@@ -260,10 +261,10 @@ export const AdminLayout: React.FC = () => {
               type="button"
               onClick={handleSignOut}
               title="تسجيل الخروج من لوحة التحكم"
-              className="flex items-center gap-1.5 text-xs text-white/70 hover:text-red-400 transition-colors border border-white/10 px-3 py-1.5 hover:border-red-500/30"
+              className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-red-600 transition-colors border border-slate-200 px-2.5 sm:px-3 py-1.5 rounded-lg hover:border-red-300 hover:bg-red-50"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">خروج</span>
+              <span className="hidden sm:inline font-medium">خروج</span>
             </button>
           </div>
         </header>
@@ -276,4 +277,3 @@ export const AdminLayout: React.FC = () => {
     </div>
   );
 };
-

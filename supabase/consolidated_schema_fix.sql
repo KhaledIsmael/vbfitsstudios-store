@@ -391,6 +391,116 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, se
 -- Or run below to ensure all current users have full admin dashboard access:
 UPDATE public.customers SET role = 'admin';
 
+
+-- 13. CATEGORIES TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  description TEXT,
+  display_order INT DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.categories
+  ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view categories" ON public.categories;
+CREATE POLICY "Public can view categories" ON public.categories FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Staff can manage categories" ON public.categories;
+CREATE POLICY "Staff can manage categories" ON public.categories FOR ALL USING (true);
+
+INSERT INTO public.categories (name, slug, display_order)
+VALUES
+  ('T-Shirts & Tops', 't-shirts', 1),
+  ('Hoodies & Sweatshirts', 'hoodies', 2),
+  ('Pants & Bottoms', 'pants', 3),
+  ('Jackets & Outerwear', 'jackets', 4),
+  ('Accessories', 'accessories', 5)
+ON CONFLICT (slug) DO NOTHING;
+
+
+-- 14. WISHLISTS TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.wishlists (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID NOT NULL,
+  product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  UNIQUE(customer_id, product_id)
+);
+
+ALTER TABLE public.wishlists ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage own wishlist" ON public.wishlists;
+CREATE POLICY "Users can manage own wishlist" ON public.wishlists FOR ALL USING (true);
+
+
+-- 15. HERO BANNERS TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.hero_banners (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  image_url TEXT NOT NULL,
+  season_tag TEXT,
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  cta_text TEXT,
+  cta_link TEXT,
+  sort_order INT DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.hero_banners ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view hero banners" ON public.hero_banners;
+CREATE POLICY "Public can view hero banners" ON public.hero_banners FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Staff can manage hero banners" ON public.hero_banners;
+CREATE POLICY "Staff can manage hero banners" ON public.hero_banners FOR ALL USING (true);
+
+
+-- 16. RESTOCK & WAITLIST SIGNUPS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.restock_signups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_variant_id UUID,
+  contact TEXT NOT NULL,
+  contact_type TEXT NOT NULL DEFAULT 'email',
+  notified BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.waitlist_signups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  variant_id UUID,
+  email TEXT NOT NULL,
+  size TEXT,
+  notified BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.restock_signups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.waitlist_signups ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can signup for restock" ON public.restock_signups;
+CREATE POLICY "Anyone can signup for restock" ON public.restock_signups FOR ALL USING (true);
+DROP POLICY IF EXISTS "Anyone can signup for waitlist" ON public.waitlist_signups;
+CREATE POLICY "Anyone can signup for waitlist" ON public.waitlist_signups FOR ALL USING (true);
+
+
+-- 17. COMPLETE ALL TABLE GRANTS
+-- ------------------------------------------------------------------------------
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
+
+-- 18. CRITICAL: RELOAD SUPABASE POSTGREST SCHEMA CACHE
+-- ------------------------------------------------------------------------------
+-- This notifies Supabase PostgREST server to instantly re-read all table schemas,
+-- resolving "Could not find column ... in the schema cache" errors immediately!
+NOTIFY pgrst, 'reload schema';
+
 -- ==============================================================================
--- SCHEMA FIX COMPLETE
+-- SCHEMA FIX COMPLETE & CACHE RELOADED
 -- ==============================================================================

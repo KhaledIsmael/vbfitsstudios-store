@@ -307,11 +307,15 @@ export async function saveAdminProduct(
           }
 
           if (insertError) {
-            // Check if error is due to missing column: column "xyz" does not exist / of relation "products"
-            const colMatch = insertError.message.match(/column ["']?([a-zA-Z0-9_]+)["']?.*does not exist/i);
-            if (colMatch && colMatch[1] && workingPayload[colMatch[1]] !== undefined) {
-              const missingCol = colMatch[1];
-              console.warn(`Resilient schema fallback: removing missing column "${missingCol}" and retrying.`);
+            // Check if error is due to missing column or schema cache delay
+            const colMatch =
+              insertError.message.match(/column ["']?([a-zA-Z0-9_]+)["']?.*does not exist/i) ||
+              insertError.message.match(/Could not find the ['"]?([a-zA-Z0-9_]+)['"]? column/i) ||
+              insertError.message.match(/column ['"]?([a-zA-Z0-9_]+)['"]? of relation .* does not exist/i);
+
+            const missingCol = colMatch ? (colMatch[1] || colMatch[2]) : null;
+            if (missingCol && workingPayload[missingCol] !== undefined) {
+              console.warn(`Resilient schema fallback: removing missing/uncached column "${missingCol}" and retrying save.`);
               delete workingPayload[missingCol];
               continue;
             }
@@ -328,10 +332,14 @@ export async function saveAdminProduct(
           }
 
           if (updateError) {
-            const colMatch = updateError.message.match(/column ["']?([a-zA-Z0-9_]+)["']?.*does not exist/i);
-            if (colMatch && colMatch[1] && workingPayload[colMatch[1]] !== undefined) {
-              const missingCol = colMatch[1];
-              console.warn(`Resilient schema fallback: removing missing column "${missingCol}" and retrying.`);
+            const colMatch =
+              updateError.message.match(/column ["']?([a-zA-Z0-9_]+)["']?.*does not exist/i) ||
+              updateError.message.match(/Could not find the ['"]?([a-zA-Z0-9_]+)['"]? column/i) ||
+              updateError.message.match(/column ['"]?([a-zA-Z0-9_]+)['"]? of relation .* does not exist/i);
+
+            const missingCol = colMatch ? (colMatch[1] || colMatch[2]) : null;
+            if (missingCol && workingPayload[missingCol] !== undefined) {
+              console.warn(`Resilient schema fallback: removing missing/uncached column "${missingCol}" and retrying save.`);
               delete workingPayload[missingCol];
               continue;
             }

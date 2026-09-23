@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Info, Sparkles, Zap, Lightbulb } from 'lucide-react';
 
 export interface AdminInfoTooltipProps {
@@ -13,7 +14,8 @@ export interface AdminInfoTooltipProps {
 
 /**
  * Egyptian Arabic Info Tooltip Component for Local Brand Admin
- * Displays clear, practical guidance on hover or tap.
+ * Uses React Portal to guarantee the popover is NEVER clipped by parent
+ * overflow: hidden or z-index stacking layers across all devices.
  */
 export const AdminInfoTooltip: React.FC<AdminInfoTooltipProps> = ({
   title,
@@ -25,96 +27,165 @@ export const AdminInfoTooltip: React.FC<AdminInfoTooltipProps> = ({
   align = 'center'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    placement: 'top' | 'bottom';
+  } | null>(null);
 
-  // Close on outside click for touch/mobile devices
+  // Calculate dynamic coordinates relative to viewport
+  const updatePosition = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const tooltipWidth = Math.min(320, window.innerWidth - 32);
+    
+    // Determine horizontal position
+    let leftPos: number;
+    if (align === 'right') {
+      leftPos = rect.right - tooltipWidth;
+    } else if (align === 'left') {
+      leftPos = rect.left;
+    } else {
+      leftPos = rect.left + rect.width / 2 - tooltipWidth / 2;
+    }
+
+    // Keep within viewport horizontally
+    const left = Math.max(16, Math.min(window.innerWidth - tooltipWidth - 16, leftPos));
+
+    // Vertical placement: Flip down if not enough room on top
+    const spaceOnTop = rect.top;
+    if (spaceOnTop < 220) {
+      setPosition({
+        top: rect.bottom + 8,
+        left,
+        placement: 'bottom'
+      });
+    } else {
+      setPosition({
+        bottom: window.innerHeight - rect.top + 8,
+        left,
+        placement: 'top'
+      });
+    }
+  };
+
   useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      const handleScrollOrResize = () => updatePosition();
+      window.addEventListener('scroll', handleScrollOrResize, true);
+      window.addEventListener('resize', handleScrollOrResize);
+      return () => {
+        window.removeEventListener('scroll', handleScrollOrResize, true);
+        window.removeEventListener('resize', handleScrollOrResize);
+      };
+    }
+  }, [isOpen]);
+
+  // Close when clicking outside
+  useEffect(() => {
+    if (!isOpen) return;
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
 
-  // Alignment classes for tooltip popover
-  const alignmentClasses =
-    align === 'right'
-      ? 'right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2'
-      : align === 'left'
-      ? 'left-0 sm:left-1/2 sm:-translate-x-1/2'
-      : 'left-1/2 -translate-x-1/2';
-
   return (
-    <div
-      ref={containerRef}
-      className={`relative inline-flex items-center align-middle ${className}`}
-      onMouseEnter={() => setIsOpen(true)}
-      onMouseLeave={() => setIsOpen(false)}
-    >
+    <div className={`relative inline-flex items-center align-middle ${className}`}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setIsOpen((prev) => !prev);
         }}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => {
+          // Slight delay so user can hover over popover if needed
+          setTimeout(() => {
+            if (!popoverRef.current?.matches(':hover')) {
+              setIsOpen(false);
+            }
+          }, 150);
+        }}
         aria-label={title}
-        className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-white/50 hover:text-amber-300 hover:bg-amber-400/10 transition-all duration-200 focus:outline-none ${iconClassName}`}
+        className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 transition-all duration-200 focus:outline-none ${iconClassName}`}
       >
         <Info className="w-3.5 h-3.5" />
       </button>
 
-      {/* Popover Bubble */}
-      {isOpen && (
-        <div
-          dir="rtl"
-          className={`absolute bottom-full mb-2 z-50 w-72 sm:w-80 p-3.5 bg-[#16161B] text-[#EAEAEA] border border-white/20 rounded-sm shadow-2xl backdrop-blur-md transition-all duration-200 animate-fade-in ${alignmentClasses} text-right`}
-        >
-          {/* Header */}
-          <div className="flex items-center gap-2 pb-2 mb-2 border-b border-white/10">
-            <div className="w-5 h-5 rounded bg-amber-400/15 border border-amber-400/30 flex items-center justify-center text-amber-400 flex-shrink-0">
-              <Sparkles className="w-3 h-3" />
-            </div>
-            <h4 className="text-xs font-semibold text-white tracking-wide">{title}</h4>
-          </div>
-
-          {/* Description in Egyptian Arabic */}
-          <p className="text-xs text-white/80 leading-relaxed font-normal mb-2.5">
-            {description}
-          </p>
-
-          {/* Impact on Live Storefront */}
-          {impact && (
-            <div className="mb-2 p-2 bg-white/5 border border-white/10 rounded-sm flex items-start gap-2 text-[11px] text-white/70">
-              <Zap className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-emerald-300 ml-1">تأثيره على الموقع:</span>
-                <span>{impact}</span>
+      {/* Popover Bubble Rendered into document.body Portal */}
+      {isOpen &&
+        position &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            dir="rtl"
+            onMouseEnter={() => setIsOpen(true)}
+            onMouseLeave={() => setIsOpen(false)}
+            style={{
+              position: 'fixed',
+              left: `${position.left}px`,
+              top: position.top !== undefined ? `${position.top}px` : 'auto',
+              bottom: position.bottom !== undefined ? `${position.bottom}px` : 'auto',
+              zIndex: 99999,
+              width: 'min(320px, calc(100vw - 32px))'
+            }}
+            className="p-4 bg-slate-900 text-slate-100 border border-slate-700/80 rounded-xl shadow-2xl backdrop-blur-xl transition-all duration-200 animate-fade-in text-right ring-1 ring-black/40 pointer-events-auto"
+          >
+            {/* Header */}
+            <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-800">
+              <div className="w-6 h-6 rounded-md bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0">
+                <Sparkles className="w-3.5 h-3.5" />
               </div>
+              <h4 className="text-xs font-bold text-white tracking-wide">{title}</h4>
             </div>
-          )}
 
-          {/* Brand Pro-Tip */}
-          {tip && (
-            <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-sm flex items-start gap-2 text-[11px] text-amber-200/90">
-              <Lightbulb className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-amber-300 ml-1">نصيحة للبراند:</span>
-                <span>{tip}</span>
+            {/* Description in Egyptian Arabic */}
+            <p className="text-xs text-slate-300 leading-relaxed font-normal mb-3">
+              {description}
+            </p>
+
+            {/* Impact on Live Storefront */}
+            {impact && (
+              <div className="mb-2 p-2.5 bg-slate-800/80 border border-slate-700/60 rounded-lg flex items-start gap-2 text-[11px] text-slate-300">
+                <Zap className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-emerald-400 ml-1">تأثيره على الموقع:</span>
+                  <span>{impact}</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Small Arrow indicator */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-[#16161B] border-r border-b border-white/20 transform rotate-45" />
-        </div>
-      )}
+            {/* Brand Pro-Tip */}
+            {tip && (
+              <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2 text-[11px] text-amber-200/90">
+                <Lightbulb className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-400 ml-1">نصيحة للبراند:</span>
+                  <span>{tip}</span>
+                </div>
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
