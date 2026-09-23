@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useCart } from '../../context/CartContext';
+import { useCart, type CartItem } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { BRAND_CONFIG } from '../../config/assets';
 import { CartDrawerSkeleton } from '../ui/SkeletonCard';
+import { ProductImage } from '../ui/ProductImage';
 
 /** Keep Tab/Shift+Tab cycling inside an open dialog. */
 function useFocusTrap(ref: React.RefObject<HTMLDivElement | null>, active: boolean) {
@@ -45,6 +46,30 @@ export const CartDrawer: React.FC = () => {
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Track item-just-added confirmation state
+  const prevItemsRef = useRef(totalItems);
+  const [justAddedItem, setJustAddedItem] = useState<CartItem | null>(null);
+  const [isJustAddedMode, setIsJustAddedMode] = useState(false);
+
+  // Automatically trigger item-just-added confirmation when item count increases
+  useEffect(() => {
+    if (totalItems > prevItemsRef.current) {
+      const latestItem = cart[cart.length - 1];
+      if (latestItem) {
+        setJustAddedItem(latestItem);
+        setIsJustAddedMode(true);
+      }
+    }
+    prevItemsRef.current = totalItems;
+  }, [totalItems, cart]);
+
+  // Reset just-added state when drawer closes
+  useEffect(() => {
+    if (!isCartOpen) {
+      setIsJustAddedMode(false);
+    }
+  }, [isCartOpen]);
+
   useFocusTrap(panelRef, isCartOpen);
 
   // Esc closes the drawer
@@ -68,26 +93,39 @@ export const CartDrawer: React.FC = () => {
     navigate('/checkout');
   };
 
+  const handleContinueShopping = () => {
+    setIsCartOpen(false);
+  };
+
+  const freeShippingThreshold = 250;
+  const isFreeShipping = subtotal >= freeShippingThreshold;
+  const progressPercent = Math.min(100, (subtotal / freeShippingThreshold) * 100);
+
   return (
     <div
-      className="fixed inset-0 z-50 overflow-hidden"
+      className="fixed inset-0 z-drawer overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-labelledby="cart-drawer-title"
     >
-      {/* Backdrop */}
+      {/* Dark Scrim with backdrop blur matching MenuDrawer */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-medium"
         onClick={() => setIsCartOpen(false)}
         aria-hidden="true"
       />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div ref={panelRef} className="w-screen max-w-md bg-white shadow-2xl flex flex-col transform transition-transform duration-500 ease-in-out">
-          
-          {/* Header */}
-          <div className="px-6 py-5 border-b border-[#EAEAEA] flex items-center justify-between">
-            <h2 id="cart-drawer-title" className="text-xs uppercase tracking-widest font-semibold text-[#111111] flex items-center gap-2">
+      {/* Slide-over panel with drawer motion tokens */}
+      <div className="fixed inset-y-0 right-0 max-w-full flex">
+        <div
+          ref={panelRef}
+          className="w-screen max-w-full sm:max-w-[500px] bg-white shadow-2xl flex flex-col justify-between transform transition-transform duration-medium ease-drawer"
+        >
+          {/* ───────────────────────────────────────────────────────────── */}
+          {/* HEADER                                                        */}
+          {/* ───────────────────────────────────────────────────────────── */}
+          <div className="px-6 py-5 border-b border-spec-border flex items-center justify-between">
+            <h2 id="cart-drawer-title" className="text-xs uppercase tracking-widest font-semibold text-[#111111] flex items-center gap-2 font-spec">
               <span>Shopping Bag</span>
               {isCartLoading ? (
                 <span className="w-2.5 h-2.5 border-2 border-black/20 border-t-black rounded-full animate-spin" aria-label="Loading" />
@@ -97,17 +135,19 @@ export const CartDrawer: React.FC = () => {
             </h2>
             <button
               onClick={() => setIsCartOpen(false)}
-              className="p-2 text-[#111111] hover:opacity-60 transition-opacity rounded"
+              className="p-1.5 text-[#111111] hover:opacity-60 transition-opacity rounded-none"
               aria-label="Close shopping bag"
             >
               <img src={BRAND_CONFIG.icons.close} alt="" aria-hidden="true" className="w-4 h-4" width={16} height={16} />
             </button>
           </div>
 
-          {/* Cart Content */}
+          {/* ───────────────────────────────────────────────────────────── */}
+          {/* BODY: 3 VISUAL STATES                                         */}
+          {/* ───────────────────────────────────────────────────────────── */}
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {isCartLoading ? (
-              /* ── SKELETON: Supabase cart sync or initial load in flight ── */
+              /* SKELETON: Supabase cart sync or initial load in flight */
               <div className="py-1">
                 <div className="flex items-center gap-2 pb-4 mb-1 border-b border-[#F0F0F0]">
                   <span className="w-2 h-2 rounded-full bg-[#CCCCCC] animate-ping flex-shrink-0" />
@@ -118,123 +158,248 @@ export const CartDrawer: React.FC = () => {
                 <CartDrawerSkeleton count={3} />
               </div>
             ) : cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center space-y-4 py-16">
-                <div className="w-12 h-12 rounded-full border border-black/15 flex items-center justify-center bg-[#FAFAFA] text-[#111111]">
-                  <svg className="w-5 h-5 text-[#333333]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+              /* ── STATE 1: EMPTY STATE ── */
+              <div className="h-full flex flex-col items-center justify-center text-center space-y-5 py-12">
+                <div className="w-14 h-14 rounded-full border border-spec-border flex items-center justify-center bg-[#FAFAFA] text-[#111111]">
+                  <svg className="w-6 h-6 text-[#333333]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                   </svg>
                 </div>
-                <span className="text-[10px] uppercase tracking-luxury text-[#888888] font-mono">
-                  Archive Bag · 0 Items
-                </span>
-                <p className="text-xs text-[#222222] tracking-wider uppercase font-light">Your shopping bag is empty</p>
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-luxury text-[#888888] font-mono block">
+                    Archive Bag · 0 Items
+                  </span>
+                  <p className="text-xs text-[#111111] tracking-wider uppercase font-medium">Your shopping bag is empty</p>
+                </div>
                 <button
-                  onClick={() => setIsCartOpen(false)}
-                  className="text-xs uppercase tracking-luxury text-[#111111] underline underline-offset-4 hover:opacity-60 transition-opacity pt-1"
+                  type="button"
+                  onClick={() => {
+                    setIsCartOpen(false);
+                    navigate('/shop');
+                  }}
+                  className="w-full bg-[#111111] hover:bg-black text-white text-[12px] uppercase tracking-luxury py-3.5 px-6 font-medium transition-colors"
                 >
                   Explore Ready-to-Wear
                 </button>
+
+                {/* Login Nudge for Guests */}
+                {!isLoggedIn && (
+                  <div className="w-full mt-6 p-4 bg-[#FAFAFA] border border-spec-border text-center space-y-2">
+                    <p className="text-[10px] uppercase tracking-luxury text-spec-muted font-mono font-semibold">
+                      Archival Client Access
+                    </p>
+                    <p className="text-xs text-[#555555] leading-relaxed">
+                      Have an account? Sign in to access your saved pieces and expedited checkout.
+                    </p>
+                    <Link
+                      to="/login"
+                      onClick={() => setIsCartOpen(false)}
+                      className="inline-block text-[11px] uppercase tracking-wider text-black font-semibold underline underline-offset-4 hover:opacity-70 transition-opacity pt-1"
+                    >
+                      Sign In / Register
+                    </Link>
+                  </div>
+                )}
+              </div>
+            ) : isJustAddedMode && justAddedItem ? (
+              /* ── STATE 2: ITEM-JUST-ADDED CONFIRMATION STATE ── */
+              <div className="py-2 space-y-6 animate-fade-in">
+                {/* Confirmation banner */}
+                <div className="flex items-center gap-2.5 p-3.5 bg-[#FAFAFA] border border-spec-border text-[#111111]">
+                  <span className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] uppercase tracking-wider font-semibold">Item added to your shopping bag</p>
+                    <p className="text-[10px] text-spec-muted">{totalItems} {totalItems === 1 ? 'item' : 'items'} in total</p>
+                  </div>
+                </div>
+
+                {/* Product summary card with shared ProductImage */}
+                <div className="p-4 border border-spec-border bg-white flex gap-4">
+                  <div className="flex-shrink-0 border border-spec-border" aria-hidden="true">
+                    <ProductImage
+                      src={justAddedItem.image}
+                      alt=""
+                      placement="cart"
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col justify-between py-0.5">
+                    <div>
+                      <h3 className="text-xs font-semibold text-[#111111] uppercase tracking-spec leading-snug">
+                        {justAddedItem.name}
+                      </h3>
+                      <p className="text-[11px] font-mono text-spec-muted mt-1">Size: {justAddedItem.size}</p>
+                      <p className="text-[11px] font-mono text-spec-muted">Qty: {justAddedItem.quantity}</p>
+                    </div>
+                    <p className="text-xs font-semibold text-[#111111] mt-2">
+                      {justAddedItem.currency}{justAddedItem.price.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Subtotal preview */}
+                <div className="flex justify-between items-center text-xs tracking-wider uppercase font-semibold text-[#111111] pt-1">
+                  <span>Bag Subtotal</span>
+                  <span>${subtotal.toFixed(2)}</span>
+                </div>
+
+                {/* Two Action Buttons: Check out and Continue shopping */}
+                <div className="space-y-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleProceedToCheckout}
+                    className="w-full bg-[#111111] hover:bg-black text-white text-[12px] uppercase tracking-luxury py-4 px-6 font-semibold transition-colors flex items-center justify-center gap-2"
+                  >
+                    Check out
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleContinueShopping}
+                    className="w-full bg-white hover:bg-[#F5F5F5] text-[#111111] border border-spec-border text-[12px] uppercase tracking-luxury py-3.5 px-6 font-medium transition-colors"
+                  >
+                    Continue shopping
+                  </button>
+                </div>
+
+                {/* Switch to filled bag view */}
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsJustAddedMode(false)}
+                    className="text-[11px] text-spec-muted hover:text-black uppercase tracking-wider underline underline-offset-4"
+                  >
+                    View full bag ({totalItems})
+                  </button>
+                </div>
               </div>
             ) : (
-              <ul className="divide-y divide-[#EAEAEA]" aria-label="Items in your bag">
-                {cart.map((item) => (<li key={item.id} className="py-5 flex gap-4">
-                    {/* Item Image — decorative, name already in h3 */}
-                    <div className="w-20 h-24 bg-[#FAFAFA] flex-shrink-0 overflow-hidden" aria-hidden="true">
-                      <img
-                        src={item.image}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                        width={80}
-                        height={96}
-                      />
-                    </div>
+              /* ── STATE 3: FILLED STATE ── */
+              <div className="space-y-4">
+                {/* Free Shipping Progress Bar per REFERENCE-SPEC 10.2 */}
+                <div className="py-2">
+                  <div className="flex justify-between items-center text-[11px] uppercase tracking-wider mb-2 font-mono text-spec-muted">
+                    {isFreeShipping ? (
+                      <span className="text-black font-semibold">Complimentary Express Shipping Unlocked</span>
+                    ) : (
+                      <span>${(freeShippingThreshold - subtotal).toFixed(2)} away from free shipping</span>
+                    )}
+                    <span>{Math.round(progressPercent)}%</span>
+                  </div>
+                  <div className="w-full h-1 bg-[#EAEAEA] rounded-none overflow-hidden">
+                    <div
+                      className="h-full bg-black transition-all duration-long ease-in-out"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                </div>
 
-                    {/* Item Details */}
-                    <div className="flex-1 flex flex-col justify-between">
-                      <div>
-                        <div className="flex justify-between items-start gap-2">
-                          <h3 className="text-xs font-medium text-[#111111] leading-snug">{item.name}</h3>
-                          <button
-                            onClick={() => removeFromCart(item.id)}
-                            className="text-[11px] text-[#999999] hover:text-black transition-colors underline"
-                            aria-label={`Remove ${item.name} from bag`}
+                {/* Item List */}
+                <ul className="divide-y divide-spec-border" aria-label="Items in your bag">
+                  {cart.map((item) => (
+                    <li key={item.id} className="py-4 flex gap-4">
+                      {/* Item Image with shared ProductImage */}
+                      <div className="flex-shrink-0 border border-spec-border" aria-hidden="true">
+                        <ProductImage
+                          src={item.image}
+                          alt=""
+                          placement="cart"
+                        />
+                      </div>
+
+                      {/* Item Details */}
+                      <div className="flex-1 flex flex-col justify-between py-0.5">
+                        <div>
+                          <div className="flex justify-between items-start gap-2">
+                            <h3 className="text-xs font-semibold text-[#111111] leading-snug uppercase tracking-spec">
+                              {item.name}
+                            </h3>
+                            <button
+                              onClick={() => removeFromCart(item.id)}
+                              className="text-[11px] text-spec-muted hover:text-black transition-colors underline font-mono"
+                              aria-label={`Remove ${item.name} from bag`}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <p className="text-[11px] font-mono text-spec-muted mt-1">Size: {item.size}</p>
+                          <p className="text-xs font-semibold text-[#111111] mt-1">
+                            {item.currency}{item.price.toFixed(2)}
+                          </p>
+                        </div>
+
+                        {/* Quantity Selector */}
+                        <div className="flex items-center gap-3 pt-2">
+                          <div
+                            className="flex items-center border border-spec-border"
+                            role="group"
+                            aria-label={`Quantity for ${item.name}`}
                           >
-                            Remove
-                          </button>
-                        </div>
-                        <p className="text-[11px] text-[#777777] mt-1">Size: {item.size}</p>
-                        <p className="text-xs font-medium text-[#111111] mt-1">{item.currency}{item.price.toFixed(2)}</p>
-                      </div>
-
-                      {/* Quantity Selector */}
-                      <div className="flex items-center gap-3 pt-2">
-                        <div
-                          className="flex items-center border border-[#EAEAEA]"
-                          role="group"
-                          aria-label={`Quantity for ${item.name}`}
-                        >
-                          <button
-                            onClick={() => updateQuantity(item.id, -1)}
-                            className="px-2.5 py-1 text-xs text-[#555555] hover:bg-[#F5F5F5] transition-colors"
-                            aria-label={`Decrease quantity of ${item.name}`}
-                          >−</button>
-                          <span
-                            className="px-3 text-xs font-medium text-[#111111]"
-                            aria-live="polite"
-                            aria-atomic="true"
-                          >{item.quantity}</span>
-                          <button
-                            onClick={() => updateQuantity(item.id, 1)}
-                            className="px-2.5 py-1 text-xs text-[#555555] hover:bg-[#F5F5F5] transition-colors"
-                            aria-label={`Increase quantity of ${item.name}`}
-                          >+</button>
+                            <button
+                              onClick={() => updateQuantity(item.id, -1)}
+                              className="px-2.5 py-1 text-xs text-[#555555] hover:bg-[#F5F5F5] transition-colors"
+                              aria-label={`Decrease quantity of ${item.name}`}
+                            >−</button>
+                            <span
+                              className="px-3 text-xs font-mono font-medium text-[#111111]"
+                              aria-live="polite"
+                              aria-atomic="true"
+                            >{item.quantity}</span>
+                            <button
+                              onClick={() => updateQuantity(item.id, 1)}
+                              className="px-2.5 py-1 text-xs text-[#555555] hover:bg-[#F5F5F5] transition-colors"
+                              aria-label={`Increase quantity of ${item.name}`}
+                            >+</button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
 
-          {/* Footer & Checkout */}
-          {cart.length > 0 && (
-            <div className="px-6 py-5 border-t border-[#EAEAEA] bg-white space-y-4">
+          {/* ───────────────────────────────────────────────────────────── */}
+          {/* FOOTER & CHECKOUT (Filled State)                              */}
+          {/* ───────────────────────────────────────────────────────────── */}
+          {cart.length > 0 && !isJustAddedMode && (
+            <div className="px-6 py-5 border-t border-spec-border bg-white space-y-4">
               {/* Authenticated Client Status */}
               {isLoggedIn && user && (
-                <div className="text-[11px] text-[#555555] bg-[#FAFAFA] border border-[#EAEAEA] px-3 py-2 flex items-center justify-between">
+                <div className="text-[11px] text-[#555555] bg-[#FAFAFA] border border-spec-border px-3 py-2 flex items-center justify-between">
                   <span className="truncate">
                     Client: <strong className="text-black font-medium">{user.name}</strong>
                   </span>
-                  <span className="text-[9px] tracking-wider text-black uppercase font-semibold bg-[#EEEEEE] px-1.5 py-0.5">
+                  <span className="text-[9px] tracking-wider text-black uppercase font-semibold bg-[#EEEEEE] px-1.5 py-0.5 font-mono">
                     Verified
                   </span>
                 </div>
               )}
 
-              <div className="flex justify-between items-center text-xs tracking-wider uppercase font-semibold text-[#111111]">
+              <div className="flex justify-between items-center text-xs tracking-spec uppercase font-bold text-[#2D2D2D]">
                 <span>Estimated Total</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
-              <p className="text-[11px] text-[#777777]">
-                Taxes and shipping calculated at checkout. Complimentary luxury packaging included.
+              <p className="text-[11px] text-[#8E8E8E] font-spec leading-relaxed">
+                Taxes and shipping calculated at checkout.
               </p>
               <button
                 type="button"
                 onClick={handleProceedToCheckout}
-                className="w-full bg-[#111111] hover:bg-black text-white text-xs uppercase tracking-luxury py-4 px-6 font-medium transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-[#4D4D4D] hover:bg-black text-white text-xs font-spec font-bold uppercase tracking-spec py-4 px-6 transition-colors flex items-center justify-center gap-2 rounded-none btn-fill-hover shadow-sm"
               >
-                Proceed to Checkout — ${subtotal.toFixed(2)}
+                Check out — ${subtotal.toFixed(2)}
               </button>
               <div className="text-center">
                 <Link
                   to="/shop"
                   onClick={() => setIsCartOpen(false)}
-                  className="text-[11px] text-[#666666] hover:text-black uppercase tracking-wider underline underline-offset-4"
+                  className="text-[11px] text-spec-muted hover:text-black uppercase tracking-wider underline underline-offset-4"
                 >
-                  View All Products
+                  Continue Shopping
                 </Link>
               </div>
             </div>

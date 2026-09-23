@@ -510,7 +510,7 @@ export const InteractiveLookbook: React.FC<InteractiveLookbookProps> = ({ isSpot
 
       {/* Global Added Notice Toast */}
       {addedNotice && (
-        <div className="fixed bottom-6 right-6 z-50 bg-black text-white px-5 py-3.5 text-xs uppercase font-mono tracking-wider shadow-2xl flex items-center gap-2.5 animate-slide-up border border-white/20">
+        <div className="fixed bottom-6 right-6 z-toast bg-black text-white px-5 py-3.5 text-xs uppercase font-mono tracking-wider shadow-2xl flex items-center gap-2.5 animate-slide-up border border-white/20">
           <Check className="w-4 h-4 text-emerald-400" />
           <span>Added {addedNotice} to your Shopping Bag</span>
         </div>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Product } from '../../config/assets';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
+import { ProductImage } from './ProductImage';
 
 interface ProductCardProps {
   product: Product;
@@ -189,43 +190,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         isHolding ? 'scale-[0.98]' : 'scale-100'
       }`}
     >
-      {/* Product Image Container */}
-      <div
-        className={`relative w-full bg-[#FAFAFA] overflow-hidden ${
-          isFeatured ? 'aspect-[3/4] sm:aspect-[4/5]' : 'aspect-[4/5]'
-        }`}
+      {/* Product Image Container via shared ProductImage component */}
+      <ProductImage
+        src={product.images[0]}
+        alt={product.name}
+        placement="grid"
+        secondarySrc={product.images[1]}
+        secondaryAlt={`${product.name} alternate view`}
       >
-        <img
-          src={product.images[0]}
-          alt={product.name}
-          loading="lazy"
-          decoding="async"
-          width={600}
-          height={750}
-          className={`w-full h-full object-contain p-6 sm:p-10 luxury-image-zoom mix-blend-multiply pointer-events-none transition-opacity duration-500 ${
-            product.images[1] ? 'group-hover:opacity-0' : ''
-          }`}
-        />
-        {product.images[1] && (
-          <img
-            src={product.images[1]}
-            alt={`${product.name} alternate view`}
-            loading="lazy"
-            decoding="async"
-            width={600}
-            height={750}
-            className="w-full h-full object-contain p-6 sm:p-10 luxury-image-zoom mix-blend-multiply pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-          />
-        )}
-
-        {/* Badges */}
-        <div className="absolute top-3.5 left-3.5 z-10 flex flex-col gap-1 pointer-events-none">
+        {/* Badges per REFERENCE-SPEC 1.2 */}
+        <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
           {isTotalSoldOut ? (
-            <span className="text-[9px] tracking-luxury uppercase bg-[#888888] text-white px-2 py-0.5 font-medium">
+            <span className="text-[9px] tracking-spec uppercase bg-[#2D2D2D] text-white px-2 py-0.5 font-bold">
               Sold Out
             </span>
           ) : product.isNewArrival ? (
-            <span className="text-[9px] tracking-luxury uppercase bg-black text-white px-2 py-0.5 font-medium">
+            <span className="text-[9px] tracking-spec uppercase bg-[#E4E4E4] text-[#212121] px-2 py-0.5 font-bold">
               New
             </span>
           ) : null}
@@ -240,8 +220,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             toggleSaveItem(product.id);
           }}
           aria-label={isSaved ? `Remove ${product.name} from Wishlist` : `Save ${product.name} to Wishlist`}
-          className={`absolute top-3.5 right-3.5 z-20 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-[#EAEAEA] flex items-center justify-center text-black transition-all duration-200 shadow-sm hover:scale-110 focus-visible:ring-2 focus-visible:ring-black ${
-            isSaved ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+          className={`absolute top-3 right-3 z-20 w-8 h-8 rounded-none bg-white/90 backdrop-blur-sm border border-spec-border flex items-center justify-center text-spec-text hover:bg-black hover:text-white transition-colors duration-default shadow-xs ${
+            isSaved ? 'opacity-100 bg-black text-white' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
           }`}
         >
           <svg
@@ -266,22 +246,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             e.preventDefault();
             e.stopPropagation();
           }}
-          className={`absolute inset-x-0 bottom-0 bg-white/95 backdrop-blur-md border-t border-[#EAEAEA] p-3 sm:p-4 transition-all duration-300 z-20 flex flex-col gap-2.5 ${
+          className={`absolute inset-x-0 bottom-0 bg-white border-t border-spec-border p-3 sm:p-4 transition-all duration-300 z-20 flex flex-col gap-2.5 ${
             showMobileQuickView
               ? 'opacity-100 translate-y-0 pointer-events-auto shadow-xl'
-              : 'opacity-0 translate-y-3 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto'
+              : 'opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto'
           }`}
         >
           {/* Header row in quick-view */}
           <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-widest text-[#555555] font-semibold">
+            <span className="text-[10px] uppercase tracking-spec text-spec-muted font-bold font-spec">
               Quick Add · Size
             </span>
             {showMobileQuickView && (
               <button
                 type="button"
                 onClick={handleCloseMobileQuickView}
-                className="text-[#888888] hover:text-black text-xs p-1 font-mono leading-none"
+                className="text-spec-muted hover:text-black text-xs p-1 font-mono leading-none"
                 aria-label="Dismiss Quick View"
               >
                 ✕
@@ -300,12 +280,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   type="button"
                   disabled={isSzOos}
                   onClick={(e) => !isSzOos && handleSelectSize(e, sz)}
-                  className={`relative h-7 min-w-[30px] px-2 text-[10px] font-mono uppercase transition-all flex items-center justify-center border ${
+                  className={`relative h-7 min-w-[30px] px-2 text-[10px] font-mono uppercase transition-colors flex items-center justify-center border rounded-none ${
                     isSzOos
-                      ? 'border-[#EAEAEA] bg-[#FAFAFA] text-[#CCCCCC] cursor-not-allowed'
+                      ? 'border-spec-border bg-[#FAFAFA] text-spec-inactive cursor-not-allowed'
                       : selectedSize === sz
-                      ? 'border-black bg-black text-white font-semibold ring-1 ring-black'
-                      : 'border-[#EAEAEA] bg-white text-[#444444] hover:border-black'
+                      ? 'border-black bg-spec-btn-primary text-white font-bold'
+                      : 'border-spec-border bg-white text-spec-text hover:border-black'
                   }`}
                 >
                   {isSzOos && (
@@ -329,12 +309,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             type="button"
             disabled={isTotalSoldOut}
             onClick={handleAddToCart}
-            className={`w-full py-2.5 px-3 text-[10px] uppercase tracking-luxury font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
+            className={`w-full py-2.5 px-3 text-[11px] uppercase tracking-spec font-spec transition-colors duration-default flex items-center justify-center gap-2 rounded-none ${
               isTotalSoldOut
-                ? 'bg-[#CCCCCC] text-[#888888] cursor-not-allowed'
+                ? 'bg-spec-badge-restock text-white cursor-not-allowed'
                 : isAdded
-                ? 'bg-emerald-800 text-white'
-                : 'bg-[#111111] hover:bg-black text-white'
+                ? 'bg-black text-white'
+                : 'bg-spec-btn-primary hover:bg-black text-white'
             }`}
           >
             {isTotalSoldOut ? (
@@ -351,61 +331,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             )}
           </button>
         </div>
-      </div>
+      </ProductImage>
 
-      {/* Product Information */}
-      <div className={`mt-4 sm:mt-6 ${isFeatured ? 'space-y-1.5' : 'space-y-1'}`}>
+      {/* Product Information: image, title (single line, uppercase, truncate with ellipsis), price */}
+      <div className="mt-3 sm:mt-4 space-y-1">
         <h3
-          className={`text-black font-normal uppercase tracking-wider transition-opacity duration-300 group-hover:opacity-60 ${
-            isFeatured ? 'text-sm sm:text-base' : 'text-xs sm:text-sm'
-          }`}
+          title={product.name}
+          className="font-spec font-bold text-[12px] uppercase text-spec-text tracking-spec truncate block"
         >
           {product.name}
         </h3>
 
-        {showSubtitle && product.subtitle && (
-          <p className="text-[11px] text-[#777777] tracking-normal font-light">
-            {product.subtitle}
-          </p>
-        )}
-
-        <div className="flex items-center justify-between pt-0.5">
-          <p
-            className={`text-[#111111] font-medium tracking-wide ${
-              isFeatured ? 'text-sm sm:text-base' : 'text-xs sm:text-sm'
-            }`}
-          >
-            {product.currency}{product.price.toFixed(2)}
-          </p>
-
-          {/* Colorway preview swatches */}
-          {product.colorsAvailable && product.colorsAvailable.length > 1 && (
-            <div
-              className="flex items-center gap-1.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {product.colorsAvailable.map((c) => (
-                <button
-                  key={c.productId}
-                  type="button"
-                  title={c.name}
-                  aria-label={`View ${product.name} in ${c.name}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    navigate(`/product/${c.productId}`);
-                  }}
-                  className={`w-3.5 h-3.5 rounded-full border transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-black ${
-                    c.name === product.color
-                      ? 'border-black ring-1 ring-black'
-                      : 'border-[#DDDDDD]'
-                  }`}
-                  style={{ backgroundColor: c.hex }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        <p className="font-spec font-normal text-[12px] sm:text-[13px] uppercase text-spec-muted tracking-spec">
+          {product.currency}{product.price.toFixed(2)}
+        </p>
       </div>
     </div>
   );

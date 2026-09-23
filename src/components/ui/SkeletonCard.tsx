@@ -5,10 +5,8 @@ import React from 'react';
  * Accepts an index for staggered shimmer animation delays across the grid.
  */
 export const ProductCardSkeleton: React.FC<{ variant?: 'featured' | 'grid'; index?: number }> = ({
-  variant = 'grid',
   index = 0
 }) => {
-  const isFeatured = variant === 'featured';
   // Stagger by column position so each card in a row shimmers offset from its neighbour
   const delaySec = (index % 4) * 0.12;
 
@@ -17,33 +15,26 @@ export const ProductCardSkeleton: React.FC<{ variant?: 'featured' | 'grid'; inde
       className="block text-left select-none pointer-events-none"
       aria-hidden="true"
     >
-      {/* Product Image Skeleton — exact 4:5 aspect ratio matching ProductCard */}
+      {/* Product Image Skeleton — exact 2:3 aspect ratio matching ProductCard */}
       <div
-        className={`w-full skeleton-shimmer relative overflow-hidden ${
-          isFeatured ? 'aspect-[3/4] sm:aspect-[4/5]' : 'aspect-[4/5]'
-        }`}
+        className="w-full skeleton-shimmer relative overflow-hidden aspect-[2/3] bg-[#F7F7F7]"
         style={{ animationDelay: `${delaySec}s` }}
       >
-        {/* "New" tag position placeholder */}
-        <div className="absolute top-4 left-4 w-10 h-4 bg-black/[0.04]" />
+        {/* Badge position placeholder */}
+        <div className="absolute top-3 left-3 w-10 h-3.5 bg-black/[0.04]" />
       </div>
 
-      {/* Product info text skeletons */}
-      <div className={`mt-4 sm:mt-6 ${isFeatured ? 'space-y-2.5' : 'space-y-2'}`}>
-        {/* Name line */}
+      {/* Product info text skeletons: title line, price line */}
+      <div className="mt-3 sm:mt-4 space-y-1">
+        {/* Name line (single line uppercase) */}
         <div
-          className={`h-3.5 skeleton-shimmer ${isFeatured ? 'w-4/5' : 'w-3/4'}`}
+          className="h-3.5 skeleton-shimmer w-3/4"
           style={{ animationDelay: `${delaySec + 0.05}s` }}
-        />
-        {/* Category/subtitle line */}
-        <div
-          className="h-2.5 skeleton-shimmer w-1/3"
-          style={{ animationDelay: `${delaySec + 0.09}s` }}
         />
         {/* Price line */}
         <div
-          className="h-3 skeleton-shimmer w-1/4"
-          style={{ animationDelay: `${delaySec + 0.13}s` }}
+          className="h-3 skeleton-shimmer w-1/4 mt-1"
+          style={{ animationDelay: `${delaySec + 0.1}s` }}
         />
       </div>
     </div>
@@ -51,11 +42,11 @@ export const ProductCardSkeleton: React.FC<{ variant?: 'featured' | 'grid'; inde
 };
 
 /**
- * Full grid of ProductCardSkeletons — mirrors the live 4-column catalog grid.
+ * Full grid of ProductCardSkeletons — mirrors the live 2/3/4-column catalog grid.
  */
 export const ProductGridSkeleton: React.FC<{ count?: number }> = ({ count = 8 }) => {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 sm:gap-x-8 gap-y-12 sm:gap-y-16">
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-grid gap-y-8 sm:gap-y-10">
       {Array.from({ length: count }).map((_, index) => (
         <ProductCardSkeleton key={index} variant="grid" index={index} />
       ))}

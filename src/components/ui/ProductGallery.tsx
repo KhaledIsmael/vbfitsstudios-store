@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import type { MediaItem } from '../../config/assets';
+import { ProductImage } from './ProductImage';
 
 interface ProductGalleryProps {
   /** Rich media items — images, GIFs, and optional video. 4–6 items max. */
@@ -62,21 +63,16 @@ const Thumbnail: React.FC<ThumbProps> = ({ item, index, isSelected, productName,
       onClick={onClick}
       aria-label={`View ${item.type === 'video' ? 'video' : `image ${index + 1}`} of ${productName}`}
       aria-pressed={isSelected}
-      className={`relative flex-shrink-0 w-20 h-24 sm:w-full sm:h-28 bg-[#FAFAFA] overflow-hidden border transition-all duration-200 focus-visible:outline-2 focus-visible:outline-black ${
+      className={`relative flex-shrink-0 w-20 sm:w-full overflow-hidden border transition-all duration-200 focus-visible:outline-2 focus-visible:outline-black ${
         isSelected
           ? 'border-black'
-          : 'border-[#EAEAEA] opacity-60 hover:opacity-100 hover:border-[#CCCCCC]'
+          : 'border-spec-border opacity-70 hover:opacity-100 hover:border-black'
       }`}
     >
-      <img
+      <ProductImage
         src={thumbSrc}
         alt={item.altText || `${productName} view ${index + 1}`}
-        className="w-full h-full object-contain p-1.5 mix-blend-multiply"
-        draggable={false}
-        loading="lazy"
-        decoding="async"
-        width={96}
-        height={112}
+        placement="pdp-thumb"
       />
       {item.type === 'video' && <VideoPlayBadge />}
       {item.type === 'gif' && <GifBadge />}
@@ -104,10 +100,10 @@ const PrimaryViewer: React.FC<PrimaryViewerProps> = ({ item, productName, viewer
     }
   }, [item.url, item.type]);
 
-  return (
-    <div className="flex-1 bg-[#FAFAFA] aspect-[4/5] overflow-hidden relative group">
-      {item.type === 'video' ? (
-        /* ── Video player — autoplay, muted, looped ── */
+  if (item.type === 'video') {
+    return (
+      <div className="flex-1 bg-white aspect-[2/3] overflow-hidden relative group border border-spec-border">
+        {/* ── Video player — autoplay, muted, looped ── */}
         <video
           ref={videoRef}
           key={item.url} // Force remount on source change → restarts from frame 0
@@ -120,38 +116,37 @@ const PrimaryViewer: React.FC<PrimaryViewerProps> = ({ item, productName, viewer
           className="w-full h-full object-contain"
           aria-label={item.altText || `${productName} video`}
         />
-      ) : (
-        /* ── Image / GIF ── */
-        <img
-          key={item.url}
-          src={item.url}
-          alt={item.altText || productName}
-          className={`w-full h-full object-contain p-8 sm:p-12 transition-transform duration-700 mix-blend-multiply ${
-            item.type === 'gif' ? '' : 'group-hover:scale-105'
-          }`}
-          draggable={false}
-          loading="lazy"
-          decoding="async"
-          width={800}
-          height={1000}
-        />
-      )}
 
-      {/* ── "PLAYING" indicator strip for video ── */}
-      {item.type === 'video' && (
+        {/* ── "PLAYING" indicator strip for video ── */}
         <div className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-gradient-to-t from-black/30 to-transparent flex items-center gap-1.5 pointer-events-none">
           <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
           <span className="text-[9px] uppercase tracking-widest text-white/90 font-mono">
             Playing
           </span>
         </div>
-      )}
 
+        {/* Slot — e.g. wishlist button */}
+        {viewerSlot && (
+          <div className="absolute top-4 right-4">{viewerSlot}</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    /* ── Image / GIF via shared ProductImage ── */
+    <ProductImage
+      key={item.url}
+      src={item.url}
+      alt={item.altText || productName}
+      placement="pdp-main"
+      className="flex-1 border border-spec-border"
+    >
       {/* Slot — e.g. wishlist button */}
       {viewerSlot && (
         <div className="absolute top-4 right-4">{viewerSlot}</div>
       )}
-    </div>
+    </ProductImage>
   );
 };
 
@@ -163,6 +158,8 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   onSelect,
   viewerSlot,
 }) => {
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+
   // Synthesise a 1-item fallback so we never render an empty gallery
   const items: MediaItem[] =
     mediaItems.length > 0
@@ -172,6 +169,27 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   // Clamp selectedIndex in case it's stale after colorway switch
   const safeIndex = Math.min(selectedIndex, items.length - 1);
   const activeItem = items[safeIndex];
+
+  // Sync mobile scroll position when selectedIndex changes externally
+  useEffect(() => {
+    const el = mobileScrollRef.current;
+    if (el) {
+      const targetLeft = safeIndex * el.clientWidth;
+      if (Math.abs(el.scrollLeft - targetLeft) > 5) {
+        el.scrollTo({ left: targetLeft, behavior: 'smooth' });
+      }
+    }
+  }, [safeIndex]);
+
+  // Handle scroll on mobile to sync selected index
+  const handleMobileScroll = () => {
+    const el = mobileScrollRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const newIdx = Math.round(el.scrollLeft / el.clientWidth);
+    if (newIdx !== safeIndex && newIdx >= 0 && newIdx < items.length) {
+      onSelect(newIdx);
+    }
+  };
 
   // Keyboard navigation: arrow keys cycle through items
   const handleKeyDown = useCallback(
@@ -188,41 +206,118 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   );
 
   return (
-    /*
-     * Layout:
-     *  Mobile  → column-reverse so thumbnails appear below viewer (flex-col-reverse)
-     *  Desktop → row with thumbnail rail on the left (sm:flex-row)
-     */
-    <div
-      className="flex flex-col-reverse sm:flex-row gap-4 sm:gap-6"
-      onKeyDown={handleKeyDown}
-      aria-label={`${productName} gallery`}
-    >
-      {/* ── Thumbnail Rail ── */}
-      <div
-        role="listbox"
-        aria-label="Select media item"
-        aria-orientation="vertical"
-        className="flex sm:flex-col gap-3 overflow-x-auto sm:overflow-y-auto sm:w-24 flex-shrink-0 pb-1 sm:pb-0 sm:max-h-[600px]"
-      >
-        {items.map((item, idx) => (
-          <Thumbnail
-            key={`${item.url}-${idx}`}
-            item={item}
-            index={idx}
-            isSelected={idx === safeIndex}
-            productName={productName}
-            onClick={() => onSelect(idx)}
-          />
-        ))}
+    <div onKeyDown={handleKeyDown} aria-label={`${productName} gallery`}>
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MOBILE: Native Swipe Carousel with Scroll-Snap (< sm)          */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="block sm:hidden relative w-full">
+        <div
+          ref={mobileScrollRef}
+          onScroll={handleMobileScroll}
+          className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full aspect-[2/3] bg-white border border-spec-border"
+          tabIndex={0}
+          role="region"
+          aria-label="Swipeable product images"
+        >
+          {items.map((item, idx) => {
+            const imgSrc = item.type === 'video' ? (item.posterUrl || item.url) : item.url;
+            return (
+              <div
+                key={`${item.url}-${idx}`}
+                className="w-full h-full flex-shrink-0 snap-center relative bg-white"
+              >
+                {item.type === 'video' ? (
+                  <video
+                    src={item.url}
+                    poster={item.posterUrl}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    className="w-full h-full object-contain"
+                    aria-label={item.altText || `${productName} video`}
+                  />
+                ) : (
+                  <ProductImage
+                    src={imgSrc}
+                    alt={item.altText || `${productName} view ${idx + 1}`}
+                    placement="pdp-main"
+                    className="w-full h-full"
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Wishlist slot in top right on mobile */}
+        {viewerSlot && (
+          <div className="absolute top-3 right-3 z-10">{viewerSlot}</div>
+        )}
+
+        {/* Minimalist Mobile Slide Counter per REFERENCE-SPEC 8.2 */}
+        {items.length > 1 && (
+          <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-[10px] font-mono px-2 py-0.5 pointer-events-none tracking-widest uppercase">
+            {safeIndex + 1} / {items.length}
+          </div>
+        )}
+
+        {/* Slide Dots Indicator */}
+        {items.length > 1 && (
+          <div className="flex justify-center items-center gap-1.5 mt-3">
+            {items.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => onSelect(idx)}
+                aria-label={`Go to slide ${idx + 1}`}
+                className={`h-1 transition-all duration-300 ${
+                  idx === safeIndex ? 'w-6 bg-black' : 'w-2 bg-[#D0D0D0]'
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* ── Primary Viewer ── */}
-      <PrimaryViewer
-        item={activeItem}
-        productName={productName}
-        viewerSlot={viewerSlot}
-      />
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* DESKTOP: Sorvea Vertical Masonry Sequence (≥ lg)              */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="hidden sm:flex flex-col space-y-4">
+        {items.map((item, idx) => {
+          const imgSrc = item.type === 'video' ? (item.posterUrl || item.url) : item.url;
+          return (
+            <div
+              key={`${item.url}-${idx}`}
+              className="relative w-full aspect-[2/3] bg-white border border-[#DDDDDD] overflow-hidden group cursor-zoom-in"
+              onClick={() => onSelect(idx)}
+            >
+              {item.type === 'video' ? (
+                <video
+                  src={item.url}
+                  poster={item.posterUrl}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="w-full h-full object-contain"
+                  aria-label={item.altText || `${productName} video`}
+                />
+              ) : (
+                <ProductImage
+                  src={imgSrc}
+                  alt={item.altText || `${productName} view ${idx + 1}`}
+                  placement="pdp-main"
+                  className="w-full h-full"
+                />
+              )}
+              {idx === 0 && viewerSlot && (
+                <div className="absolute top-4 right-4 z-10">{viewerSlot}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

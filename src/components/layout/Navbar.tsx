@@ -1,5 +1,5 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { BRAND_CONFIG } from '../../config/assets';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -14,6 +14,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMenu }) => {
   const { totalItems, setIsCartOpen, isCartBouncing } = useCart();
   const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Scroll detection for transparent vs solid header behavior
+  const [isScrolled, setIsScrolled] = useState(false);
+  const isHomePage = location.pathname === '/';
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 40);
+    };
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // When hero sits under header on home page and user hasn't scrolled past threshold
+  const isTransparent = isHomePage && !isScrolled;
 
   const handleProfileClick = () => {
     if (isLoggedIn) {
@@ -24,79 +42,190 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMenu }) => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-[#EAEAEA] transition-all duration-300">
-      <AnnouncementBar />
-      <div className="max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-12 h-16 sm:h-20 flex items-center justify-between">
+    <header
+      className={`fixed top-0 left-0 right-0 z-header transition-colors duration-default ${
+        isTransparent
+          ? 'bg-transparent border-b border-transparent'
+          : 'bg-white/95 backdrop-blur-md border-b border-[#DDDDDD] shadow-xs'
+      }`}
+    >
+      {!isTransparent && <AnnouncementBar />}
+
+      {/* REFERENCE-SPEC Layout: Menu Left | Logo Center | EN + Search + Account + Cart Right */}
+      <div className="grid grid-cols-3 items-center max-w-[1900px] mx-auto px-4 sm:px-8 h-16 sm:h-20 select-none">
         
-        {/* Left: Replaceable Brand Logo */}
-        <div className="flex items-center">
-          <Link to="/" className="group flex items-center gap-3">
+        {/* LEFT: Navigation Menu Drawer Toggle & Mobile Search */}
+        <div className="flex items-center justify-start space-x-1 sm:space-x-0">
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            aria-label="Open Navigation Menu"
+            className={`p-2 focus-visible:outline-2 focus-visible:outline-offset-2 rounded-none transition-opacity duration-default ${
+              isTransparent
+                ? 'text-white hover:opacity-75 focus-visible:outline-white'
+                : 'text-[#2D2D2D] hover:opacity-50 focus-visible:outline-black'
+            }`}
+          >
             <img
-              src={BRAND_CONFIG.logo.src}
-              alt={BRAND_CONFIG.logo.alt}
-              className="h-8 sm:h-10 w-auto object-contain mix-blend-multiply transition-opacity duration-300 group-hover:opacity-75"
-              width={120}
-              height={40}
+              src={BRAND_CONFIG.icons.menu}
+              alt=""
+              aria-hidden="true"
+              className={`w-5 h-5 object-contain transition-all duration-default ${
+                isTransparent ? 'brightness-0 invert' : ''
+              }`}
+              width={20}
+              height={20}
               decoding="async"
             />
-          </Link>
-        </div>
+          </button>
 
-        {/* Right: Exactly in this order: Search, Profile, Cart, Hamburger Menu */}
-        <div className="flex items-center space-x-5 sm:space-x-8">
-          {/* 1. Search Icon */}
+          {/* Search Trigger for Mobile (Sorvea Layout) */}
           <button
             type="button"
             onClick={onOpenSearch}
             aria-label="Search Catalog"
-            className="text-[#111111] hover:opacity-50 transition-opacity p-1.5 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 rounded"
+            className={`sm:hidden p-2 focus-visible:outline-2 focus-visible:outline-offset-2 rounded-none transition-opacity duration-default ${
+              isTransparent
+                ? 'text-white hover:opacity-75 focus-visible:outline-white'
+                : 'text-[#2D2D2D] hover:opacity-50 focus-visible:outline-black'
+            }`}
           >
             <img
               src={BRAND_CONFIG.icons.search}
               alt=""
               aria-hidden="true"
-              className="w-5 h-5 object-contain"
+              className={`w-5 h-5 object-contain transition-all duration-default ${
+                isTransparent ? 'brightness-0 invert' : ''
+              }`}
+              width={20}
+              height={20}
+              decoding="async"
+            />
+          </button>
+        </div>
+
+        {/* CENTER: Centered Logo with Light/Dark Transition */}
+        <div className="flex items-center justify-center">
+          <Link
+            to="/"
+            className="group flex items-center justify-center py-2 focus-visible:outline-2 focus-visible:outline-offset-2 rounded-none"
+            aria-label={BRAND_CONFIG.name}
+          >
+            <div className="relative flex items-center justify-center h-8 sm:h-10 w-20 sm:w-[130px]">
+              {/* Light logo variant (active when transparent over dark hero, mix-blend-screen to remove black bg) */}
+              <img
+                src={BRAND_CONFIG.logo.light}
+                alt={BRAND_CONFIG.logo.alt}
+                className={`h-8 sm:h-10 max-w-[80px] sm:max-w-[130px] w-auto object-contain mix-blend-screen transition-opacity duration-default absolute inset-0 mx-auto ${
+                  isTransparent ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+                width={130}
+                height={40}
+                decoding="async"
+              />
+
+              {/* Dark logo variant (active when solid scrolled or on interior pages, mix-blend-multiply to remove white bg) */}
+              <img
+                src={BRAND_CONFIG.logo.dark}
+                alt={BRAND_CONFIG.logo.alt}
+                className={`h-8 sm:h-10 max-w-[80px] sm:max-w-[130px] w-auto object-contain mix-blend-multiply transition-opacity duration-default ${
+                  isTransparent ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                }`}
+                width={130}
+                height={40}
+                decoding="async"
+              />
+            </div>
+          </Link>
+        </div>
+
+        {/* RIGHT: Language Toggle, Search (Desktop), Profile, and Cart Drawer */}
+        <div className="flex items-center justify-end space-x-2 sm:space-x-5">
+          {/* 0. Language Selector (Desktop only on Sorvea) */}
+          <button
+            type="button"
+            aria-label="Select Language (EN)"
+            className={`hidden sm:flex items-center space-x-0.5 text-xs font-spec font-bold uppercase tracking-spec p-1.5 transition-opacity duration-default ${
+              isTransparent
+                ? 'text-white hover:opacity-75 focus-visible:outline-white'
+                : 'text-[#2D2D2D] hover:opacity-50 focus-visible:outline-black'
+            }`}
+          >
+            <span>EN</span>
+            <svg className="w-2.5 h-2.5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {/* 1. Search Trigger (Desktop) */}
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            aria-label="Search Catalog"
+            className={`hidden sm:block p-2 focus-visible:outline-2 focus-visible:outline-offset-2 rounded-none transition-opacity duration-default ${
+              isTransparent
+                ? 'text-white hover:opacity-75 focus-visible:outline-white'
+                : 'text-[#2D2D2D] hover:opacity-50 focus-visible:outline-black'
+            }`}
+          >
+            <img
+              src={BRAND_CONFIG.icons.search}
+              alt=""
+              aria-hidden="true"
+              className={`w-5 h-5 object-contain transition-all duration-default ${
+                isTransparent ? 'brightness-0 invert' : ''
+              }`}
               width={20}
               height={20}
               decoding="async"
             />
           </button>
 
-          {/* 2. Profile Icon */}
+          {/* 2. User Account / Profile */}
           <button
             type="button"
             onClick={handleProfileClick}
             aria-label={isLoggedIn ? "User Account (Signed in)" : "Sign In to Account"}
-            className="text-[#111111] hover:opacity-50 transition-opacity p-1.5 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 rounded relative"
+            className={`p-2 focus-visible:outline-2 focus-visible:outline-offset-2 rounded-none relative transition-opacity duration-default ${
+              isTransparent
+                ? 'text-white hover:opacity-75 focus-visible:outline-white'
+                : 'text-[#111111] hover:opacity-50 focus-visible:outline-black'
+            }`}
           >
             <img
               src={BRAND_CONFIG.icons.user}
               alt=""
               aria-hidden="true"
-              className="w-5 h-5 object-contain"
+              className={`w-5 h-5 object-contain transition-all duration-default ${
+                isTransparent ? 'brightness-0 invert' : ''
+              }`}
               width={20}
               height={20}
               decoding="async"
             />
             {isLoggedIn && (
-              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-black rounded-full ring-2 ring-white"></span>
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-emerald-400 rounded-full ring-2 ring-black"></span>
             )}
           </button>
 
-          {/* 3. Cart Icon */}
+          {/* 3. Shopping Bag Cart Trigger */}
           <button
             type="button"
             onClick={() => setIsCartOpen(true)}
             aria-label={`Shopping Bag, ${totalItems} ${totalItems === 1 ? 'item' : 'items'}`}
-            className={`text-[#111111] hover:opacity-50 transition-all p-1.5 relative focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 rounded ${
-              isCartBouncing ? 'animate-cart-bounce' : ''
-            }`}
+            className={`p-2 relative focus-visible:outline-2 focus-visible:outline-offset-2 rounded-none transition-all duration-default ${
+              isTransparent
+                ? 'text-white hover:opacity-75 focus-visible:outline-white'
+                : 'text-[#2D2D2D] hover:opacity-50 focus-visible:outline-black'
+            } ${isCartBouncing ? 'animate-cart-bounce' : ''}`}
           >
             <img
               src={BRAND_CONFIG.icons.cart}
               alt=""
               aria-hidden="true"
-              className="w-5 h-5 object-contain"
+              className={`w-5 h-5 object-contain transition-all duration-default ${
+                isTransparent ? 'brightness-0 invert' : ''
+              }`}
               width={20}
               height={20}
               decoding="async"
@@ -104,31 +233,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMenu }) => {
             {totalItems > 0 && (
               <span
                 aria-hidden="true"
-                className={`absolute -top-1 -right-1 bg-black text-white text-[10px] font-medium w-4 h-4 rounded-full flex items-center justify-center transition-transform duration-300 ${
-                  isCartBouncing ? 'scale-125 ring-2 ring-black ring-offset-1' : 'scale-100'
-                }`}
+                className={`absolute -top-1 -right-1 text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center transition-transform duration-default ${
+                  isTransparent
+                    ? 'bg-white text-black ring-1 ring-black/20'
+                    : 'bg-black text-white'
+                } ${isCartBouncing ? 'scale-125 ring-2 ring-black ring-offset-1' : 'scale-100'}`}
               >
                 {totalItems}
               </span>
             )}
-          </button>
-
-          {/* 4. Hamburger Menu Icon */}
-          <button
-            type="button"
-            onClick={onOpenMenu}
-            aria-label="Open Navigation Menu"
-            className="text-[#111111] hover:opacity-50 transition-opacity p-1.5 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 rounded"
-          >
-            <img
-              src={BRAND_CONFIG.icons.menu}
-              alt=""
-              aria-hidden="true"
-              className="w-5 h-5 object-contain"
-              width={20}
-              height={20}
-              decoding="async"
-            />
           </button>
         </div>
 

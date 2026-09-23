@@ -60,7 +60,7 @@ export const WhatsAppButton: React.FC = () => {
 
   return (
     <div
-      className={`fixed right-5 sm:right-8 z-40 transition-all duration-300 ${
+      className={`fixed right-5 sm:right-8 z-whatsapp transition-all duration-300 ${
         isProductPage ? 'bottom-20 sm:bottom-24' : 'bottom-6 sm:bottom-8'
       }`}
     >

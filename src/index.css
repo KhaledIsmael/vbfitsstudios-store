@@ -7,19 +7,98 @@
     --color-bg: #FFFFFF;
     --color-text: #111111;
     --color-border: #EAEAEA;
+
+    /* REFERENCE-SPEC Design Tokens */
+    --gap: 8px;
+    --grid-gap: 16px;
+    --site-max-width: 1900px;
+    --site-max-width-big: 1900px;
+    --border-radius: 0px;
+    --border-radius-button: 0px;
+    --navbar-height: 48px;
+
+    /* Motion Tokens */
+    --duration-short: 100ms;
+    --duration-default: 200ms;
+    --duration-announcement-bar: 250ms;
+    --duration-medium: 300ms;
+    --duration-long: 500ms;
+    --duration-extra-long: 600ms;
+    --duration-zoom: 1500ms;
+    --duration-extended: 3000ms;
+
+    /* Easings */
+    --ease-luxury: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-drawer: cubic-bezier(0.12, 0.67, 0.53, 1);
+    --ease-out-slow: cubic-bezier(0, 0, 0.3, 1);
   }
 
   * {
-    border-color: #EAEAEA;
+    border-color: #DDDDDD;
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
     background-color: #FFFFFF;
-    color: #111111;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    letter-spacing: -0.01em;
+    color: #2D2D2D;
+    font-family: Helvetica, Arial, sans-serif;
+    letter-spacing: -0.5px;
   }
+}
+
+/* Sorvea Architectural Collection Grid Dividers */
+.sorvea-grid {
+  display: grid;
+  border-top: 1px solid #DDDDDD;
+}
+
+.sorvea-grid-item {
+  border-bottom: 1px solid #DDDDDD;
+  border-right: 1px solid #DDDDDD;
+}
+
+@media (max-width: 767px) {
+  .sorvea-grid-item:nth-child(2n) {
+    border-right: none;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .sorvea-grid-item:nth-child(3n) {
+    border-right: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .sorvea-grid-item:nth-child(4n) {
+    border-right: none;
+  }
+}
+
+/* REFERENCE-SPEC: Button Vertical Lift / Fill on Hover Pattern */
+.btn-fill-hover {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  clip-path: inset(0 round var(--border-radius-button, 0px));
+}
+
+.btn-fill-hover::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  bottom: -1px;
+  left: -1px;
+  background: var(--btn-hover-fill, #000000);
+  transform: translateY(101%);
+  transition: transform 0.3s ease-in-out;
+  z-index: -1;
+  border-radius: var(--border-radius-button, 0px);
+}
+
+.btn-fill-hover:hover::after {
+  transform: translateY(0);
 }
 
 /* Luxury Editorial Styling */
@@ -335,5 +414,27 @@ img[loading="lazy"] {
 img[loading="lazy"].loaded,
 img[loading="lazy"][src]:not([src=""]) {
   opacity: 1;
+}
+
+/* =====================================================================
+   PRODUCT CARD: Hover image crossfade (pointer: fine only)
+   ===================================================================== */
+.card-img-primary {
+  opacity: 1;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-img-secondary {
+  opacity: 0;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .group:hover .card-img-primary.has-secondary {
+    opacity: 0;
+  }
+  .group:hover .card-img-secondary {
+    opacity: 1;
+  }
 }
 

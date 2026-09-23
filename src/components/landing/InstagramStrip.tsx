@@ -48,83 +48,76 @@ const INSTA_ITEMS: GramItem[] = [
 ];
 
 export const InstagramStrip: React.FC = () => {
-  const { ref, isVisible } = useScrollReveal<HTMLDivElement>({ threshold: 0.15 });
+  const { ref, isVisible } = useScrollReveal<HTMLDivElement>({ threshold: 0.1 });
+  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const scrollRight = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 320, behavior: 'smooth' });
+    }
+  };
 
   return (
-    <section className="bg-white py-20 sm:py-28 border-t border-[#EAEAEA]">
+    <section className="bg-white py-12 sm:py-16 select-none border-t border-[#DDDDDD]">
       <div
         ref={ref}
-        className={`max-w-[1720px] mx-auto px-6 sm:px-10 lg:px-16 transition-all duration-700 ${
-          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+        className={`max-w-[1900px] mx-auto px-4 sm:px-8 transition-opacity duration-500 ${
+          isVisible ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        {/* Section Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-12 sm:mb-16 gap-4">
-          <div>
-            <span className="text-[11px] text-[#888888] tracking-luxury-wide uppercase block mb-2">
-              Visual Archives
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-light uppercase tracking-wider text-[#111111]">
-              Follow @vbfitsstudios
-            </h2>
-          </div>
-          <div>
-            <a
-              href="https://instagram.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-xs uppercase tracking-luxury text-[#111111] hover:text-[#777777] border-b border-black pb-1 transition-all"
-            >
-              <span>View On Instagram</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M7 17l9.2-9.2M17 17V8H8" />
-              </svg>
-            </a>
-          </div>
+        {/* Sorvea Reference Header: @BRAND on Left | FOLLOW US on Right */}
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <h2 className="font-spec font-bold text-sm sm:text-base uppercase tracking-spec text-[#2D2D2D]">
+            @VBFITSSTUDIOS
+          </h2>
+          <a
+            href="https://instagram.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-spec font-bold text-xs uppercase tracking-spec text-[#2D2D2D] underline hover:opacity-70 transition-opacity"
+          >
+            Follow Us
+          </a>
         </div>
 
-        {/* 6-Item Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-          {INSTA_ITEMS.map((item, index) => (
-            <a
-              key={item.id}
-              href={item.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group relative block aspect-square overflow-hidden bg-[#F5F5F5]"
-              style={{
-                transitionDelay: `${index * 80}ms`,
-              }}
-            >
-              <img
-                src={item.img}
-                alt={item.caption}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                loading="lazy"
-                decoding="async"
-                width={400}
-                height={400}
-              />
+        {/* Carousel Container with Right Scroll Arrow */}
+        <div className="relative group">
+          <div
+            ref={scrollContainerRef}
+            className="flex space-x-2 sm:space-x-3 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory"
+          >
+            {INSTA_ITEMS.map((item) => (
+              <a
+                key={item.id}
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative flex-none w-[200px] sm:w-[240px] lg:w-[280px] aspect-[4/5] overflow-hidden bg-[#F7F7F7] snap-start block"
+              >
+                <img
+                  src={item.img}
+                  alt={item.caption}
+                  className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
+                  loading="lazy"
+                  decoding="async"
+                  width={280}
+                  height={350}
+                />
+              </a>
+            ))}
+          </div>
 
-              {/* Dark Hover Overlay */}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-4 text-center">
-                {/* Instagram Glyph */}
-                <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white mb-3 backdrop-blur-sm">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-                  </svg>
-                </div>
-                <p className="text-[10px] text-white/90 uppercase tracking-widest font-light line-clamp-2">
-                  {item.caption}
-                </p>
-                <span className="text-[9px] text-[#C5A880] tracking-luxury uppercase mt-2 font-mono">
-                  @vbfitsstudios
-                </span>
-              </div>
-            </a>
-          ))}
+          {/* Right Navigation Arrow Button (Sorvea Style) */}
+          <button
+            type="button"
+            onClick={scrollRight}
+            aria-label="Scroll gallery right"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/85 hover:bg-white text-[#2D2D2D] flex items-center justify-center shadow-md transition-all opacity-80 hover:opacity-100 z-10"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </div>
     </section>

@@ -61,7 +61,9 @@ export const BRAND_CONFIG = {
   tagline: "Luxury Ready-to-Wear & Streetwear",
   copyright: "© 2026 VB FITS STUDIOS. ALL RIGHTS RESERVED.",
   logo: {
-    src: "/assets/logo/logo.webp",
+    src: "/assets/logo/logo-dark.png",
+    dark: "/assets/logo/logo-dark.png",
+    light: "/assets/logo/logo-light.png",
     alt: "VB Fits Studios Logo"
   },
   hero: {
@@ -257,15 +259,16 @@ export const FOOTER_DATA = {
     buttonText: "Subscribe"
   },
   service: [
-    { name: "Return My Order", path: "/policies/returns" },
     { name: "Contact Us", path: "/contact" },
-    { name: "Shipping", path: "/policies/shipping" }
+    { name: "Track Order", path: "/track-order" },
+    { name: "Verify Authenticity", path: "/verify" }
   ],
   policies: [
-    { name: "Legal Notice", path: "/policies/legal" },
+    { name: "Shipping Policy", path: "/policies/shipping" },
+    { name: "Returns & Refund Policy", path: "/policies/returns" },
     { name: "Privacy Policy", path: "/policies/privacy" },
-    { name: "Refund Policy", path: "/policies/refund" },
-    { name: "Terms of Service", path: "/policies/terms" }
+    { name: "Terms of Service", path: "/policies/terms" },
+    { name: "Legal Notice", path: "/policies/legal" }
   ],
   socials: [
     { name: "WhatsApp", url: "https://whatsapp.com" },

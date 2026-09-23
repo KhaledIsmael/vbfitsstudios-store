@@ -7,10 +7,9 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { ProductCard } from '../components/ui/ProductCard';
 import { ProductGallery } from '../components/ui/ProductGallery';
+import { ProductImage } from '../components/ui/ProductImage';
 import { DeliveryChecker } from '../components/ui/DeliveryChecker';
 import { RestockModal } from '../components/ui/RestockModal';
-import { CompleteTheLook } from '../components/shop/CompleteTheLook';
-import { PackagingVisualizer } from '../components/brand/PackagingVisualizer';
 
 // ─── Trust Badges Strip ───────────────────────────────────────────────────────
 const TrustBadges: React.FC = () => (
@@ -170,15 +169,11 @@ const StickyATCBar: React.FC<{
   >
     <div className="max-w-[1720px] mx-auto px-4 sm:px-10 lg:px-16 py-3 flex items-center gap-4">
       {/* Thumbnail */}
-      <div className="w-10 h-12 bg-[#FAFAFA] flex-shrink-0 overflow-hidden hidden sm:block">
-        <img
+      <div className="hidden sm:block">
+        <ProductImage
           src={product.images[0]}
           alt={product.name}
-          className="w-full h-full object-contain mix-blend-multiply p-0.5"
-          loading="lazy"
-          decoding="async"
-          width={40}
-          height={48}
+          placement="sticky-bar"
         />
       </div>
 
@@ -245,8 +240,8 @@ export const ProductDetailPage: React.FC = () => {
   // Lightbox
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
-  // Accordion
-  const [openSection, setOpenSection] = useState<'desc' | 'fabric' | 'shipping' | null>('desc');
+  // Accordion state
+  const [openSection, setOpenSection] = useState<'details' | 'care' | 'delivery' | null>('details');
 
   // Close size guide on Escape and prevent body scroll
   useEffect(() => {
@@ -364,7 +359,7 @@ export const ProductDetailPage: React.FC = () => {
         </div>
 
         {/* Main Two-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 pt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 xl:gap-16 pt-4 sm:pt-6">
 
           {/* LEFT: Gallery */}
           <div className="lg:col-span-7">
@@ -401,87 +396,105 @@ export const ProductDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT: Details */}
-          <div className="lg:col-span-5 flex flex-col justify-start lg:pl-4 space-y-6">
+          {/* RIGHT: Details (Sticky Column on Desktop per REFERENCE-SPEC 8.1) */}
+          <div className="lg:col-span-5 flex flex-col justify-start lg:sticky lg:top-24 self-start space-y-6 select-none">
 
-            {/* Title + Price */}
-            <div className="space-y-2 border-b border-[#EAEAEA] pb-6">
-              <span className="text-[10px] text-[#888888] tracking-luxury uppercase">
-                VB Fits Studios Archival Ready-to-Wear
+            {/* Top Stock Badge + Brand + Title + Price (Sorvea Reference Hierarchy) */}
+            <div className="space-y-2 border-b border-[#DDDDDD] pb-6">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#E4E4E4] text-[#212121] text-[10px] font-spec font-bold uppercase tracking-spec">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#212121]" />
+                  {isSoldOut ? 'Restock Soon' : 'In Stock'}
+                </span>
+              </div>
+              <span className="text-[11px] text-[#8E8E8E] font-spec font-bold tracking-spec uppercase block">
+                VB Fits Studios
               </span>
-              <h1 className="text-2xl sm:text-3xl font-light uppercase tracking-wider text-[#111111] leading-tight">
+              <h1 className="text-xl sm:text-2xl font-spec font-bold uppercase tracking-spec text-[#2D2D2D] leading-tight">
                 {product.name}
               </h1>
-              {product.subtitle && (
-                <p className="text-xs text-[#666666] tracking-wide">{product.subtitle}</p>
-              )}
-              <div className="pt-2 flex items-baseline gap-3">
-                <span className="text-lg font-medium text-[#111111]">
+              <div className="pt-1 flex items-baseline gap-3">
+                <span className="text-base font-spec font-normal text-[#2D2D2D] tracking-spec">
                   {product.currency}{product.price.toFixed(2)}
-                </span>
-                <span className="text-[10px] uppercase tracking-wider text-[#888888]">
-                  Taxes Included • Complimentary Delivery
                 </span>
               </div>
             </div>
 
-            {/* Color Swatches */}
+            {/* Color Selection (Sorvea Style Pills) */}
             {product.colorsAvailable?.length > 0 && (
               <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-[#888888] uppercase tracking-wider">Colorway</span>
-                  <span className="font-medium text-black">{product.color}</span>
-                </div>
-                <div className="flex gap-3">
+                <span className="text-[11px] font-spec font-bold uppercase tracking-spec text-[#8E8E8E] block">
+                  Color
+                </span>
+                <div className="flex flex-wrap gap-2">
                   {product.colorsAvailable.map((c) => (
                     <button
                       key={c.productId}
+                      type="button"
                       onClick={() => navigate(`/product/${c.productId}`)}
-                      className={`w-7 h-7 rounded-full border p-0.5 transition-all ${
-                        c.name === product.color ? 'border-black scale-110' : 'border-transparent opacity-70 hover:opacity-100'
+                      className={`inline-flex items-center space-x-2 px-3.5 py-1.5 border text-xs font-spec font-bold uppercase tracking-spec transition-all ${
+                        c.name === product.color
+                          ? 'border-[#2D2D2D] bg-[#2D2D2D] text-white shadow-xs'
+                          : 'border-[#DDDDDD] bg-white text-[#2D2D2D] hover:border-black'
                       }`}
-                      title={c.name}
                     >
-                      <span className="block w-full h-full rounded-full border border-[#DDDDDD]" style={{ backgroundColor: c.hex }} />
+                      <span
+                        className="w-2.5 h-2.5 rounded-full border border-black/20"
+                        style={{ backgroundColor: c.hex }}
+                      />
+                      <span>{c.name}</span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Size Selector */}
-            <div className="space-y-3 pt-2">
+            {/* Size Selector + Size Chart */}
+            <div className="space-y-3 pt-1">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-[#888888] uppercase tracking-wider">Select Size</span>
-                <button type="button" onClick={() => setShowSizeGuide(true)}
-                  className="text-[11px] uppercase tracking-wider underline text-[#666666] hover:text-black">
-                  Size Chart
+                <span className="text-[11px] font-spec font-bold uppercase tracking-spec text-[#8E8E8E]">
+                  Select Size
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSizeGuide(true)}
+                  className="text-[11px] font-spec font-bold uppercase tracking-spec underline text-[#2D2D2D] hover:opacity-75"
+                >
+                  Sizechart
                 </button>
               </div>
 
-              <div className="grid grid-cols-5 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {product.sizes.map((sz) => {
                   const stock = product.stockBySize?.[sz];
                   const oos = stock !== undefined && stock === 0;
                   const low = stock !== undefined && stock > 0 && stock <= 5;
                   const sel = selectedSize === sz;
                   return (
-                    <button key={sz} type="button"
+                    <button
+                      key={sz}
+                      type="button"
+                      disabled={oos}
                       onClick={() => setSelectedSize(sz)}
-                      aria-label={oos ? `${sz} — Sold Out (Select to request restock)` : `Select size ${sz}${low ? `, only ${stock} left` : ''}`}
+                      aria-label={oos ? `${sz} — Sold Out` : `Select size ${sz}${low ? `, only ${stock} left` : ''}`}
                       className={[
-                        'relative py-3 text-xs uppercase tracking-wider transition-all border font-mono',
-                        oos && sel
-                          ? 'border-black bg-black text-white ring-1 ring-black'
-                          : oos
-                            ? 'border-[#EAEAEA] bg-[#FAFAFA] text-[#777777] hover:border-black'
-                            : sel
-                              ? 'border-black bg-black text-white'
-                              : 'border-[#EAEAEA] bg-white text-black hover:border-black',
-                      ].join(' ')}>
-                      {oos && !sel && (
-                        <span aria-hidden="true" className="absolute inset-0 pointer-events-none"
-                          style={{ background: 'linear-gradient(to top right, transparent calc(50% - 0.5px), #CCCCCC calc(50% - 0.5px), #CCCCCC calc(50% + 0.5px), transparent calc(50% + 0.5px))' }} />
+                        'relative h-9 min-w-[44px] px-3 text-xs font-spec font-bold uppercase tracking-spec transition-colors flex items-center justify-center border rounded-none',
+                        oos
+                          ? 'border-[#DDDDDD] bg-[#FAFAFA] text-[#ADADAD] cursor-not-allowed'
+                          : sel
+                            ? 'border-[#2D2D2D] bg-white text-[#2D2D2D] ring-1 ring-[#2D2D2D]'
+                            : 'border-[#DDDDDD] bg-white text-[#2D2D2D] hover:border-black',
+                      ].join(' ')}
+                    >
+                      {oos && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-0 pointer-events-none"
+                          style={{
+                            background:
+                              'linear-gradient(to top right, transparent calc(50% - 0.5px), #ADADAD calc(50% - 0.5px), #ADADAD calc(50% + 0.5px), transparent calc(50% + 0.5px))',
+                          }}
+                        />
                       )}
                       <span className="relative">{sz}</span>
                     </button>
@@ -491,50 +504,30 @@ export const ProductDetailPage: React.FC = () => {
 
               {/* Stock warning */}
               {selectedSizeStock !== undefined && selectedSizeStock === 0 && (
-                <div className="p-3 bg-[#FAFAFA] border border-[#EAEAEA] flex items-center justify-between text-xs animate-fade-in">
-                  <span className="font-mono text-[#CC4444] uppercase tracking-wider flex items-center gap-1.5 text-[11px]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#CC4444] flex-shrink-0" />
+                <div className="p-3 bg-[#FAFAFA] border border-[#DDDDDD] flex items-center justify-between text-xs">
+                  <span className="font-spec font-bold text-[#C60C0C] uppercase tracking-spec flex items-center gap-1.5 text-[11px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#C60C0C] flex-shrink-0" />
                     Size {selectedSize} is currently out of stock
                   </span>
                   <button
                     type="button"
                     onClick={() => setShowRestockModal(true)}
-                    className="font-mono text-[10px] text-black uppercase tracking-wider underline hover:opacity-70 flex items-center gap-1 font-semibold"
+                    className="font-spec font-bold text-[10px] text-[#2D2D2D] uppercase tracking-spec underline hover:opacity-70 flex items-center gap-1"
                   >
                     <Bell className="w-3 h-3" />
                     <span>Restock Me</span>
                   </button>
                 </div>
               )}
-              {selectedSizeStock !== undefined && selectedSizeStock > 0 && selectedSizeStock <= 5 && (
-                <p className="text-[11px] font-mono uppercase tracking-wider text-[#B06000] flex items-center gap-1.5 animate-fade-in">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#B06000] animate-ping flex-shrink-0" />
-                  Only {selectedSizeStock} left in size {selectedSize}
-                </p>
-              )}
             </div>
 
-            {/* Quantity — hidden when size is out of stock */}
-            {!isSoldOut && (
-              <div className="flex items-center space-x-4 pt-2 animate-fade-in">
-                <span className="text-xs uppercase tracking-wider text-[#888888]">Qty</span>
-                <div className="flex items-center border border-[#EAEAEA]">
-                  <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="px-3 py-1.5 text-xs text-[#555555] hover:bg-[#F5F5F5] transition-colors">−</button>
-                  <span className="px-4 text-xs font-medium text-black">{quantity}</span>
-                  <button type="button" onClick={() => setQuantity(quantity + 1)}
-                    className="px-3 py-1.5 text-xs text-[#555555] hover:bg-[#F5F5F5] transition-colors">+</button>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons — ref observed for sticky bar */}
-            <div className="space-y-3 pt-4" ref={atcButtonRef}>
+            {/* Dominant Add to Cart Button (Sorvea Style) */}
+            <div className="pt-2" ref={atcButtonRef}>
               {isSoldOut ? (
                 <button
                   type="button"
                   onClick={() => setShowRestockModal(true)}
-                  className="w-full text-xs uppercase tracking-luxury py-4 px-6 font-semibold transition-all duration-300 shadow-sm bg-[#111111] hover:bg-black text-white flex items-center justify-center gap-2 border border-black hover:shadow-md"
+                  className="w-full text-xs font-spec font-bold uppercase tracking-spec py-3.5 px-6 transition-all duration-default bg-[#4D4D4D] hover:bg-black text-white flex items-center justify-center gap-2 rounded-none btn-fill-hover shadow-sm"
                 >
                   <Bell className="w-4 h-4 text-white" />
                   <span>Restock Me — Size {selectedSize}</span>
@@ -543,74 +536,95 @@ export const ProductDetailPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className="w-full text-xs uppercase tracking-luxury py-4 px-6 font-medium transition-all duration-300 shadow-sm bg-[#111111] hover:bg-black text-white hover:shadow-md"
+                  className="w-full text-xs font-spec font-bold uppercase tracking-spec py-3.5 px-6 transition-all duration-default bg-[#4D4D4D] hover:bg-black text-white rounded-none btn-fill-hover shadow-sm"
                 >
-                  Add to Shopping Bag — {product.currency}{(product.price * quantity).toFixed(2)}
+                  Add to Cart — {product.currency}{(product.price * quantity).toFixed(2)}
                 </button>
               )}
 
               {addedNotice && (
-                <div className="p-3 bg-[#FAFAFA] border border-[#EAEAEA] text-center text-xs text-black animate-fade-in flex items-center justify-center gap-2">
+                <div className="mt-2 p-2.5 bg-[#FAFAFA] border border-[#DDDDDD] text-center text-xs font-spec font-medium text-[#2D2D2D] animate-fade-in flex items-center justify-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                  Silhouette successfully added to your shopping bag.
+                  Item successfully added to your cart.
                 </div>
               )}
             </div>
 
-            {/* Trust Badges */}
-            <TrustBadges />
-
-            {/* Share */}
-            <ShareButton productName={product.name} />
-
             {/* Delivery Checker */}
             <DeliveryChecker productId={product.id} />
 
-            {/* Accordion */}
-            <div className="border-t border-[#EAEAEA] divide-y divide-[#EAEAEA] pt-6 text-xs">
-              {/* Description */}
+            {/* Accordions: Description, Shipping & Returns, Wash & Care */}
+            <div className="border-t border-[#DDDDDD] divide-y divide-[#DDDDDD] pt-2 text-xs">
+              {/* 1. Description */}
               <div className="py-4">
-                <button type="button" onClick={() => setOpenSection(openSection === 'desc' ? null : 'desc')}
-                  className="w-full flex justify-between items-center text-left uppercase tracking-wider font-medium text-black">
-                  <span>Silhouette & Details</span>
-                  <span className="text-sm">{openSection === 'desc' ? '−' : '+'}</span>
+                <button
+                  type="button"
+                  onClick={() => setOpenSection(openSection === 'details' ? null : 'details')}
+                  aria-expanded={openSection === 'details'}
+                  className="w-full flex justify-between items-center text-left uppercase tracking-spec font-spec font-bold text-[#2D2D2D] hover:opacity-75 transition-opacity"
+                >
+                  <span className="text-xs">Description</span>
+                  <span className="text-sm font-mono">{openSection === 'details' ? '−' : '+'}</span>
                 </button>
-                {openSection === 'desc' && (
-                  <div className="pt-3 space-y-3 text-[#666666] leading-relaxed animate-fade-in">
-                    <p>{product.description}</p>
-                    <ul className="list-disc pl-4 space-y-1 pt-1">
-                      {product.details.map((d, i) => <li key={i}>{d}</li>)}
-                    </ul>
+                {openSection === 'details' && (
+                  <div className="pt-3 space-y-3 text-[#6B6B6B] leading-relaxed animate-fade-in font-spec text-xs">
+                    {product.description && <p>{product.description}</p>}
+                    {product.details && product.details.length > 0 && (
+                      <ul className="list-disc pl-4 space-y-1 pt-1">
+                        {product.details.map((d, i) => (
+                          <li key={i}>{d}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Fabric */}
+              {/* 2. Shipping & Returns */}
               <div className="py-4">
-                <button type="button" onClick={() => setOpenSection(openSection === 'fabric' ? null : 'fabric')}
-                  className="w-full flex justify-between items-center text-left uppercase tracking-wider font-medium text-black">
-                  <span>Textile & Care Guide</span>
-                  <span className="text-sm">{openSection === 'fabric' ? '−' : '+'}</span>
+                <button
+                  type="button"
+                  onClick={() => setOpenSection(openSection === 'delivery' ? null : 'delivery')}
+                  aria-expanded={openSection === 'delivery'}
+                  className="w-full flex justify-between items-center text-left uppercase tracking-spec font-spec font-bold text-[#2D2D2D] hover:opacity-75 transition-opacity"
+                >
+                  <span className="text-xs">Shipping & Returns</span>
+                  <span className="text-sm font-mono">{openSection === 'delivery' ? '−' : '+'}</span>
                 </button>
-                {openSection === 'fabric' && (
-                  <div className="pt-3 space-y-2 text-[#666666] leading-relaxed animate-fade-in">
+                {openSection === 'delivery' && (
+                  <div className="pt-3 text-[#6B6B6B] leading-relaxed animate-fade-in font-spec text-xs">
+                    <p>{product.shippingInfo || 'Free express shipping on all domestic orders above $200. Standard courier delivery takes 2-4 business days. 14-day hassle-free return policy.'}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Wash & Care */}
+              <div className="py-4">
+                <button
+                  type="button"
+                  onClick={() => setOpenSection(openSection === 'care' ? null : 'care')}
+                  aria-expanded={openSection === 'care'}
+                  className="w-full flex justify-between items-center text-left uppercase tracking-spec font-spec font-bold text-[#2D2D2D] hover:opacity-75 transition-opacity"
+                >
+                  <span className="text-xs">Wash & Care</span>
+                  <span className="text-sm font-mono">{openSection === 'care' ? '−' : '+'}</span>
+                </button>
+                {openSection === 'care' && (
+                  <div className="pt-3 space-y-2 text-[#6B6B6B] leading-relaxed animate-fade-in font-spec text-xs">
                     <ul className="list-disc pl-4 space-y-1">
-                      {product.fabricCare.map((item, i) => <li key={i}>{item}</li>)}
+                      {product.fabricCare && product.fabricCare.length > 0 ? (
+                        product.fabricCare.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))
+                      ) : (
+                        <>
+                          <li>100% Combed Heavyweight Organic Cotton</li>
+                          <li>Machine wash cold inside out with like colors</li>
+                          <li>Do not tumble dry; lay flat to dry</li>
+                          <li>Cool iron on reverse side if necessary</li>
+                        </>
+                      )}
                     </ul>
-                  </div>
-                )}
-              </div>
-
-              {/* Shipping */}
-              <div className="py-4">
-                <button type="button" onClick={() => setOpenSection(openSection === 'shipping' ? null : 'shipping')}
-                  className="w-full flex justify-between items-center text-left uppercase tracking-wider font-medium text-black">
-                  <span>Complimentary Delivery & Returns</span>
-                  <span className="text-sm">{openSection === 'shipping' ? '−' : '+'}</span>
-                </button>
-                {openSection === 'shipping' && (
-                  <div className="pt-3 text-[#666666] leading-relaxed animate-fade-in">
-                    <p>{product.shippingInfo}</p>
                   </div>
                 )}
               </div>
@@ -619,16 +633,10 @@ export const ProductDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Complete The Look — Capsule Outfit Builder */}
-        <CompleteTheLook currentProduct={product} />
-
-        {/* Bespoke Presentation & Packaging Visualizer */}
-        <PackagingVisualizer />
-
         {/* Related Products */}
         {relatedProducts.length > 0 && (
-          <div className="pt-24 sm:pt-36 pb-20 border-t border-[#EAEAEA] mt-20">
-            <div className="flex flex-col items-center text-center mb-12 space-y-2">
+          <div className="pt-20 sm:pt-28 pb-16 border-t border-[#EAEAEA] mt-16">
+            <div className="flex flex-col items-center text-center mb-10 space-y-2">
               <span className="text-[10px] text-[#888888] tracking-luxury uppercase">Curated Suggestions</span>
               <h2 className="text-2xl font-light uppercase tracking-wider text-black">Complementary Silhouettes</h2>
             </div>

@@ -12,7 +12,6 @@ import { SearchOverlay } from './components/drawers/SearchOverlay';
 import { WhatsAppButton } from './components/ui/WhatsAppButton';
 import { CookieConsent } from './components/ui/CookieConsent';
 import { trackPageView } from './lib/analytics';
-import { AtelierAudioPlayer } from './components/ui/AtelierAudioPlayer';
 
 // Primary Landing Page
 import { LandingPage } from './pages/LandingPage';
@@ -136,9 +135,6 @@ const StorefrontLayout: React.FC = () => {
 
       {/* Floating Concierge WhatsApp Action */}
       <WhatsAppButton />
-
-      {/* Floating Atelier Soundscape Player */}
-      <AtelierAudioPlayer />
     </div>
   );
 };

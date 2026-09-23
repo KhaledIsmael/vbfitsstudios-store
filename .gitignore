@@ -53,3 +53,5 @@ temp/
 *.tmp
 *.swp
 *.swo
+reference_audit/
+assets-original/

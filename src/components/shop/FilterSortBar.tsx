@@ -316,8 +316,8 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
       {/* DESKTOP STICKY BAR (md and above)                             */}
       {/* Docked seamlessly beneath the fixed header (top-20) on scroll */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="hidden md:block sticky top-20 z-30 w-full bg-white/95 backdrop-blur-md border-b border-[#EAEAEA] transition-all">
-        <div className="max-w-[1720px] mx-auto px-6 sm:px-10 lg:px-16 py-4 flex items-center justify-between gap-4 text-xs">
+      <div className="hidden md:block sticky top-20 z-30 w-full bg-white/95 backdrop-blur-md border-b border-spec-border transition-all">
+        <div className="max-w-site mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4 text-xs font-spec">
           {/* Collection Pills */}
           <div className="flex items-center space-x-6 overflow-x-auto pb-0.5 scrollbar-none">
             {[
@@ -329,10 +329,10 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
               <button
                 key={tab.value}
                 onClick={() => onSelectCollectionFilter(tab.value as any)}
-                className={`uppercase tracking-luxury transition-colors whitespace-nowrap pb-1 border-b ${
+                className={`uppercase tracking-spec text-[12px] font-spec transition-colors whitespace-nowrap pb-1 border-b-2 ${
                   collectionFilter === tab.value
-                    ? 'text-black border-black font-medium'
-                    : 'text-[#888888] border-transparent hover:text-black'
+                    ? 'text-spec-text border-black font-bold'
+                    : 'text-spec-muted border-transparent hover:text-black'
                 }`}
               >
                 {tab.label}
@@ -348,10 +348,10 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
               onClick={() => setIsDesktopTrayOpen(!isDesktopTrayOpen)}
               aria-expanded={isDesktopTrayOpen}
               aria-label={`Toggle filter tray${activeFilterCount > 0 ? `, ${activeFilterCount} active filters` : ''}`}
-              className={`flex items-center gap-2 px-3.5 py-2 border text-[11px] uppercase tracking-luxury transition-all focus-visible:ring-2 focus-visible:ring-black ${
+              className={`flex items-center gap-2 px-3.5 py-2 border rounded-none text-[11px] uppercase tracking-spec font-spec transition-all focus-visible:ring-2 focus-visible:ring-black ${
                 isDesktopTrayOpen || activeFilterCount > 0
-                  ? 'border-black bg-black text-white'
-                  : 'border-[#EAEAEA] hover:border-black text-black bg-white'
+                  ? 'border-black bg-spec-btn-primary text-white'
+                  : 'border-spec-border hover:border-black text-spec-text bg-white'
               }`}
             >
               <svg
@@ -397,7 +397,7 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
                 value={sortBy}
                 aria-label="Sort silhouettes"
                 onChange={(e) => onSortChange(e.target.value)}
-                className="bg-transparent text-xs text-[#111111] uppercase tracking-wider focus:outline-none cursor-pointer border-b border-[#CCCCCC] pb-0.5 hover:border-black transition-colors"
+                className="bg-transparent text-xs text-spec-text uppercase tracking-spec font-spec focus:outline-none cursor-pointer border-b border-spec-border pb-0.5 hover:border-black transition-colors rounded-none"
               >
                 <option value="newest">Newest</option>
                 <option value="price-asc">Price: Low to High</option>
@@ -410,8 +410,8 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
 
         {/* Desktop Expandable Filter Tray */}
         {isDesktopTrayOpen && (
-          <div className="border-t border-[#EAEAEA] py-6 bg-[#FAFAFA] animate-fade-in text-xs space-y-6">
-            <div className="max-w-[1720px] mx-auto px-6 sm:px-10 lg:px-16">
+          <div className="border-t border-spec-border py-6 bg-white animate-fade-in text-xs space-y-6">
+            <div className="max-w-site mx-auto px-4 sm:px-8">
               {renderFilterControls(false)}
 
               {/* Bottom Tray Status */}
@@ -444,7 +444,7 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
       {/* Replaces inline filter bar with a clean "Filters" button + sort */}
       {/* Sticky at top-16 under the fixed mobile header               */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="block md:hidden sticky top-16 z-30 w-full bg-white/95 backdrop-blur-md border-b border-[#EAEAEA]">
+      <div className="block md:hidden sticky top-16 z-30 w-full bg-white/95 backdrop-blur-md border-b border-spec-border">
         <div className="px-4 sm:px-6 py-2.5 flex items-center gap-3">
           {/* Mobile Filters Trigger Button */}
           <button
@@ -452,10 +452,10 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
             onClick={() => setIsMobileDrawerOpen(true)}
             aria-expanded={isMobileDrawerOpen}
             aria-label={`Open filters drawer${activeFilterCount > 0 ? `, ${activeFilterCount} active filters` : ''}`}
-            className={`flex-1 flex items-center justify-center gap-2.5 py-2.5 px-4 border text-[11px] uppercase tracking-luxury font-medium transition-all focus-visible:ring-2 focus-visible:ring-black ${
+            className={`flex-1 flex items-center justify-center gap-2.5 py-2.5 px-4 border rounded-none text-[11px] uppercase tracking-spec font-spec font-bold transition-all focus-visible:ring-2 focus-visible:ring-black ${
               activeFilterCount > 0
-                ? 'bg-black text-white border-black shadow-sm'
-                : 'bg-white text-[#111111] border-[#EAEAEA] hover:border-black active:bg-[#FAFAFA]'
+                ? 'bg-spec-btn-primary text-white border-black shadow-sm'
+                : 'bg-white text-spec-text border-spec-border hover:border-black active:bg-[#FAFAFA]'
             }`}
           >
             <svg
@@ -487,14 +487,14 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
           </button>
 
           {/* Mobile Sort Dropdown */}
-          <div className="flex-1 border border-[#EAEAEA] bg-white px-3 py-2 flex items-center justify-between text-xs">
-            <label htmlFor="mobile-sort-select" className="text-[10px] uppercase text-[#888888] font-mono">Sort:</label>
+          <div className="flex-1 border border-spec-border bg-white px-3 py-2 flex items-center justify-between text-xs rounded-none">
+            <label htmlFor="mobile-sort-select" className="text-[10px] uppercase text-spec-muted font-spec tracking-spec">Sort:</label>
             <select
               id="mobile-sort-select"
               value={sortBy}
               aria-label="Sort silhouettes"
               onChange={(e) => onSortChange(e.target.value)}
-              className="bg-transparent text-[11px] text-[#111111] uppercase tracking-wider focus:outline-none cursor-pointer text-right"
+              className="bg-transparent text-[11px] text-spec-text uppercase tracking-spec font-spec focus:outline-none cursor-pointer text-right rounded-none"
             >
               <option value="newest">Newest</option>
               <option value="price-asc">Price: Low-High</option>
@@ -526,7 +526,7 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
           {/* Bottom-Sheet Panel */}
           <div
             ref={mobilePanelRef}
-            className="fixed inset-x-0 bottom-0 max-h-[85vh] bg-white shadow-2xl flex flex-col rounded-t-2xl transform transition-transform duration-300 ease-out animate-slide-up z-50"
+            className="fixed inset-x-0 bottom-0 max-h-[85vh] bg-white shadow-2xl flex flex-col rounded-none transform transition-transform duration-300 ease-out animate-slide-up z-50 border-t border-spec-border"
           >
             {/* Grab Handle */}
             <div
@@ -534,13 +534,13 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
               onClick={() => setIsMobileDrawerOpen(false)}
               aria-hidden="true"
             >
-              <div className="w-10 h-1 bg-[#D4D4D4] rounded-full" />
+              <div className="w-10 h-1 bg-[#D4D4D4] rounded-none" />
             </div>
 
             {/* Drawer Header (reusing header pattern from CartDrawer.tsx) */}
-            <div className="px-6 py-4 border-b border-[#EAEAEA] flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-spec-border flex items-center justify-between">
               <div>
-                <h2 id="mobile-filters-title" className="text-xs uppercase tracking-widest font-semibold text-[#111111] flex items-center gap-2">
+                <h2 id="mobile-filters-title" className="text-xs uppercase tracking-spec font-bold text-spec-text font-spec flex items-center gap-2">
                   <span>Filters & Refine</span>
                   {activeFilterCount > 0 && (
                     <span className="bg-black text-white text-[9px] font-mono px-1.5 py-0.2 rounded-full">
@@ -566,13 +566,13 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
               {renderFilterControls(true)}
             </div>
 
-            {/* Fixed Drawer Footer (matching CartDrawer.tsx bottom action row) */}
-            <div className="p-4 border-t border-[#EAEAEA] bg-white flex items-center gap-3">
+            {/* Fixed Drawer Footer */}
+            <div className="p-4 border-t border-spec-border bg-white flex items-center gap-3">
               {activeFilterCount > 0 && (
                 <button
                   type="button"
                   onClick={onResetFilters}
-                  className="py-3.5 px-4 text-[11px] uppercase tracking-luxury text-[#666666] hover:text-black border border-[#EAEAEA] hover:border-black font-medium transition-colors"
+                  className="py-3 px-4 text-[11px] uppercase tracking-spec text-spec-muted hover:text-black border border-spec-border hover:border-black font-spec transition-colors rounded-none"
                 >
                   Reset ({activeFilterCount})
                 </button>
@@ -580,7 +580,7 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsMobileDrawerOpen(false)}
-                className="flex-1 py-3.5 px-6 bg-[#111111] hover:bg-black text-white text-xs uppercase tracking-luxury font-medium transition-colors text-center"
+                className="flex-1 py-3 px-6 bg-spec-btn-primary hover:bg-black text-white text-xs uppercase tracking-spec font-spec font-bold transition-colors text-center rounded-none"
               >
                 View {totalResults} {totalResults === 1 ? 'Silhouette' : 'Silhouettes'}
               </button>

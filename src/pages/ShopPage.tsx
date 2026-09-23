@@ -195,14 +195,14 @@ export const ShopPage: React.FC = () => {
   return (
     <div className="pt-24 sm:pt-32 min-h-screen bg-white">
       {/* Page Header */}
-      <div className="max-w-[1720px] mx-auto px-6 sm:px-10 lg:px-16">
-        <div className="border-b border-[#EAEAEA] pb-8 pt-4">
+      <div className="max-w-site mx-auto px-4 sm:px-8">
+        <div className="border-b border-spec-border pb-6 pt-4">
           <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4">
             <div>
-              <p className="text-[10px] text-[#888888] tracking-luxury uppercase mb-2">
+              <p className="text-[10px] text-spec-muted tracking-spec uppercase mb-1 font-spec">
                 VB Fits Studios / Ready-to-Wear Catalog
               </p>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-light uppercase tracking-wider text-[#111111]">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold uppercase tracking-spec text-spec-text font-spec">
                 Ready-to-Wear
               </h1>
             </div>
@@ -210,26 +210,26 @@ export const ShopPage: React.FC = () => {
               {(loading || isQuerying) ? (
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                  <p className="text-xs text-[#777777] uppercase tracking-wider">Updating Silhouettes...</p>
+                  <p className="text-xs text-spec-muted uppercase tracking-spec font-spec">Updating Silhouettes...</p>
                 </div>
               ) : (
-                <p className="text-xs text-[#777777] uppercase tracking-wider">
+                <p className="text-xs text-spec-muted uppercase tracking-spec font-spec">
                   {products.length} Items Available
                 </p>
               )}
 
               {/* Grid density toggle */}
-              <div className="hidden sm:flex items-center border border-[#EAEAEA] p-0.5" role="group" aria-label="Grid layout density">
+              <div className="hidden sm:flex items-center border border-spec-border p-0.5 rounded-none" role="group" aria-label="Grid layout density">
                 <button
                   type="button"
                   onClick={() => setGridCols(2)}
                   title="2-Column Editorial View"
                   aria-label="2-column editorial view"
                   aria-pressed={gridCols === 2}
-                  className={`p-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-black ${
+                  className={`p-1.5 transition-colors rounded-none focus-visible:ring-2 focus-visible:ring-black ${
                     gridCols === 2
-                      ? 'bg-black text-white'
-                      : 'text-[#888888] hover:text-black'
+                      ? 'bg-spec-btn-primary text-white'
+                      : 'text-spec-muted hover:text-black'
                   }`}
                 >
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true">
@@ -243,10 +243,10 @@ export const ShopPage: React.FC = () => {
                   title="4-Column Grid View"
                   aria-label="4-column grid view"
                   aria-pressed={gridCols === 4}
-                  className={`p-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-black ${
+                  className={`p-1.5 transition-colors rounded-none focus-visible:ring-2 focus-visible:ring-black ${
                     gridCols === 4
-                      ? 'bg-black text-white'
-                      : 'text-[#888888] hover:text-black'
+                      ? 'bg-spec-btn-primary text-white'
+                      : 'text-spec-muted hover:text-black'
                   }`}
                 >
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true">
@@ -285,8 +285,8 @@ export const ShopPage: React.FC = () => {
         isQuerying={isQuerying}
       />
 
-      <div className="max-w-[1720px] mx-auto px-6 sm:px-10 lg:px-16">
-        <div className="pt-10 pb-20 relative min-h-[400px]">
+      <div className="max-w-site mx-auto px-4 sm:px-8">
+        <div className="pt-6 pb-20 relative min-h-[400px]">
           {/* Skeleton */}
           {loading || isQuerying ? (
             <ProductGridSkeleton count={8} />
@@ -360,17 +360,17 @@ export const ShopPage: React.FC = () => {
             </div>
           ) : (
             <div
-              className={`grid gap-x-6 sm:gap-x-8 gap-y-12 sm:gap-y-16 ${
+              className={`grid gap-x-grid gap-y-8 sm:gap-y-10 ${
                 gridCols === 2
-                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2'
-                  : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+                  ? 'grid-cols-2 md:grid-cols-2 xl:grid-cols-2'
+                  : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'
               }`}
             >
               {products.map((product) => (
                 <ProductCard
                   key={product.id}
                   product={product}
-                  variant={gridCols === 2 ? 'featured' : 'grid'}
+                  variant="grid"
                 />
               ))}
             </div>

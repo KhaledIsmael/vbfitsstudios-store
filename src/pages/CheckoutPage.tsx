@@ -43,6 +43,13 @@ interface OrderSuccessData {
   total: number;
 }
 
+// Config flag: Apple Pay availability (Decision D2: disabled with 'Coming soon' until Apple Merchant & provider certificates are provisioned)
+const APPLE_PAY_ENABLED = false;
+
+// Payment Method: Visible options in order:
+// 1. Cash on Delivery, 2. Pay Online, 3. Bank Cards, 4. Smart Wallets, 5. Apple Pay
+type PaymentMethodOption = 'Cash on Delivery' | 'Pay Online' | 'Bank Cards' | 'Smart Wallets' | 'Apple Pay';
+
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, subtotal, totalItems, clearCart } = useCart();
@@ -68,8 +75,7 @@ export const CheckoutPage: React.FC = () => {
   const [saveToProfile, setSaveToProfile] = useState(true);
 
   // Payment Method
-  const [paymentMethod, setPaymentMethod] = useState<'Cash on Delivery' | 'Pay Online'>('Cash on Delivery');
-  const [paymentSubMethod, setPaymentSubMethod] = useState<'card' | 'wallet' | 'installments'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption>('Cash on Delivery');
   const [walletPhone, setWalletPhone] = useState('');
 
   // Promo Code
@@ -218,7 +224,14 @@ export const CheckoutPage: React.FC = () => {
     setIsSubmitting(true);
 
     // ── ONLINE PAYMENT PATH: Create pending order → call Paymob → redirect ──
-    if (paymentMethod === 'Pay Online') {
+    if (paymentMethod !== 'Cash on Delivery') {
+      // Guard against Apple Pay submission if not enabled or unconfigured
+      if (paymentMethod === 'Apple Pay' && !APPLE_PAY_ENABLED) {
+        setErrorMessage('Apple Pay is currently coming soon. Please choose Cash on Delivery or another online settlement channel.');
+        setIsSubmitting(false);
+        return;
+      }
+
       // 1. Create a 'pending' order in Supabase first so we never lose the order
       const { order: pendingOrder, error: orderErr } = await createOrder({
         customerId: isLoggedIn && user ? user.id : null,
@@ -227,7 +240,7 @@ export const CheckoutPage: React.FC = () => {
         shippingAddress: finalAddressSnapshot,
         paymentMethod: 'Pay Online',
         status: 'Placed',
-        notes: `Payment: Pay Online (pending) | Email: ${contactEmail} | Phone: ${contactPhone}${orderNotes ? ' | ' + orderNotes : ''}`
+        notes: `Payment: ${paymentMethod} (pending) | Email: ${contactEmail} | Phone: ${contactPhone}${orderNotes ? ' | ' + orderNotes : ''}`
       });
 
       setIsSubmitting(false);
@@ -260,8 +273,11 @@ export const CheckoutPage: React.FC = () => {
       // 3. Call Paymob serverless function
       try {
         setIsSubmitting(true);
-        const channel = paymentSubMethod === 'installments' ? 'valu' : paymentSubMethod;
-        const finalWalletPhone = paymentSubMethod === 'wallet' ? (walletPhone.trim() || contactPhone.trim()) : undefined;
+        // Map Bank Cards and Smart Wallets to existing Paymob flow
+        const channel = paymentMethod === 'Smart Wallets' ? 'wallet' : 'card';
+        const finalWalletPhone = paymentMethod === 'Smart Wallets'
+          ? (walletPhone.trim() || contactPhone.trim())
+          : undefined;
 
         const paymobRes = await fetch('/api/paymob/create-payment', {
           method: 'POST',
@@ -809,18 +825,17 @@ export const CheckoutPage: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  
-                  {/* Option 1: Cash on Delivery */}
+                <div className="space-y-3">
+                  {/* Option 1: Cash on Delivery (Preselected by default) */}
                   <label
-                    className={`border p-5 cursor-pointer block transition-all ${
+                    className={`border p-4 sm:p-5 cursor-pointer block transition-all ${
                       paymentMethod === 'Cash on Delivery'
                         ? 'border-black ring-1 ring-black bg-[#FAFAFA]'
                         : 'border-[#EAEAEA] hover:border-[#CCCCCC] bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <input
                           type="radio"
                           name="payment_choice"
@@ -833,25 +848,25 @@ export const CheckoutPage: React.FC = () => {
                           Cash on Delivery
                         </span>
                       </div>
-                      <span className="text-[10px] text-[#666666] uppercase tracking-wider">
+                      <span className="text-[10px] text-[#666666] uppercase tracking-wider font-mono">
                         COD
                       </span>
                     </div>
-                    <p className="pl-6 pt-2 text-[11px] text-[#666666] leading-relaxed">
+                    <p className="pl-7 pt-2 text-[11px] text-[#666666] leading-relaxed">
                       Settle payment in physical currency or via POS card machine directly with the private courier at delivery.
                     </p>
                   </label>
 
                   {/* Option 2: Pay Online */}
                   <label
-                    className={`border p-5 cursor-pointer block transition-all ${
+                    className={`border p-4 sm:p-5 cursor-pointer block transition-all ${
                       paymentMethod === 'Pay Online'
                         ? 'border-black ring-1 ring-black bg-[#FAFAFA]'
                         : 'border-[#EAEAEA] hover:border-[#CCCCCC] bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <input
                           type="radio"
                           name="payment_choice"
@@ -868,93 +883,85 @@ export const CheckoutPage: React.FC = () => {
                         Instant Lock
                       </span>
                     </div>
-                    <p className="pl-6 pt-2 text-[11px] text-[#666666] leading-relaxed">
-                      Cards (Visa, MC, Meeza), Mobile Wallets (Vodafone Cash, etc.), or Installments (ValU/Sympl).
+                    <p className="pl-7 pt-2 text-[11px] text-[#666666] leading-relaxed">
+                      All-in-one payment gateway powered by Paymob. Accepts international cards, mobile wallets, and regional settlement channels.
                     </p>
+                    {paymentMethod === 'Pay Online' && (
+                      <div className="mt-3 pt-3 border-t border-[#EAEAEA] pl-7 flex items-center justify-between text-[10px] text-[#888888]">
+                        <span>Powered by Paymob Egypt • 256-bit SSL encrypted checkout</span>
+                        <span className="font-mono uppercase text-black font-medium">Paymob Unified</span>
+                      </div>
+                    )}
                   </label>
 
-                </div>
-
-                {/* Online Payment Channels Sub-Selector */}
-                {paymentMethod === 'Pay Online' && (
-                  <div className="border border-[#EAEAEA] p-5 bg-[#FAFAFA] space-y-4 animate-fade-in text-xs">
-                    <div className="flex justify-between items-center border-b border-[#EAEAEA] pb-2">
-                      <span className="text-[10px] uppercase tracking-widest text-black font-semibold">
-                        Select Payment Channel
-                      </span>
-                      <span className="text-[9px] uppercase tracking-luxury text-[#888888]">
-                        Powered by Paymob
+                  {/* Option 3: Bank Cards */}
+                  <label
+                    className={`border p-4 sm:p-5 cursor-pointer block transition-all ${
+                      paymentMethod === 'Bank Cards'
+                        ? 'border-black ring-1 ring-black bg-[#FAFAFA]'
+                        : 'border-[#EAEAEA] hover:border-[#CCCCCC] bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="payment_choice"
+                          value="Bank Cards"
+                          checked={paymentMethod === 'Bank Cards'}
+                          onChange={() => setPaymentMethod('Bank Cards')}
+                          className="accent-black"
+                        />
+                        <span className="text-xs font-semibold text-black uppercase tracking-wider">
+                          Bank Cards
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-[#555555] uppercase tracking-wider">
+                        Visa · Mastercard · Meeza
                       </span>
                     </div>
+                    <p className="pl-7 pt-2 text-[11px] text-[#666666] leading-relaxed">
+                      Direct credit or debit card settlement via 256-bit encrypted Paymob gateway.
+                    </p>
+                    {paymentMethod === 'Bank Cards' && (
+                      <div className="mt-3 pt-3 border-t border-[#EAEAEA] pl-7 flex items-center justify-between text-[10px] text-[#888888]">
+                        <span>Supported Cards: Visa, Mastercard, Egyptian Meeza debit/credit, American Express</span>
+                        <span className="font-mono uppercase text-black font-medium">256-bit SSL</span>
+                      </div>
+                    )}
+                  </label>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {/* Channel 1: Bank Cards & Meeza */}
-                      <button
-                        type="button"
-                        onClick={() => setPaymentSubMethod('card')}
-                        className={`text-left p-3 border transition-all ${
-                          paymentSubMethod === 'card'
-                            ? 'border-black bg-white ring-1 ring-black shadow-sm'
-                            : 'border-[#EAEAEA] bg-[#F7F7F7] hover:border-[#CCCCCC]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-black">
-                            Bank Cards
-                          </span>
-                          <span className="text-[9px] text-[#777777]">MEEZA</span>
-                        </div>
-                        <p className="text-[10px] text-[#666666] leading-tight">
-                          Visa, Mastercard, & Egyptian Meeza cards.
-                        </p>
-                      </button>
-
-                      {/* Channel 2: Mobile Wallets */}
-                      <button
-                        type="button"
-                        onClick={() => setPaymentSubMethod('wallet')}
-                        className={`text-left p-3 border transition-all ${
-                          paymentSubMethod === 'wallet'
-                            ? 'border-black bg-white ring-1 ring-black shadow-sm'
-                            : 'border-[#EAEAEA] bg-[#F7F7F7] hover:border-[#CCCCCC]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-black">
-                            Smart Wallets
-                          </span>
-                          <span className="text-[9px] bg-black text-white px-1 py-0.2">FAST</span>
-                        </div>
-                        <p className="text-[10px] text-[#666666] leading-tight">
-                          Vodafone Cash, Orange, WE, Etisalat, InstaPay.
-                        </p>
-                      </button>
-
-                      {/* Channel 3: Installments (BNPL) */}
-                      <button
-                        type="button"
-                        onClick={() => setPaymentSubMethod('installments')}
-                        className={`text-left p-3 border transition-all ${
-                          paymentSubMethod === 'installments'
-                            ? 'border-black bg-white ring-1 ring-black shadow-sm'
-                            : 'border-[#EAEAEA] bg-[#F7F7F7] hover:border-[#CCCCCC]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-black">
-                            Installments
-                          </span>
-                          <span className="text-[9px] text-[#777777]">ValU / Sympl</span>
-                        </div>
-                        <p className="text-[10px] text-[#666666] leading-tight">
-                          Flexible plans up to 60 mos with 0% down payment.
-                        </p>
-                      </button>
+                  {/* Option 4: Smart Wallets */}
+                  <label
+                    className={`border p-4 sm:p-5 cursor-pointer block transition-all ${
+                      paymentMethod === 'Smart Wallets'
+                        ? 'border-black ring-1 ring-black bg-[#FAFAFA]'
+                        : 'border-[#EAEAEA] hover:border-[#CCCCCC] bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="payment_choice"
+                          value="Smart Wallets"
+                          checked={paymentMethod === 'Smart Wallets'}
+                          onChange={() => setPaymentMethod('Smart Wallets')}
+                          className="accent-black"
+                        />
+                        <span className="text-xs font-semibold text-black uppercase tracking-wider">
+                          Smart Wallets
+                        </span>
+                      </div>
+                      <span className="text-[9px] bg-black text-white px-1.5 py-0.5 uppercase tracking-wider font-semibold">
+                        Instant OTP
+                      </span>
                     </div>
-
-                    {/* Specific details per channel */}
-                    {paymentSubMethod === 'wallet' && (
-                      <div className="pt-2 border-t border-[#EAEAEA] space-y-2">
+                    <p className="pl-7 pt-2 text-[11px] text-[#666666] leading-relaxed">
+                      Vodafone Cash, Orange Money, Etisalat Cash, WE Pay, and Egyptian mobile wallets.
+                    </p>
+                    {paymentMethod === 'Smart Wallets' && (
+                      <div className="mt-3 pt-3 border-t border-[#EAEAEA] pl-7 space-y-2">
                         <label className="block text-[10px] uppercase tracking-widest text-[#555555] font-medium">
                           Wallet Registered Mobile Number (Optional — for direct OTP push)
                         </label>
@@ -970,31 +977,55 @@ export const CheckoutPage: React.FC = () => {
                         </p>
                       </div>
                     )}
+                  </label>
 
-                    {paymentSubMethod === 'installments' && (
-                      <div className="pt-2 border-t border-[#EAEAEA] flex items-center justify-between bg-white p-3 border border-[#EAEAEA]">
-                        <div>
-                          <p className="text-[11px] font-semibold text-black">
-                            Estimated Monthly Installment
-                          </p>
-                          <p className="text-[10px] text-[#666666]">
-                            Starting from ~{(grandTotal / 6).toFixed(0)} EGP/month over 6 months
-                          </p>
+                  {/* Option 5: Apple Pay (Controlled by APPLE_PAY_ENABLED config flag) */}
+                  <div
+                    className={`border p-4 sm:p-5 transition-all ${
+                      APPLE_PAY_ENABLED
+                        ? paymentMethod === 'Apple Pay'
+                          ? 'border-black ring-1 ring-black bg-[#FAFAFA] cursor-pointer'
+                          : 'border-[#EAEAEA] hover:border-[#CCCCCC] bg-white cursor-pointer'
+                        : 'border-[#EAEAEA] bg-[#FBFBFB] opacity-60 cursor-not-allowed select-none'
+                    }`}
+                    onClick={() => {
+                      if (APPLE_PAY_ENABLED) {
+                        setPaymentMethod('Apple Pay');
+                      }
+                    }}
+                    aria-disabled={!APPLE_PAY_ENABLED}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="payment_choice"
+                          value="Apple Pay"
+                          checked={paymentMethod === 'Apple Pay'}
+                          disabled={!APPLE_PAY_ENABLED}
+                          onChange={() => {
+                            if (APPLE_PAY_ENABLED) setPaymentMethod('Apple Pay');
+                          }}
+                          className="accent-black disabled:cursor-not-allowed"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-semibold text-black uppercase tracking-wider">
+                            Apple Pay
+                          </span>
+                          <svg className="w-3.5 h-3.5 mb-0.5 text-black inline-block" viewBox="0 0 170 170" fill="currentColor" aria-label="Apple logo">
+                            <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.08-7.73-7.94-12.11-14.58-6.19-9.37-11.05-20.2-14.58-32.48-3.53-12.28-5.3-23.75-5.3-34.41 0-14.58 3.64-26.69 10.92-36.33 7.28-9.64 16.59-14.52 27.93-14.65 4.89 0 10.16 1.34 15.81 4.02 5.65 2.68 9.3 4.08 10.95 4.19 1.35 0 5.17-1.46 11.46-4.36 6.3-2.9 11.95-4.24 16.97-4.02 12.51.65 22.38 5.48 29.6 14.5-10.98 6.64-16.36 15.82-16.14 27.53.22 9.14 3.75 16.86 10.6 23.16 6.85 6.3 15.02 9.89 24.51 10.77-2.18 6.53-4.73 13.06-7.66 19.59zM119.22 33.15c0-7.39 2.66-14.28 7.98-20.67 5.33-6.39 12-10.63 20.02-12.73.22 1.09.33 2.07.33 2.94 0 7.29-2.77 14.23-8.31 20.82-5.54 6.59-12.28 10.74-20.22 12.44-.01-.98-.01-1.78.2-2.8z" />
+                          </svg>
                         </div>
-                        <span className="text-[10px] font-mono uppercase bg-[#111111] text-white px-2 py-1">
-                          ValU · Sympl
-                        </span>
                       </div>
-                    )}
-
-                    {paymentSubMethod === 'card' && (
-                      <div className="pt-1 flex items-center justify-between text-[10px] text-[#888888]">
-                        <span>Supported Cards: Visa, Mastercard, Meeza debit/credit, American Express</span>
-                        <span className="font-mono uppercase text-black">256-bit SSL</span>
-                      </div>
-                    )}
+                      <span className="text-[9px] uppercase tracking-widest bg-[#EEEEEE] text-[#777777] px-2 py-0.5 font-medium border border-[#E0E0E0]">
+                        Coming soon
+                      </span>
+                    </div>
+                    <p className="pl-7 pt-2 text-[11px] text-[#777777] leading-relaxed">
+                      Fast and secure one-touch settlement via Apple Wallet on compatible Safari and iOS devices.
+                    </p>
                   </div>
-                )}
+                </div>
               </section>
 
               {/* Special Instructions (Optional) */}
@@ -1021,16 +1052,16 @@ export const CheckoutPage: React.FC = () => {
                   <>
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>
-                      {paymentMethod === 'Pay Online'
-                        ? 'Connecting to Payment Gateway…'
-                        : 'Transmitting Order to Courier…'}
+                      {paymentMethod === 'Cash on Delivery'
+                        ? 'Transmitting Order to Courier…'
+                        : 'Connecting to Payment Gateway…'}
                     </span>
                   </>
                 ) : (
                   <span>
-                    {paymentMethod === 'Pay Online'
-                      ? `Proceed to Payment • ${grandTotal.toFixed(2)} USD`
-                      : `Confirm Acquisition • ${grandTotal.toFixed(2)} USD`}
+                    {paymentMethod === 'Cash on Delivery'
+                      ? `Confirm Acquisition • ${grandTotal.toFixed(2)} USD`
+                      : `Proceed to Payment • ${grandTotal.toFixed(2)} USD`}
                   </span>
                 )}
               </button>
