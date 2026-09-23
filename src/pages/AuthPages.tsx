@@ -213,6 +213,7 @@ export const LoginPage: React.FC = () => {
 export const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -232,7 +233,8 @@ export const RegisterPage: React.FC = () => {
         options: {
           data: {
             full_name: name.trim(),
-            name: name.trim()
+            name: name.trim(),
+            phone: phone.trim()
           }
         }
       });
@@ -339,6 +341,21 @@ export const RegisterPage: React.FC = () => {
                 className="w-full bg-[#FAFAFA] border border-[#EAEAEA] px-4 py-3.5 text-xs text-black focus:outline-none focus:border-black transition-colors rounded-none"
                 placeholder="name@domain.com"
                 autoComplete="email"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="register-phone" className="block text-[11px] uppercase tracking-widest text-[#555555] mb-2 font-medium">
+                Mobile Phone Number
+              </label>
+              <input
+                id="register-phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full bg-[#FAFAFA] border border-[#EAEAEA] px-4 py-3.5 text-xs text-black focus:outline-none focus:border-black transition-colors rounded-none"
+                placeholder="+20 100 000 0000"
+                autoComplete="tel"
               />
             </div>
 

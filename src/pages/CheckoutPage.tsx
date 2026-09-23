@@ -51,7 +51,7 @@ type PaymentMethodOption = 'Cash on Delivery' | 'Bank Cards' | 'Smart Wallets' |
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, subtotal, totalItems, clearCart } = useCart();
-  const { user, isLoggedIn } = useAuth();
+  const { user, supabaseUser, isLoggedIn } = useAuth();
 
   // Contact Info (for guest or editable for user)
   const [contactName, setContactName] = useState('');
@@ -76,6 +76,12 @@ export const CheckoutPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption>('Cash on Delivery');
   const [walletPhone, setWalletPhone] = useState('');
 
+  // Bank Cards inline form fields (UI only — actual processing via Paymob hosted page)
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [cardName, setCardName] = useState('');
+
   // Promo Code
   const [promoCode, setPromoCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
@@ -95,6 +101,13 @@ export const CheckoutPage: React.FC = () => {
       setContactName(user.name || '');
       setContactEmail(user.email || '');
 
+      // Resolve phone: check user_metadata first, then fall through to saved address
+      const metaPhone =
+        supabaseUser?.user_metadata?.phone ||
+        supabaseUser?.phone ||
+        '';
+      if (metaPhone) setContactPhone(metaPhone);
+
       setAddressesLoading(true);
       getUserAddresses(user.id)
         .then((addrs) => {
@@ -102,7 +115,8 @@ export const CheckoutPage: React.FC = () => {
           const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
           if (defaultAddr) {
             setSelectedAddressId(defaultAddr.id);
-            setContactPhone(defaultAddr.phone || '');
+            // Only override phone from address if metadata didn't supply one
+            if (!metaPhone && defaultAddr.phone) setContactPhone(defaultAddr.phone);
           } else {
             setSelectedAddressId('new');
           }
@@ -470,7 +484,7 @@ export const CheckoutPage: React.FC = () => {
   // VIEW: Main Checkout — Shopify-style two-column layout
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col pt-16 sm:pt-20">
 
       {/* ── TOP HEADER BAR ── */}
       <div className="border-b border-[#E8E8E8] bg-white">
@@ -900,9 +914,79 @@ export const CheckoutPage: React.FC = () => {
                       </div>
                     </div>
                     {paymentMethod === 'Bank Cards' && (
-                      <p className="text-[12px] text-[#666666] mt-2 leading-relaxed">
-                        Secure online card payment via Paymob gateway. Supports Visa, Mastercard, and Meeza.
-                      </p>
+                      <div className="mt-4 space-y-3">
+                        <p className="text-[12px] text-[#666666] leading-relaxed">
+                          Secure card payment via Paymob. You will enter full card details on the next screen.
+                        </p>
+                        {/* Card Number */}
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={cardNumber}
+                            onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                            placeholder=" "
+                            maxLength={16}
+                            className="peer w-full border border-[#D9D9D9] rounded-md px-3 pt-5 pb-2 text-[14px] text-[#1a1a1a] bg-white focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition-colors font-mono tracking-widest"
+                          />
+                          <label className="absolute left-3 top-1 text-[10px] text-[#888888] uppercase tracking-wider pointer-events-none peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-[13px] peer-placeholder-shown:capitalize peer-placeholder-shown:tracking-normal peer-focus:top-1 peer-focus:text-[10px] peer-focus:uppercase peer-focus:tracking-wider transition-all">
+                            Card number
+                          </label>
+                          <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#888888]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                          </svg>
+                        </div>
+                        {/* Expiry + CVV */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={cardExpiry}
+                              onChange={(e) => {
+                                let v = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+                                setCardExpiry(v);
+                              }}
+                              placeholder=" "
+                              maxLength={5}
+                              className="peer w-full border border-[#D9D9D9] rounded-md px-3 pt-5 pb-2 text-[14px] text-[#1a1a1a] bg-white focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition-colors"
+                            />
+                            <label className="absolute left-3 top-1 text-[10px] text-[#888888] uppercase tracking-wider pointer-events-none peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-[13px] peer-placeholder-shown:capitalize peer-placeholder-shown:tracking-normal peer-focus:top-1 peer-focus:text-[10px] peer-focus:uppercase peer-focus:tracking-wider transition-all">
+                              Expiry (MM/YY)
+                            </label>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={cardCvv}
+                              onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                              placeholder=" "
+                              maxLength={4}
+                              className="peer w-full border border-[#D9D9D9] rounded-md px-3 pt-5 pb-2 text-[14px] text-[#1a1a1a] bg-white focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition-colors"
+                            />
+                            <label className="absolute left-3 top-1 text-[10px] text-[#888888] uppercase tracking-wider pointer-events-none peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-[13px] peer-placeholder-shown:capitalize peer-placeholder-shown:tracking-normal peer-focus:top-1 peer-focus:text-[10px] peer-focus:uppercase peer-focus:tracking-wider transition-all">
+                              Security code
+                            </label>
+                          </div>
+                        </div>
+                        {/* Cardholder Name */}
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={cardName}
+                            onChange={(e) => setCardName(e.target.value)}
+                            placeholder=" "
+                            className="peer w-full border border-[#D9D9D9] rounded-md px-3 pt-5 pb-2 text-[14px] text-[#1a1a1a] bg-white focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition-colors"
+                          />
+                          <label className="absolute left-3 top-1 text-[10px] text-[#888888] uppercase tracking-wider pointer-events-none peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-[13px] peer-placeholder-shown:capitalize peer-placeholder-shown:tracking-normal peer-focus:top-1 peer-focus:text-[10px] peer-focus:uppercase peer-focus:tracking-wider transition-all">
+                            Name on card
+                          </label>
+                        </div>
+                        <label className="flex items-center gap-2 text-[12px] text-[#444444] cursor-pointer select-none">
+                          <input type="checkbox" defaultChecked className="w-4 h-4 accent-black rounded" />
+                          Use shipping address as billing address
+                        </label>
+                      </div>
                     )}
                   </div>
                 </label>
@@ -948,15 +1032,18 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 </label>
 
-                {/* Option 4: Apple Pay (visible, coming soon) */}
+                {/* Option 4: Apple Pay */}
                 <label
-                  className="flex items-start gap-3 p-4 cursor-not-allowed opacity-60 bg-white"
+                  className={`flex items-start gap-3 p-4 cursor-pointer transition-colors ${
+                    paymentMethod === 'Apple Pay' ? 'bg-[#F2F2F2]' : 'bg-white hover:bg-[#FAFAFA]'
+                  }`}
                 >
                   <input
                     type="radio"
                     name="payment_choice"
                     value="Apple Pay"
-                    disabled
+                    checked={paymentMethod === 'Apple Pay'}
+                    onChange={() => setPaymentMethod('Apple Pay')}
                     className="mt-0.5 accent-black"
                   />
                   <div className="flex-1">
@@ -967,10 +1054,13 @@ export const CheckoutPage: React.FC = () => {
                           <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.08-7.73-7.94-12.11-14.58-6.19-9.37-11.05-20.2-14.58-32.48-3.53-12.28-5.3-23.75-5.3-34.41 0-14.58 3.64-26.69 10.92-36.33 7.28-9.64 16.59-14.52 27.93-14.65 4.89 0 10.16 1.34 15.81 4.02 5.65 2.68 9.3 4.08 10.95 4.19 1.35 0 5.17-1.46 11.46-4.36 6.3-2.9 11.95-4.24 16.97-4.02 12.51.65 22.38 5.48 29.6 14.5-10.98 6.64-16.36 15.82-16.14 27.53.22 9.14 3.75 16.86 10.6 23.16 6.85 6.3 15.02 9.89 24.51 10.77-2.18 6.53-4.73 13.06-7.66 19.59zM119.22 33.15c0-7.39 2.66-14.28 7.98-20.67 5.33-6.39 12-10.63 20.02-12.73.22 1.09.33 2.07.33 2.94 0 7.29-2.77 14.23-8.31 20.82-5.54 6.59-12.28 10.74-20.22 12.44-.01-.98-.01-1.78.2-2.8z" />
                         </svg>
                       </div>
-                      <span className="text-[10px] uppercase tracking-widest text-[#888888] bg-[#EEEEEE] px-2 py-0.5 rounded font-semibold">
-                        Coming soon
-                      </span>
+                      <span className="text-[11px] text-white bg-black px-2 py-0.5 rounded uppercase tracking-wide font-medium">Active</span>
                     </div>
+                    {paymentMethod === 'Apple Pay' && (
+                      <p className="text-[12px] text-[#666666] mt-2 leading-relaxed">
+                        Fast one-touch payment via Apple Wallet. Available on Safari and iOS devices with Face ID or Touch ID.
+                      </p>
+                    )}
                   </div>
                 </label>
 
