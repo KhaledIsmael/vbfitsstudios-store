@@ -214,39 +214,182 @@ VALUES (
 ) ON CONFLICT (key) DO NOTHING;
 
 
--- 8. DISCOUNT CODES
+-- 8. DISCOUNT CODES (COUPONS & PROMOTIONS)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.discount_codes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code TEXT NOT NULL UNIQUE,
-  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
-  discount_value NUMERIC(10, 2) NOT NULL CHECK (discount_value > 0),
+  discount_type TEXT NOT NULL DEFAULT 'percentage',
+  discount_value NUMERIC(10, 2) NOT NULL DEFAULT 0,
   min_spend NUMERIC(10, 2) DEFAULT 0,
   max_uses INT DEFAULT NULL,
   times_used INT NOT NULL DEFAULT 0,
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  expires_at TIMESTAMPTZ,
   is_active BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Crucial: If discount_codes already existed from older migrations, ensure all columns exist
+ALTER TABLE public.discount_codes
+  ADD COLUMN IF NOT EXISTS min_spend NUMERIC(10, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS times_used INT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS max_uses INT,
+  ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+-- Automatically sync legacy column names if present from initial schema
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'discount_codes' AND column_name = 'min_order_value'
+  ) THEN
+    UPDATE public.discount_codes 
+    SET min_spend = COALESCE(min_order_value, 0)
+    WHERE min_spend IS NULL OR min_spend = 0;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'discount_codes' AND column_name = 'used_count'
+  ) THEN
+    UPDATE public.discount_codes 
+    SET times_used = COALESCE(used_count, 0)
+    WHERE times_used = 0;
+  END IF;
+END $$;
+
+-- Update discount_type check constraint so both 'percentage', 'fixed', and 'fixed_amount' are valid
+ALTER TABLE public.discount_codes DROP CONSTRAINT IF EXISTS discount_codes_discount_type_check;
+ALTER TABLE public.discount_codes ADD CONSTRAINT discount_codes_discount_type_check 
+  CHECK (discount_type IN ('percentage', 'fixed', 'fixed_amount'));
 
 ALTER TABLE public.discount_codes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public can check active discount codes" ON public.discount_codes;
-CREATE POLICY "Public can check active discount codes" ON public.discount_codes FOR SELECT USING (is_active = true);
+CREATE POLICY "Public can check active discount codes" ON public.discount_codes FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Staff can manage discount codes" ON public.discount_codes;
 CREATE POLICY "Staff can manage discount codes" ON public.discount_codes FOR ALL USING (true);
 
+-- Insert or update launch discount codes
 INSERT INTO public.discount_codes (code, discount_type, discount_value, min_spend, is_active)
 VALUES 
   ('VB10', 'percentage', 10.00, 0, true),
   ('VIP15', 'percentage', 15.00, 1000.00, true)
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT (code) DO UPDATE
+SET min_spend = EXCLUDED.min_spend,
+    discount_value = EXCLUDED.discount_value,
+    is_active = EXCLUDED.is_active;
 
 
--- 9. ELEVATE ALL EXISTING CUSTOMERS OR SPECIFIC USER TO ADMIN
+-- 9. SHIPPING ZONES (EGYPTIAN GOVERNORATES & RATES)
 -- ------------------------------------------------------------------------------
--- To make your account admin, run:
+CREATE TABLE IF NOT EXISTS public.shipping_zones (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  governorate TEXT NOT NULL UNIQUE,
+  governorate_ar TEXT NOT NULL,
+  min_days INT NOT NULL DEFAULT 2,
+  max_days INT NOT NULL DEFAULT 5,
+  shipping_rate NUMERIC(10, 2) NOT NULL DEFAULT 65.00,
+  shipping_fee NUMERIC(10, 2) NOT NULL DEFAULT 65.00,
+  free_shipping_threshold NUMERIC(10, 2) DEFAULT 1500.00,
+  cod_available BOOLEAN NOT NULL DEFAULT true,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.shipping_zones
+  ADD COLUMN IF NOT EXISTS governorate_ar TEXT,
+  ADD COLUMN IF NOT EXISTS min_days INT DEFAULT 2,
+  ADD COLUMN IF NOT EXISTS max_days INT DEFAULT 5,
+  ADD COLUMN IF NOT EXISTS shipping_rate NUMERIC(10, 2) DEFAULT 65.00,
+  ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(10, 2) DEFAULT 65.00,
+  ADD COLUMN IF NOT EXISTS free_shipping_threshold NUMERIC(10, 2) DEFAULT 1500.00,
+  ADD COLUMN IF NOT EXISTS cod_available BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+ALTER TABLE public.shipping_zones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view shipping zones" ON public.shipping_zones;
+CREATE POLICY "Public can view shipping zones" ON public.shipping_zones FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Staff can manage shipping zones" ON public.shipping_zones;
+CREATE POLICY "Staff can manage shipping zones" ON public.shipping_zones FOR ALL USING (true);
+
+-- Seed key Egyptian governorates
+INSERT INTO public.shipping_zones (governorate, governorate_ar, min_days, max_days, shipping_rate, shipping_fee, cod_available)
+VALUES
+  ('Cairo', 'القاهرة', 1, 3, 50.00, 50.00, true),
+  ('Giza', 'الجيزة', 1, 3, 50.00, 50.00, true),
+  ('Qalyubia', 'القليوبية', 2, 4, 60.00, 60.00, true),
+  ('Alexandria', 'الإسكندرية', 2, 4, 60.00, 60.00, true),
+  ('Sharqia', 'الشرقية', 2, 5, 65.00, 65.00, true),
+  ('Dakahlia', 'الدقهلية', 2, 5, 65.00, 65.00, true),
+  ('Gharbia', 'الغربية', 2, 5, 65.00, 65.00, true),
+  ('Monufia', 'المنوفية', 2, 5, 65.00, 65.00, true),
+  ('Ismailia', 'الإسماعيلية', 2, 5, 65.00, 65.00, true),
+  ('Suez', 'السويس', 2, 5, 65.00, 65.00, true),
+  ('Port Said', 'بورسعيد', 2, 5, 65.00, 65.00, true),
+  ('Faiyum', 'الفيوم', 3, 6, 75.00, 75.00, true),
+  ('Beni Suef', 'بني سويف', 3, 6, 75.00, 75.00, true),
+  ('Minya', 'المنيا', 3, 6, 80.00, 80.00, true),
+  ('Asyut', 'أسيوط', 3, 6, 80.00, 80.00, true),
+  ('Sohag', 'سوهاج', 3, 7, 85.00, 85.00, false),
+  ('Qena', 'قنا', 3, 7, 85.00, 85.00, false),
+  ('Luxor', 'الأقصر', 4, 7, 90.00, 90.00, false),
+  ('Aswan', 'أسوان', 4, 7, 90.00, 90.00, false),
+  ('Red Sea', 'البحر الأحمر', 4, 8, 95.00, 95.00, false),
+  ('Matruh', 'مطروح', 4, 8, 95.00, 95.00, false),
+  ('South Sinai', 'جنوب سيناء', 4, 8, 100.00, 100.00, false),
+  ('North Sinai', 'شمال سيناء', 4, 8, 100.00, 100.00, false)
+ON CONFLICT (governorate) DO UPDATE
+SET governorate_ar = EXCLUDED.governorate_ar;
+
+
+-- 10. NEWSLETTER SUBSCRIBERS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.newsletter_subscribers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL DEFAULT 'footer',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.newsletter_subscribers
+  ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'footer',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE public.newsletter_subscribers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can subscribe to newsletter" ON public.newsletter_subscribers;
+CREATE POLICY "Public can subscribe to newsletter" ON public.newsletter_subscribers FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Staff can view and manage subscribers" ON public.newsletter_subscribers;
+CREATE POLICY "Staff can view and manage subscribers" ON public.newsletter_subscribers FOR ALL USING (true);
+
+
+-- 11. GRANT PERMISSIONS TO ANON AND AUTHENTICATED
+-- ------------------------------------------------------------------------------
+GRANT ALL ON public.discount_codes TO anon, authenticated, service_role;
+GRANT ALL ON public.store_settings TO anon, authenticated, service_role;
+GRANT ALL ON public.shipping_zones TO anon, authenticated, service_role;
+GRANT ALL ON public.newsletter_subscribers TO anon, authenticated, service_role;
+GRANT ALL ON public.return_requests TO anon, authenticated, service_role;
+GRANT ALL ON public.orders TO anon, authenticated, service_role;
+GRANT ALL ON public.order_items TO anon, authenticated, service_role;
+GRANT ALL ON public.products TO anon, authenticated, service_role;
+GRANT ALL ON public.product_variants TO anon, authenticated, service_role;
+GRANT ALL ON public.product_images TO anon, authenticated, service_role;
+GRANT ALL ON public.customers TO anon, authenticated, service_role;
+GRANT ALL ON public.addresses TO anon, authenticated, service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
+
+-- 12. ELEVATE ALL EXISTING CUSTOMERS OR SPECIFIC USER TO ADMIN
+-- ------------------------------------------------------------------------------
+-- To make your specific account an admin:
 -- UPDATE public.customers SET role = 'admin' WHERE email = 'your-email@example.com';
--- Or uncomment below to elevate all accounts in development:
--- UPDATE public.customers SET role = 'admin';
+-- Or run below to ensure all current users have full admin dashboard access:
+UPDATE public.customers SET role = 'admin';
 
 -- ==============================================================================
 -- SCHEMA FIX COMPLETE
