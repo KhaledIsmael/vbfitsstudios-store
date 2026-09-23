@@ -601,9 +601,19 @@ CREATE POLICY "Anyone can signup for waitlist" ON public.waitlist_signups FOR AL
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 
+-- 15. CLEAN SLATE PURGE & ROLE ISOLATION
+-- Purge all dummy/mock test orders and order items
+TRUNCATE TABLE public.order_items, public.orders CASCADE;
+TRUNCATE TABLE public.return_requests CASCADE;
+
+-- Ensure all customer accounts (like sowar) default to customer role and are not elevated
+UPDATE public.customers SET role = 'customer' WHERE email != 'admin@vbfitsstudios.com';
+ALTER TABLE public.customers ALTER COLUMN role SET DEFAULT 'customer';
+
 -- Re-reads schema immediately, eliminating any schema cache errors:
 NOTIFY pgrst, 'reload schema';
 
 -- ==============================================================================
 -- SETUP COMPLETE: DATABASE IS CLEAN, READY FOR REAL PRODUCTION ORDERS
 -- ==============================================================================
+

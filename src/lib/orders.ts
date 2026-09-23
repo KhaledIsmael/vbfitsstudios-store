@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { sendTelegramOrderAlert } from './telegramNotifier';
 
 // ── Shared delivery window helper (matches email template + confirmation page) ──
 function getDeliveryWindow(createdAt?: string): string {
@@ -359,6 +360,28 @@ export async function createOrder({
         // Never propagate email errors — order already created
         console.warn('Email trigger exception (non-blocking):', emailErr);
       }
+    }
+
+    // 4. Free Telegram Instant Order Notification (push alert to owner's phone)
+    try {
+      sendTelegramOrderAlert({
+        orderNumber: order.order_number,
+        customerName: (shippingAddress as any)?.name || 'عميل المتجر',
+        customerPhone: (shippingAddress as any)?.phone || '',
+        governorate: (shippingAddress as any)?.governorate || (shippingAddress as any)?.city || '',
+        city: (shippingAddress as any)?.city || '',
+        address: (shippingAddress as any)?.street || (shippingAddress as any)?.address || '',
+        items: items.map((it) => ({
+          name: it.name,
+          size: it.size,
+          quantity: it.quantity,
+          price: it.price
+        })),
+        total: order.total,
+        paymentMethod: paymentMethod === 'COD' ? 'الدفع عند الاستلام (COD)' : paymentMethod
+      }).catch((e) => console.warn('Telegram notification notice:', e));
+    } catch (tgErr) {
+      console.warn('Telegram notification exception (non-blocking):', tgErr);
     }
 
     return { order, error: null };

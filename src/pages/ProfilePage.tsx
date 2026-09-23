@@ -353,35 +353,9 @@ export const ProfilePage: React.FC = () => {
     setReturnError(null);
   };
 
-  const isStaff = role === 'admin' || role === 'support' || user?.role === 'admin' || user?.role === 'support';
-
   return (
     <div className="pt-24 sm:pt-32 pb-24 min-h-screen bg-white">
       <div className="max-w-[1280px] mx-auto px-6 sm:px-10 lg:px-16">
-        
-        {/* Admin Staff Access Banner */}
-        {isStaff && (
-          <div className="mb-6 p-4 sm:p-5 bg-[#0B0B0C] border border-[#222222] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-              <div>
-                <p className="text-xs uppercase tracking-wider font-semibold">
-                  Store Management Portal
-                </p>
-                <p className="text-[11px] text-[#888888] font-mono">
-                  Authenticated with {role || user?.role} privileges
-                </p>
-              </div>
-            </div>
-            <Link
-              to="/admin"
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-black text-xs uppercase font-bold tracking-widest hover:bg-neutral-200 transition-colors"
-            >
-              <span>Access Admin Dashboard</span>
-              <span>→</span>
-            </Link>
-          </div>
-        )}
 
         {/* Profile Header */}
         <div className="border-b border-[#EAEAEA] pb-10 pt-4 flex flex-col md:flex-row md:items-center justify-between gap-6">

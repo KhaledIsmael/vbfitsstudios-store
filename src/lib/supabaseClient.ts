@@ -21,11 +21,27 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// Fallback to placeholder during development if env vars are missing to avoid initialization crash
+// Primary Supabase client used for customer storefront sessions (storageKey defaults to sb-<ref>-auth-token)
 export const supabase: SupabaseClient = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-anon-key'
 );
 
+// Strictly isolated Supabase client used exclusively for Admin backoffice sessions
+// Uses an independent storageKey so admin login/logout NEVER impacts customer storefront sessions
+export const adminSupabase: SupabaseClient = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-anon-key',
+  {
+    auth: {
+      storageKey: 'vbfits_admin_auth_token_v1',
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false
+    }
+  }
+);
+
 export type { SupabaseClient };
 export default supabase;
+

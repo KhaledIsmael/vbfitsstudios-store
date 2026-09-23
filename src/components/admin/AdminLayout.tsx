@@ -12,7 +12,7 @@ import {
   Truck,
   Sparkles
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 import { AdminInfoTooltip } from './AdminInfoTooltip';
 
 const NAV_ITEMS = [
@@ -60,7 +60,7 @@ const NAV_ITEMS = [
 ];
 
 export const AdminLayout: React.FC = () => {
-  const { user, role, logout } = useAuth();
+  const { adminUser, logout } = useAdminAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -241,15 +241,15 @@ export const AdminLayout: React.FC = () => {
             {/* Admin identity pill */}
             <div className="flex items-center gap-2.5 border-r border-slate-200 pr-2.5 sm:pr-4">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-slate-950 shadow-xs">
-                {user?.name ? user.name.charAt(0).toUpperCase() : 'A'}
+                {adminUser?.name ? adminUser.name.charAt(0).toUpperCase() : 'A'}
               </div>
               <div className="hidden lg:block text-right">
                 <p className="text-xs font-bold text-slate-900 truncate max-w-[130px]">
-                  {user?.name || 'مدير المتجر'}
+                  {adminUser?.name || 'مدير المتجر'}
                 </p>
                 <div className="flex items-center gap-1.5 justify-end">
                   <span className="text-[10px] text-amber-600 font-bold">
-                    {role === 'admin' ? 'مدير عام' : 'فريق الدعم'}
+                    {adminUser?.role === 'admin' ? 'مدير عام' : 'فريق الدعم'}
                   </span>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 </div>

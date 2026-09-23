@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { BRAND_CONFIG, FOOTER_DATA } from '../../config/assets';
-import { useAuth } from '../../context/AuthContext';
 
 function useFocusTrap(ref: React.RefObject<HTMLDivElement | null>, active: boolean) {
   useEffect(() => {
@@ -47,8 +46,6 @@ const MENU_LINKS = [
 
 export const MenuDrawer: React.FC<MenuDrawerProps> = ({ isOpen, onClose }) => {
   const panelRef = useRef<HTMLDivElement>(null);
-  const { role, user } = useAuth();
-  const isStaff = role === 'admin' || role === 'support' || user?.role === 'admin' || user?.role === 'support';
 
   useFocusTrap(panelRef, isOpen);
 
@@ -137,24 +134,6 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({ isOpen, onClose }) => {
                 </NavLink>
               </div>
             ))}
-
-            {isStaff && (
-              <div className="overflow-hidden pt-3 border-t border-[#F0F0F0]">
-                <NavLink
-                  to="/admin"
-                  onClick={onClose}
-                  className="group flex items-center justify-between font-sans font-medium uppercase tracking-[0.14em] text-sm text-[#777777] hover:text-black py-1 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Admin Dashboard
-                  </span>
-                  <span className="text-[10px] tracking-wider text-[#999999] group-hover:text-black transition-colors font-mono">
-                    MGMT
-                  </span>
-                </NavLink>
-              </div>
-            )}
           </nav>
 
           {/* Bottom Area: Socials (WhatsApp, Instagram, TikTok) & Watermark */}

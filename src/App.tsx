@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
+import { AdminAuthProvider } from './context/AdminAuthContext';
 
 // Core layout chrome (loaded eagerly for instant shell)
 import { Navbar } from './components/layout/Navbar';
@@ -151,40 +152,42 @@ const StorefrontLayout: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <BrowserRouter>
-          <ScrollToTop />
-          <Suspense fallback={<RouteLoadingFallback />}>
-            <Routes>
-              {/* 1. Dedicated Admin Staff Login (/admin/login) */}
-              <Route path="/admin/login" element={<AdminLoginPage />} />
+    <AdminAuthProvider>
+      <AuthProvider>
+        <CartProvider>
+          <BrowserRouter>
+            <ScrollToTop />
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <Routes>
+                {/* 1. Dedicated Admin Staff Login (/admin/login) */}
+                <Route path="/admin/login" element={<AdminLoginPage />} />
 
-              {/* 2. Backoffice Shell (/admin/*) — Restricted to role: admin or support */}
-              <Route path="/admin" element={<AdminRouteGuard />}>
-                <Route element={<AdminLayout />}>
-                  <Route index element={<AdminOverviewPage />} />
-                  <Route path="products" element={<AdminProductsPage />} />
-                  <Route path="inventory" element={<AdminInventoryPage />} />
-                  <Route path="orders" element={<AdminOrdersPage />} />
-                  <Route path="returns" element={<AdminReturnsPage />} />
-                  <Route path="customers" element={<AdminCustomersPage />} />
-                  <Route path="marketing" element={<AdminMarketingPage />} />
-                  <Route path="analytics" element={<AdminAnalyticsPage />} />
-                  <Route path="shipping" element={<AdminShippingPage />} />
+                {/* 2. Backoffice Shell (/admin/*) — Restricted to role: admin or support */}
+                <Route path="/admin" element={<AdminRouteGuard />}>
+                  <Route element={<AdminLayout />}>
+                    <Route index element={<AdminOverviewPage />} />
+                    <Route path="products" element={<AdminProductsPage />} />
+                    <Route path="inventory" element={<AdminInventoryPage />} />
+                    <Route path="orders" element={<AdminOrdersPage />} />
+                    <Route path="returns" element={<AdminReturnsPage />} />
+                    <Route path="customers" element={<AdminCustomersPage />} />
+                    <Route path="marketing" element={<AdminMarketingPage />} />
+                    <Route path="analytics" element={<AdminAnalyticsPage />} />
+                    <Route path="shipping" element={<AdminShippingPage />} />
+                  </Route>
                 </Route>
-              </Route>
 
-              {/* 3. Customer Storefront (All other routes) */}
-              <Route path="/*" element={<StorefrontLayout />} />
-            </Routes>
-          </Suspense>
+                {/* 3. Customer Storefront (All other routes) */}
+                <Route path="/*" element={<StorefrontLayout />} />
+              </Routes>
+            </Suspense>
 
-          {/* Global GDPR Cookie Consent Banner (mounts once, outside route switching) */}
-          <CookieConsent />
-        </BrowserRouter>
-      </CartProvider>
-    </AuthProvider>
+            {/* Global GDPR Cookie Consent Banner (mounts once, outside route switching) */}
+            <CookieConsent />
+          </BrowserRouter>
+        </CartProvider>
+      </AuthProvider>
+    </AdminAuthProvider>
   );
 };
 

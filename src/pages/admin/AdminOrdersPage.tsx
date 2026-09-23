@@ -30,8 +30,10 @@ import {
   MessageCircle,
   Eye,
   AlertCircle,
-  Download
+  Download,
+  Trash2
 } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
 
 type OrderStatusFilter = 'all' | 'unfulfilled' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -115,6 +117,29 @@ export const AdminOrdersPage: React.FC = () => {
       }
     } finally {
       setNotesSaving(false);
+    }
+  };
+
+  const handlePurgeTestData = async () => {
+    const confirmed = window.confirm(
+      'تنبيه هام: هل تريد تصفير وحذف جميع الطلبات التجريبية والبيانات الوهمية لتجهيز المتجر للإنتاج الفعلي النظيف؟'
+    );
+    if (!confirmed) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.rpc('purge_all_test_data');
+      if (error) {
+        alert(
+          'تنبيه: لتنفيذ التصفير الكامل، يرجى تشغيل سكربت purge_all_test_data.sql المحدث في محرر SQL في Supabase.'
+        );
+      } else {
+        alert('تم تصفير جميع الطلبات التجريبية بنجاح! المتجر الآن جاهز للإنتاج ببيانات نظيفة 100%.');
+      }
+      await loadOrders();
+    } catch (e: any) {
+      alert('حدث خطأ أثناء التصفير: ' + (e?.message || 'خطأ غير متوقع'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -255,16 +280,27 @@ export const AdminOrdersPage: React.FC = () => {
             className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 text-xs font-bold border border-slate-200 transition-colors rounded-lg shadow-2xs cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-500' : 'text-slate-400'}`} />
-            <span>تحديث الطلبات لايف</span>
+            <span>تحديث الطلبات</span>
           </button>
 
           <button
             type="button"
             onClick={() => exportOrdersToExcel(filteredOrders)}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 text-xs font-bold transition-all rounded-lg shadow-sm cursor-pointer"
+            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 text-xs font-bold transition-all rounded-lg shadow-sm cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-amber-400" />
             <span>تصدير Excel</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePurgeTestData}
+            disabled={loading}
+            className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 text-xs font-bold border border-red-200 transition-colors rounded-lg shadow-2xs cursor-pointer"
+            title="حذف الأوردرات التجريبية وتجهيز المتجر للإنتاج"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-red-600" />
+            <span>تصفير الداتا التجريبية</span>
           </button>
         </div>
       </div>
