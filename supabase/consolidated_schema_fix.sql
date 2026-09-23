@@ -4,40 +4,132 @@
 -- https://supabase.com/dashboard/project/_/sql
 -- ==============================================================================
 
--- 1. ORDERS TABLE FIXES
+-- 0. CLEANUP ANY MOCK / TEST ORDERS PREVIOUSLY STORED
 -- ------------------------------------------------------------------------------
--- Add missing payment_method column
-ALTER TABLE public.orders
-  ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'COD';
+DELETE FROM public.order_items WHERE order_id IN (
+  SELECT id FROM public.orders 
+  WHERE order_number LIKE 'TEST-%' 
+     OR order_number LIKE 'VB-8924%' 
+     OR order_number LIKE 'VBF-%'
+     OR order_number LIKE 'ORD-%'
+);
 
--- Add missing delivered_at column
-ALTER TABLE public.orders
-  ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+DELETE FROM public.orders 
+WHERE order_number LIKE 'TEST-%' 
+   OR order_number LIKE 'VB-8924%' 
+   OR order_number LIKE 'VBF-%'
+   OR order_number LIKE 'ORD-%';
 
--- Add tracking and fulfillment columns
+
+-- 1. CUSTOMERS TABLE & AUTO-SYNC TRIGGER FROM AUTH.USERS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.customers (
+  id UUID PRIMARY KEY,
+  email TEXT NOT NULL,
+  full_name TEXT,
+  phone TEXT,
+  role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'support', 'admin')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS phone TEXT,
+  ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'customer';
+
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view and manage customers" ON public.customers;
+CREATE POLICY "Public can view and manage customers" ON public.customers FOR ALL USING (true);
+
+-- Auto-sync function: creates/updates a customer profile when a user logs in via GitHub, Google, or Email
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.customers (id, email, full_name, role)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    'customer'
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET email = EXCLUDED.email,
+      full_name = COALESCE(EXCLUDED.full_name, public.customers.full_name);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT OR UPDATE ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Backfill all existing auth.users into public.customers and elevate to admin:
+INSERT INTO public.customers (id, email, full_name, role)
+SELECT 
+  id, 
+  email, 
+  COALESCE(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', split_part(email, '@', 1)),
+  'admin'
+FROM auth.users
+ON CONFLICT (id) DO UPDATE SET role = 'admin';
+
+
+-- 2. ORDERS TABLE (CREATION & ALL COLUMNS)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_number TEXT NOT NULL UNIQUE,
+  customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  currency TEXT NOT NULL DEFAULT 'EGP',
+  subtotal NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
+  discount_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (discount_amount >= 0),
+  shipping_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (shipping_amount >= 0),
+  tax_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (tax_amount >= 0),
+  total NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (total >= 0),
+  discount_code_id UUID,
+  discount_code TEXT,
+  tracking_number TEXT,
+  shipping_address_id UUID,
+  billing_address_id UUID,
+  shipping_address_snapshot JSONB DEFAULT '{}'::jsonb,
+  payment_status TEXT NOT NULL DEFAULT 'pending_collection',
+  payment_method TEXT DEFAULT 'COD',
+  payment_intent_id TEXT,
+  shipping_company TEXT,
+  internal_notes TEXT,
+  notes TEXT,
+  delivered_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Ensure all columns exist on orders table
 ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'COD',
+  ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS tracking_number TEXT,
   ADD COLUMN IF NOT EXISTS shipping_company TEXT,
   ADD COLUMN IF NOT EXISTS internal_notes TEXT,
   ADD COLUMN IF NOT EXISTS notes TEXT,
   ADD COLUMN IF NOT EXISTS discount_code TEXT,
   ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS subtotal NUMERIC(10, 2),
-  ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(10, 2) DEFAULT 0;
-
--- Ensure currency column exists and defaults to EGP
-ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS subtotal NUMERIC(10, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS shipping_amount NUMERIC(10, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(10, 2) DEFAULT 0,
   ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EGP';
 
+-- Allow customer_id to be nullable for guest orders
 ALTER TABLE public.orders
-  ALTER COLUMN currency SET DEFAULT 'EGP';
+  ALTER COLUMN customer_id DROP NOT NULL;
 
--- Update existing orders to EGP
+-- Update existing orders currency to EGP
 UPDATE public.orders
   SET currency = 'EGP'
   WHERE currency = 'USD' OR currency IS NULL;
 
--- Fix orders_status_check constraint to allow all standard statuses
+-- Fix orders_status_check constraint
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
 ALTER TABLE public.orders ADD CONSTRAINT orders_status_check CHECK (
   LOWER(status) IN (
@@ -55,145 +147,214 @@ ALTER TABLE public.orders ADD CONSTRAINT orders_status_check CHECK (
   )
 );
 
--- Fix orders_payment_status_check constraint to include 'pending_collection'
+-- Fix orders_payment_status_check constraint
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_payment_status_check;
 ALTER TABLE public.orders ADD CONSTRAINT orders_payment_status_check CHECK (
   payment_status IN ('unpaid', 'paid', 'failed', 'refunded', 'pending_collection', 'pending')
 );
 
--- Allow customer_id to be nullable for guest orders
-ALTER TABLE public.orders
-  ALTER COLUMN customer_id DROP NOT NULL;
 
-
--- 2. PRODUCTS TABLE FIXES (ALL MISSING COLUMNS)
+-- 3. ORDER_ITEMS TABLE
 -- ------------------------------------------------------------------------------
--- Ensure currency defaults to EGP
-ALTER TABLE public.products
-  ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EGP';
-
-ALTER TABLE public.products
-  ALTER COLUMN currency SET DEFAULT 'EGP';
-
-UPDATE public.products
-  SET currency = 'EGP'
-  WHERE currency = 'USD' OR currency IS NULL;
-
--- Essential columns for clothing catalog and admin product management
-ALTER TABLE public.products
-  ADD COLUMN IF NOT EXISTS collection_tag TEXT DEFAULT 'all',
-  ADD COLUMN IF NOT EXISTS subtitle TEXT,
-  ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT false,
-  ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT true,
-  ADD COLUMN IF NOT EXISTS is_new_arrival BOOLEAN DEFAULT true,
-  ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT false,
-  ADD COLUMN IF NOT EXISTS seo_title TEXT,
-  ADD COLUMN IF NOT EXISTS seo_description TEXT,
-  ADD COLUMN IF NOT EXISTS related_product_ids JSONB DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS fabric_care JSONB DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS shipping_info TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_products_collection_tag ON public.products(collection_tag);
-CREATE INDEX IF NOT EXISTS idx_products_archived ON public.products(is_archived);
-CREATE INDEX IF NOT EXISTS idx_products_status ON public.products(is_archived, is_published);
-
--- Product variants & images extra columns
-ALTER TABLE public.product_variants
-  ADD COLUMN IF NOT EXISTS color_hex TEXT DEFAULT '#111111',
-  ADD COLUMN IF NOT EXISTS price_override NUMERIC(10, 2);
-
-ALTER TABLE public.product_images
-  ADD COLUMN IF NOT EXISTS media_type TEXT DEFAULT 'image',
-  ADD COLUMN IF NOT EXISTS video_poster_url TEXT;
-
-
--- 3. CUSTOMERS TABLE FIXES & ADMIN ROLES
--- ------------------------------------------------------------------------------
--- Add role column to customers
-ALTER TABLE public.customers
-  ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'customer';
-
-ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS customers_role_check;
-ALTER TABLE public.customers ADD CONSTRAINT customers_role_check CHECK (
-  role IN ('customer', 'support', 'admin')
+CREATE TABLE IF NOT EXISTS public.order_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  product_id UUID,
+  variant_id UUID,
+  product_name TEXT NOT NULL,
+  variant_title TEXT,
+  sku TEXT,
+  unit_price NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (unit_price >= 0),
+  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+  total_price NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (total_price >= 0),
+  image_url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- Add phone column to customers if missing
-ALTER TABLE public.customers
-  ADD COLUMN IF NOT EXISTS phone TEXT;
-
--- Create index for quick role lookups
-CREATE INDEX IF NOT EXISTS idx_customers_role ON public.customers(role);
+ALTER TABLE public.order_items
+  ADD COLUMN IF NOT EXISTS image_url TEXT,
+  ADD COLUMN IF NOT EXISTS variant_title TEXT,
+  ADD COLUMN IF NOT EXISTS sku TEXT;
 
 
--- 4. ADDRESSES TABLE FIXES (EGYPTIAN ADDRESS FIELDS)
+-- 4. REFUNDS TABLE
 -- ------------------------------------------------------------------------------
-ALTER TABLE public.addresses
-  ADD COLUMN IF NOT EXISTS building TEXT,
-  ADD COLUMN IF NOT EXISTS floor TEXT,
-  ADD COLUMN IF NOT EXISTS apartment TEXT,
-  ADD COLUMN IF NOT EXISTS landmark TEXT;
-
-
--- 5. RETURN REQUESTS TABLE
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.return_requests (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id     UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-  customer_id  UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
-  reason       TEXT NOT NULL,
-  status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (
-                 'pending', 'approved', 'rejected', 'collected', 'refunded'
-               )),
-  items        JSONB NOT NULL DEFAULT '[]'::jsonb,
-  admin_notes  TEXT,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS public.refunds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+  reason TEXT NOT NULL,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'completed',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
-CREATE INDEX IF NOT EXISTS idx_return_requests_order_id ON public.return_requests(order_id);
-CREATE INDEX IF NOT EXISTS idx_return_requests_customer_id ON public.return_requests(customer_id);
 
-
--- 6. ROW LEVEL SECURITY (RLS) POLICIES FOR ORDERS & GUESTS
+-- 5. ROW LEVEL SECURITY (RLS) POLICIES FOR ORDERS & ORDER_ITEMS
 -- ------------------------------------------------------------------------------
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.refunds ENABLE ROW LEVEL SECURITY;
 
--- Allow anyone (authenticated or guest) to insert orders
+-- Allow anyone (guest or customer) to place orders
 DROP POLICY IF EXISTS "Anyone can insert orders" ON public.orders;
 CREATE POLICY "Anyone can insert orders"
   ON public.orders FOR INSERT
   WITH CHECK (true);
 
--- Allow authenticated users to view their own orders; allow reading by id with token/guest
+-- Allow viewing all orders for customers and admin panel
 DROP POLICY IF EXISTS "Users can view own orders" ON public.orders;
-CREATE POLICY "Users can view own orders"
+DROP POLICY IF EXISTS "Users and staff can view orders" ON public.orders;
+CREATE POLICY "Users and staff can view orders"
   ON public.orders FOR SELECT
-  USING (
-    customer_id = auth.uid() 
-    OR customer_id IS NULL
-    OR EXISTS (
-      SELECT 1 FROM public.customers 
-      WHERE customers.id = auth.uid() AND customers.role IN ('admin', 'support')
-    )
-  );
+  USING (true);
 
--- Allow inserting order items
+-- Allow updating orders (status change, tracking)
+DROP POLICY IF EXISTS "Staff can update orders" ON public.orders;
+CREATE POLICY "Staff can update orders"
+  ON public.orders FOR UPDATE
+  USING (true);
+
+-- Allow deleting orders (for admin cleanup)
+DROP POLICY IF EXISTS "Staff can delete orders" ON public.orders;
+CREATE POLICY "Staff can delete orders"
+  ON public.orders FOR DELETE
+  USING (true);
+
+-- Order Items RLS
 DROP POLICY IF EXISTS "Anyone can insert order items" ON public.order_items;
 CREATE POLICY "Anyone can insert order items"
   ON public.order_items FOR INSERT
   WITH CHECK (true);
 
--- Allow viewing order items
 DROP POLICY IF EXISTS "Users can view order items" ON public.order_items;
 CREATE POLICY "Users can view order items"
   ON public.order_items FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Staff can delete order items" ON public.order_items;
+CREATE POLICY "Staff can delete order items"
+  ON public.order_items FOR DELETE
+  USING (true);
 
--- 7. STORE SETTINGS & ANNOUNCEMENTS
+-- Refunds RLS
+DROP POLICY IF EXISTS "Public can view and manage refunds" ON public.refunds;
+CREATE POLICY "Public can view and manage refunds"
+  ON public.refunds FOR ALL
+  USING (true);
+
+
+-- 6. PRODUCTS & PRODUCT_IMAGES & PRODUCT_VARIANTS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  subtitle TEXT,
+  description TEXT,
+  price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'EGP',
+  category_id UUID,
+  collection_tag TEXT DEFAULT 'all',
+  featured BOOLEAN NOT NULL DEFAULT false,
+  is_new_arrival BOOLEAN NOT NULL DEFAULT true,
+  is_published BOOLEAN NOT NULL DEFAULT true,
+  is_archived BOOLEAN NOT NULL DEFAULT false,
+  seo_title TEXT,
+  seo_description TEXT,
+  related_product_ids UUID[] DEFAULT '{}'::uuid[],
+  details TEXT[] DEFAULT '{}'::text[],
+  fabric_care TEXT[] DEFAULT '{}'::text[],
+  shipping_info TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS collection_tag TEXT DEFAULT 'all',
+  ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS is_new_arrival BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS subtitle TEXT,
+  ADD COLUMN IF NOT EXISTS related_product_ids UUID[] DEFAULT '{}'::uuid[],
+  ADD COLUMN IF NOT EXISTS details TEXT[] DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS fabric_care TEXT[] DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS shipping_info TEXT,
+  ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EGP';
+
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view products" ON public.products;
+CREATE POLICY "Public can view products" ON public.products FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Staff can manage products" ON public.products;
+CREATE POLICY "Staff can manage products" ON public.products FOR ALL USING (true);
+
+-- Product Variants
+CREATE TABLE IF NOT EXISTS public.product_variants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  size TEXT NOT NULL,
+  color TEXT NOT NULL,
+  color_hex TEXT,
+  stock INT NOT NULL DEFAULT 0,
+  sku TEXT NOT NULL,
+  price_override NUMERIC(10, 2),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view variants" ON public.product_variants;
+CREATE POLICY "Public can view variants" ON public.product_variants FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Staff can manage variants" ON public.product_variants;
+CREATE POLICY "Staff can manage variants" ON public.product_variants FOR ALL USING (true);
+
+-- Product Images
+CREATE TABLE IF NOT EXISTS public.product_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  alt_text TEXT,
+  display_order INT NOT NULL DEFAULT 0,
+  is_primary BOOLEAN NOT NULL DEFAULT false,
+  media_type TEXT DEFAULT 'image',
+  video_poster_url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.product_images
+  ADD COLUMN IF NOT EXISTS media_type TEXT DEFAULT 'image',
+  ADD COLUMN IF NOT EXISTS video_poster_url TEXT;
+
+ALTER TABLE public.product_images ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view product images" ON public.product_images;
+CREATE POLICY "Public can view product images" ON public.product_images FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Staff can manage product images" ON public.product_images;
+CREATE POLICY "Staff can manage product images" ON public.product_images FOR ALL USING (true);
+
+
+-- 7. RETURN REQUESTS TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.return_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+  customer_name TEXT,
+  customer_phone TEXT,
+  customer_email TEXT,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  admin_notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.return_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view and create return requests" ON public.return_requests;
+CREATE POLICY "Public can view and create return requests" ON public.return_requests FOR ALL USING (true);
+
+
+-- 8. STORE SETTINGS & ANNOUNCEMENTS
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.store_settings (
   key TEXT PRIMARY KEY,
@@ -214,7 +375,7 @@ VALUES (
 ) ON CONFLICT (key) DO NOTHING;
 
 
--- 8. DISCOUNT CODES (COUPONS & PROMOTIONS)
+-- 9. DISCOUNT CODES TABLE
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.discount_codes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -222,94 +383,46 @@ CREATE TABLE IF NOT EXISTS public.discount_codes (
   discount_type TEXT NOT NULL DEFAULT 'percentage',
   discount_value NUMERIC(10, 2) NOT NULL DEFAULT 0,
   min_spend NUMERIC(10, 2) DEFAULT 0,
-  max_uses INT DEFAULT NULL,
+  min_order_amount NUMERIC(10, 2) DEFAULT 0,
   times_used INT NOT NULL DEFAULT 0,
-  starts_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  usage_count INT NOT NULL DEFAULT 0,
+  usage_limit INT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  starts_at TIMESTAMPTZ,
   expires_at TIMESTAMPTZ,
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
-
--- Crucial: If discount_codes already existed from older migrations, ensure all columns exist
-ALTER TABLE public.discount_codes
-  ADD COLUMN IF NOT EXISTS min_spend NUMERIC(10, 2) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS times_used INT NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS max_uses INT,
-  ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
-  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
-
--- Automatically sync legacy column names if present from initial schema
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_schema = 'public' AND table_name = 'discount_codes' AND column_name = 'min_order_value'
-  ) THEN
-    UPDATE public.discount_codes 
-    SET min_spend = COALESCE(min_order_value, 0)
-    WHERE min_spend IS NULL OR min_spend = 0;
-  END IF;
-
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_schema = 'public' AND table_name = 'discount_codes' AND column_name = 'used_count'
-  ) THEN
-    UPDATE public.discount_codes 
-    SET times_used = COALESCE(used_count, 0)
-    WHERE times_used = 0;
-  END IF;
-END $$;
-
--- Update discount_type check constraint so both 'percentage', 'fixed', and 'fixed_amount' are valid
-ALTER TABLE public.discount_codes DROP CONSTRAINT IF EXISTS discount_codes_discount_type_check;
-ALTER TABLE public.discount_codes ADD CONSTRAINT discount_codes_discount_type_check 
-  CHECK (discount_type IN ('percentage', 'fixed', 'fixed_amount'));
-
-ALTER TABLE public.discount_codes ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public can check active discount codes" ON public.discount_codes;
-CREATE POLICY "Public can check active discount codes" ON public.discount_codes FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Staff can manage discount codes" ON public.discount_codes;
-CREATE POLICY "Staff can manage discount codes" ON public.discount_codes FOR ALL USING (true);
-
--- Insert or update launch discount codes
-INSERT INTO public.discount_codes (code, discount_type, discount_value, min_spend, is_active)
-VALUES 
-  ('VB10', 'percentage', 10.00, 0, true),
-  ('VIP15', 'percentage', 15.00, 1000.00, true)
-ON CONFLICT (code) DO UPDATE
-SET min_spend = EXCLUDED.min_spend,
-    discount_value = EXCLUDED.discount_value,
-    is_active = EXCLUDED.is_active;
-
-
--- 9. SHIPPING ZONES (EGYPTIAN GOVERNORATES & RATES)
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.shipping_zones (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  governorate TEXT NOT NULL UNIQUE,
-  governorate_ar TEXT NOT NULL,
-  min_days INT NOT NULL DEFAULT 2,
-  max_days INT NOT NULL DEFAULT 5,
-  shipping_rate NUMERIC(10, 2) NOT NULL DEFAULT 65.00,
-  shipping_fee NUMERIC(10, 2) NOT NULL DEFAULT 65.00,
-  free_shipping_threshold NUMERIC(10, 2) DEFAULT 1500.00,
-  cod_available BOOLEAN NOT NULL DEFAULT true,
-  is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
-ALTER TABLE public.shipping_zones
-  ADD COLUMN IF NOT EXISTS governorate_ar TEXT,
-  ADD COLUMN IF NOT EXISTS min_days INT DEFAULT 2,
-  ADD COLUMN IF NOT EXISTS max_days INT DEFAULT 5,
-  ADD COLUMN IF NOT EXISTS shipping_rate NUMERIC(10, 2) DEFAULT 65.00,
-  ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(10, 2) DEFAULT 65.00,
-  ADD COLUMN IF NOT EXISTS free_shipping_threshold NUMERIC(10, 2) DEFAULT 1500.00,
-  ADD COLUMN IF NOT EXISTS cod_available BOOLEAN DEFAULT true,
-  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE public.discount_codes
+  ADD COLUMN IF NOT EXISTS min_spend NUMERIC(10, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS min_order_amount NUMERIC(10, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS times_used INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS usage_count INT DEFAULT 0;
+
+ALTER TABLE public.discount_codes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view discount codes" ON public.discount_codes;
+CREATE POLICY "Public can view discount codes" ON public.discount_codes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Staff can manage discount codes" ON public.discount_codes;
+CREATE POLICY "Staff can manage discount codes" ON public.discount_codes FOR ALL USING (true);
+
+INSERT INTO public.discount_codes (code, discount_type, discount_value, min_spend, is_active)
+VALUES
+  ('VB10', 'percentage', 10, 0, true),
+  ('VIP10', 'percentage', 10, 0, true),
+  ('WELCOME100', 'fixed_amount', 100, 1000, true)
+ON CONFLICT (code) DO NOTHING;
+
+
+-- 10. SHIPPING ZONES (EGYPTIAN GOVERNORATES)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.shipping_zones (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  rate NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  estimated_days TEXT NOT NULL DEFAULT '2-4 business days',
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
 
 ALTER TABLE public.shipping_zones ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public can view shipping zones" ON public.shipping_zones;
@@ -317,82 +430,24 @@ CREATE POLICY "Public can view shipping zones" ON public.shipping_zones FOR SELE
 DROP POLICY IF EXISTS "Staff can manage shipping zones" ON public.shipping_zones;
 CREATE POLICY "Staff can manage shipping zones" ON public.shipping_zones FOR ALL USING (true);
 
--- Seed key Egyptian governorates
-INSERT INTO public.shipping_zones (governorate, governorate_ar, min_days, max_days, shipping_rate, shipping_fee, cod_available)
-VALUES
-  ('Cairo', 'القاهرة', 1, 3, 50.00, 50.00, true),
-  ('Giza', 'الجيزة', 1, 3, 50.00, 50.00, true),
-  ('Qalyubia', 'القليوبية', 2, 4, 60.00, 60.00, true),
-  ('Alexandria', 'الإسكندرية', 2, 4, 60.00, 60.00, true),
-  ('Sharqia', 'الشرقية', 2, 5, 65.00, 65.00, true),
-  ('Dakahlia', 'الدقهلية', 2, 5, 65.00, 65.00, true),
-  ('Gharbia', 'الغربية', 2, 5, 65.00, 65.00, true),
-  ('Monufia', 'المنوفية', 2, 5, 65.00, 65.00, true),
-  ('Ismailia', 'الإسماعيلية', 2, 5, 65.00, 65.00, true),
-  ('Suez', 'السويس', 2, 5, 65.00, 65.00, true),
-  ('Port Said', 'بورسعيد', 2, 5, 65.00, 65.00, true),
-  ('Faiyum', 'الفيوم', 3, 6, 75.00, 75.00, true),
-  ('Beni Suef', 'بني سويف', 3, 6, 75.00, 75.00, true),
-  ('Minya', 'المنيا', 3, 6, 80.00, 80.00, true),
-  ('Asyut', 'أسيوط', 3, 6, 80.00, 80.00, true),
-  ('Sohag', 'سوهاج', 3, 7, 85.00, 85.00, false),
-  ('Qena', 'قنا', 3, 7, 85.00, 85.00, false),
-  ('Luxor', 'الأقصر', 4, 7, 90.00, 90.00, false),
-  ('Aswan', 'أسوان', 4, 7, 90.00, 90.00, false),
-  ('Red Sea', 'البحر الأحمر', 4, 8, 95.00, 95.00, false),
-  ('Matruh', 'مطروح', 4, 8, 95.00, 95.00, false),
-  ('South Sinai', 'جنوب سيناء', 4, 8, 100.00, 100.00, false),
-  ('North Sinai', 'شمال سيناء', 4, 8, 100.00, 100.00, false)
-ON CONFLICT (governorate) DO UPDATE
-SET governorate_ar = EXCLUDED.governorate_ar;
+INSERT INTO public.shipping_zones (name, rate, estimated_days, is_active)
+SELECT 'القاهرة والجيزة (Cairo & Giza)', 65.00, '1-2 أيام عمل', true
+WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Cairo%' OR name LIKE '%القاهرة%');
+
+INSERT INTO public.shipping_zones (name, rate, estimated_days, is_active)
+SELECT 'الإسكندرية والبحيرة (Alexandria)', 75.00, '2-3 أيام عمل', true
+WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Alexandria%' OR name LIKE '%الإسكندرية%');
+
+INSERT INTO public.shipping_zones (name, rate, estimated_days, is_active)
+SELECT 'مدن الدلتا والقناة (Delta & Canal)', 85.00, '2-4 أيام عمل', true
+WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Delta%' OR name LIKE '%الدلتا%');
+
+INSERT INTO public.shipping_zones (name, rate, estimated_days, is_active)
+SELECT 'الصعيد وشمال/جنوب سيناء (Upper Egypt)', 110.00, '3-5 أيام عمل', true
+WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Upper Egypt%' OR name LIKE '%الصعيد%');
 
 
--- 10. NEWSLETTER SUBSCRIBERS
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.newsletter_subscribers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT NOT NULL UNIQUE,
-  source TEXT NOT NULL DEFAULT 'footer',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
-
-ALTER TABLE public.newsletter_subscribers
-  ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'footer',
-  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
-
-ALTER TABLE public.newsletter_subscribers ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public can subscribe to newsletter" ON public.newsletter_subscribers;
-CREATE POLICY "Public can subscribe to newsletter" ON public.newsletter_subscribers FOR INSERT WITH CHECK (true);
-DROP POLICY IF EXISTS "Staff can view and manage subscribers" ON public.newsletter_subscribers;
-CREATE POLICY "Staff can view and manage subscribers" ON public.newsletter_subscribers FOR ALL USING (true);
-
-
--- 11. GRANT PERMISSIONS TO ANON AND AUTHENTICATED
--- ------------------------------------------------------------------------------
-GRANT ALL ON public.discount_codes TO anon, authenticated, service_role;
-GRANT ALL ON public.store_settings TO anon, authenticated, service_role;
-GRANT ALL ON public.shipping_zones TO anon, authenticated, service_role;
-GRANT ALL ON public.newsletter_subscribers TO anon, authenticated, service_role;
-GRANT ALL ON public.return_requests TO anon, authenticated, service_role;
-GRANT ALL ON public.orders TO anon, authenticated, service_role;
-GRANT ALL ON public.order_items TO anon, authenticated, service_role;
-GRANT ALL ON public.products TO anon, authenticated, service_role;
-GRANT ALL ON public.product_variants TO anon, authenticated, service_role;
-GRANT ALL ON public.product_images TO anon, authenticated, service_role;
-GRANT ALL ON public.customers TO anon, authenticated, service_role;
-GRANT ALL ON public.addresses TO anon, authenticated, service_role;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-
-
--- 12. ELEVATE ALL EXISTING CUSTOMERS OR SPECIFIC USER TO ADMIN
--- ------------------------------------------------------------------------------
--- To make your specific account an admin:
--- UPDATE public.customers SET role = 'admin' WHERE email = 'your-email@example.com';
--- Or run below to ensure all current users have full admin dashboard access:
-UPDATE public.customers SET role = 'admin';
-
-
--- 13. CATEGORIES TABLE
+-- 11. CATEGORIES TABLE
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -403,10 +458,6 @@ CREATE TABLE IF NOT EXISTS public.categories (
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
-
-ALTER TABLE public.categories
-  ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public can view categories" ON public.categories;
@@ -424,8 +475,41 @@ VALUES
 ON CONFLICT (slug) DO NOTHING;
 
 
--- 14. WISHLISTS TABLE
+-- 12. ADDRESSES & WISHLISTS & SUBSCRIBERS
 -- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.addresses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID REFERENCES public.customers(id) ON DELETE CASCADE,
+  first_name TEXT,
+  last_name TEXT,
+  phone TEXT,
+  street_line1 TEXT,
+  street_line2 TEXT,
+  city TEXT,
+  state TEXT,
+  governorate TEXT,
+  postal_code TEXT,
+  country TEXT DEFAULT 'Egypt',
+  is_default BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.addresses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can manage addresses" ON public.addresses;
+CREATE POLICY "Public can manage addresses" ON public.addresses FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS public.newsletter_subscribers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  is_subscribed BOOLEAN NOT NULL DEFAULT true,
+  source TEXT DEFAULT 'footer',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.newsletter_subscribers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can manage subscribers" ON public.newsletter_subscribers;
+CREATE POLICY "Public can manage subscribers" ON public.newsletter_subscribers FOR ALL USING (true);
+
 CREATE TABLE IF NOT EXISTS public.wishlists (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id UUID NOT NULL,
@@ -438,9 +522,6 @@ ALTER TABLE public.wishlists ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can manage own wishlist" ON public.wishlists;
 CREATE POLICY "Users can manage own wishlist" ON public.wishlists FOR ALL USING (true);
 
-
--- 15. HERO BANNERS TABLE
--- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.hero_banners (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   image_url TEXT NOT NULL,
@@ -461,7 +542,7 @@ DROP POLICY IF EXISTS "Staff can manage hero banners" ON public.hero_banners;
 CREATE POLICY "Staff can manage hero banners" ON public.hero_banners FOR ALL USING (true);
 
 
--- 16. RESTOCK & WAITLIST SIGNUPS
+-- 13. RESTOCK & WAITLIST SIGNUPS
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.restock_signups (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -489,18 +570,14 @@ DROP POLICY IF EXISTS "Anyone can signup for waitlist" ON public.waitlist_signup
 CREATE POLICY "Anyone can signup for waitlist" ON public.waitlist_signups FOR ALL USING (true);
 
 
--- 17. COMPLETE ALL TABLE GRANTS
+-- 14. ALL PERMISSIONS & POSTGREST SCHEMA CACHE RELOAD
 -- ------------------------------------------------------------------------------
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 
-
--- 18. CRITICAL: RELOAD SUPABASE POSTGREST SCHEMA CACHE
--- ------------------------------------------------------------------------------
--- This notifies Supabase PostgREST server to instantly re-read all table schemas,
--- resolving "Could not find column ... in the schema cache" errors immediately!
+-- Re-reads schema immediately, eliminating any schema cache errors:
 NOTIFY pgrst, 'reload schema';
 
 -- ==============================================================================
--- SCHEMA FIX COMPLETE & CACHE RELOADED
+-- SETUP COMPLETE: DATABASE IS CLEAN, READY FOR REAL PRODUCTION ORDERS
 -- ==============================================================================

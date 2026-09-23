@@ -29,86 +29,14 @@ export interface ReturnRequestItem {
 
 const LOCAL_RETURNS_KEY = 'vbfits_admin_returns_v1';
 
-const DEFAULT_RETURNS: ReturnRequestItem[] = [
-  {
-    id: 'ret-89241',
-    order_id: 'ord-demo-01',
-    order_number: 'VB-89241',
-    customer_name: 'Karim Mansour',
-    customer_email: 'k.mansour@cairoatelier.eg',
-    customer_phone: '+20 102 334 9988',
-    reason: 'wrong_size',
-    reason_note: 'Need to exchange from size L to size M. Sleeves run slightly long for my measurements.',
-    status: 'pending',
-    items: [
-      {
-        name: 'VB Fits Studios Long Sleeve — Noir Edition',
-        size: 'L',
-        color: 'Washed Charcoal',
-        quantity_to_return: 1,
-        price: 270.0
-      }
-    ],
-    refund_amount: 270.0,
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-    updated_at: new Date(Date.now() - 3600000 * 5).toISOString()
-  },
-  {
-    id: 'ret-89112',
-    order_id: 'ord-demo-02',
-    order_number: 'VB-89112',
-    customer_name: 'Nour El-Sherif',
-    customer_email: 'nour.sherif@fashionhouse.com',
-    customer_phone: '+20 111 889 0012',
-    reason: 'defective',
-    reason_note: 'Minor stitch irregularity on the left hemline upon unboxing.',
-    status: 'approved',
-    items: [
-      {
-        name: 'VB Fits Studios Long Sleeve — Blanc Edition',
-        size: 'M',
-        color: 'Optic White',
-        quantity_to_return: 1,
-        price: 180.0
-      }
-    ],
-    staff_notes: 'Courier scheduled to pick up package from Heliopolis tomorrow.',
-    refund_amount: 180.0,
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    updated_at: new Date(Date.now() - 3600000 * 12).toISOString()
-  },
-  {
-    id: 'ret-88904',
-    order_id: 'ord-demo-03',
-    order_number: 'VB-88904',
-    customer_name: 'Alexander Wright',
-    customer_email: 'a.wright@manhattan.com',
-    customer_phone: '+1 212 555 0199',
-    reason: 'changed_mind',
-    reason_note: 'Decided on another colorway after receiving.',
-    status: 'refunded',
-    items: [
-      {
-        name: 'VB Fits Studios Long Sleeve — Noir Edition',
-        size: 'XL',
-        color: 'Washed Charcoal',
-        quantity_to_return: 1,
-        price: 270.0
-      }
-    ],
-    staff_notes: 'Returned item inspected at warehouse. Full refund processed.',
-    refund_amount: 270.0,
-    created_at: new Date(Date.now() - 86400000 * 6).toISOString(),
-    updated_at: new Date(Date.now() - 86400000 * 3).toISOString()
-  }
-];
+const DEFAULT_RETURNS: ReturnRequestItem[] = [];
 
 function getLocalReturns(): ReturnRequestItem[] {
   try {
     const raw = localStorage.getItem(LOCAL_RETURNS_KEY);
-    return raw ? JSON.parse(raw) : DEFAULT_RETURNS;
+    return raw ? JSON.parse(raw) : [];
   } catch {
-    return DEFAULT_RETURNS;
+    return [];
   }
 }
 

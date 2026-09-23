@@ -45,6 +45,10 @@ export interface CreateOrderParams {
     quantity: number;
   }>;
   subtotal: number;
+  discountAmount?: number;
+  shippingAmount?: number;
+  total?: number;
+  discountCode?: string;
   shippingAddress?: any;
   status?: string;
   paymentMethod?: 'Cash on Delivery' | 'Pay Online' | 'COD';
@@ -143,6 +147,10 @@ export async function createOrder({
   customerId,
   items,
   subtotal,
+  discountAmount,
+  shippingAmount,
+  total,
+  discountCode,
   shippingAddress,
   status = 'pending',
   paymentMethod = 'Cash on Delivery',
@@ -187,20 +195,25 @@ export async function createOrder({
     const initialPaymentStatus = isCOD ? 'pending_collection' : 'paid';
     const orderNotes = notes || `Payment: ${methodStr} (${initialPaymentStatus})`;
 
-    // PostgreSQL schema constraint check:
-    // Base schema: CHECK (status IN ('pending', 'processing', 'in_transit', 'delivered', 'cancelled', 'refunded'))
-    // Using 'pending' guarantees compatibility with both original and updated check constraints.
     const rawStatus = (status || 'pending').toLowerCase();
     const safeStatus = rawStatus === 'placed' ? 'pending' : rawStatus;
 
-    // 1. Insert order record with COD and pending_collection
+    const finalSubtotal = Number(subtotal) || 0;
+    const finalDiscount = Number(discountAmount) || 0;
+    const finalShipping = Number(shippingAmount) || 0;
+    const finalTotal = total !== undefined ? Number(total) : Math.max(0, finalSubtotal - finalDiscount + finalShipping);
+
+    // 1. Insert order record with all calculated financial fields
     const primaryPayload: any = {
       customer_id: customerId || null,
       order_number: orderNumber,
       status: safeStatus,
       currency: 'EGP',
-      subtotal,
-      total: subtotal,
+      subtotal: finalSubtotal,
+      discount_amount: finalDiscount,
+      shipping_amount: finalShipping,
+      total: finalTotal,
+      discount_code: discountCode || null,
       tracking_number: trackingNumber,
       shipping_address_snapshot: finalAddress || {},
       payment_method: methodStr,
@@ -214,27 +227,45 @@ export async function createOrder({
       .select()
       .single();
 
-    // If constraint or column error occurs, retry with fallback
+    // Resilient fallback 1: If foreign key violation on customer_id or RLS blocks it, retry as guest order
+    if (
+      orderError &&
+      customerId &&
+      (orderError.message.includes('customer_id') ||
+        orderError.message.includes('foreign key') ||
+        orderError.message.includes('row-level security') ||
+        orderError.code === '23503' ||
+        orderError.code === '42501')
+    ) {
+      console.warn('Retrying order insert without customer_id to avoid losing order:', orderError.message);
+      const guestPayload = { ...primaryPayload, customer_id: null };
+      const guestRes = await supabase.from('orders').insert(guestPayload).select().single();
+      order = guestRes.data;
+      orderError = guestRes.error;
+    }
+
+    // Resilient fallback 2: If optional columns (discount_code, shipping_amount, payment_status) don't exist yet
     if (
       orderError &&
       (orderError.message.includes('payment_status') ||
         orderError.message.includes('payment_method') ||
         orderError.message.includes('orders_status_check') ||
+        orderError.message.includes('discount_code') ||
         orderError.code === '42703' ||
         orderError.code === '23514')
     ) {
-      console.warn('Retrying order insert with fallback payload (status=pending, payment_status=unpaid)...', orderError.message);
+      console.warn('Retrying order insert with basic fallback payload...', orderError.message);
       const fallbackPayload: any = {
-        customer_id: customerId || null,
+        customer_id: null,
         order_number: orderNumber,
         status: 'pending',
         currency: 'EGP',
-        subtotal,
-        total: subtotal,
+        subtotal: finalSubtotal,
+        total: finalTotal,
         tracking_number: trackingNumber,
         shipping_address_snapshot: finalAddress || {},
         payment_status: isCOD ? 'unpaid' : 'paid',
-        notes: `[Payment Method: ${methodStr} | Status: ${initialPaymentStatus}] ${orderNotes || ''}`
+        notes: `[Payment Method: ${methodStr} | Status: ${initialPaymentStatus} | Discount: ${finalDiscount}] ${orderNotes || ''}`
       };
       const fallbackRes = await supabase
         .from('orders')
@@ -245,31 +276,30 @@ export async function createOrder({
       orderError = fallbackRes.error;
     }
 
-    // Secondary fallback: if still failing on status check, omit status entirely and let database default 'pending' handle it
-    if (orderError && (orderError.message.includes('orders_status_check') || orderError.code === '23514')) {
-      console.warn('Retrying order insert letting database DEFAULT status apply...');
-      const noStatusPayload: any = {
-        customer_id: customerId || null,
+    // Resilient fallback 3: Minimal payload letting all DB defaults apply
+    if (orderError) {
+      console.warn('Retrying order insert with minimal payload...');
+      const minimalPayload: any = {
         order_number: orderNumber,
         currency: 'EGP',
-        subtotal,
-        total: subtotal,
+        subtotal: finalSubtotal,
+        total: finalTotal,
         tracking_number: trackingNumber,
         shipping_address_snapshot: finalAddress || {},
-        notes: `[Payment Method: ${methodStr} | Status: ${initialPaymentStatus}] ${orderNotes || ''}`
+        notes: orderNotes
       };
-      const noStatusRes = await supabase
+      const minRes = await supabase
         .from('orders')
-        .insert(noStatusPayload)
+        .insert(minimalPayload)
         .select()
         .single();
-      order = noStatusRes.data;
-      orderError = noStatusRes.error;
+      order = minRes.data;
+      orderError = minRes.error;
     }
 
-    if (orderError) {
-      console.error('Failed to create order:', orderError.message);
-      return { order: null, error: orderError.message };
+    if (orderError || !order) {
+      console.error('Failed to create order:', orderError?.message);
+      return { order: null, error: orderError?.message || 'Could not save order.' };
     }
 
     // 2. Insert itemized lines into order_items

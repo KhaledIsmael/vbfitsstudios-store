@@ -89,8 +89,11 @@ function formatMemberSince(createdAt?: string): string {
   }
 }
 
-async function fetchCustomerProfile(userId: string): Promise<{ role: CustomerRole; phone?: string }> {
+async function fetchCustomerProfile(userIdOrUser: string | SupabaseUser): Promise<{ role: CustomerRole; phone?: string }> {
   try {
+    const userId = typeof userIdOrUser === 'string' ? userIdOrUser : userIdOrUser.id;
+    const sbUser = typeof userIdOrUser === 'object' ? userIdOrUser : null;
+
     const { data, error } = await supabase
       .from('customers')
       .select('role, phone')
@@ -103,8 +106,34 @@ async function fetchCustomerProfile(userId: string): Promise<{ role: CustomerRol
         : 'customer';
       return { role: assignedRole, phone: data.phone || undefined };
     }
+
+    // Auto-create customers record if missing (e.g. GitHub OAuth or new email signup)
+    if (sbUser) {
+      const metadata = sbUser.user_metadata || {};
+      const rawName = metadata.full_name || metadata.name || (sbUser.email ? sbUser.email.split('@')[0] : 'Client');
+      const { data: created } = await supabase
+        .from('customers')
+        .upsert({
+          id: sbUser.id,
+          email: sbUser.email || '',
+          full_name: rawName,
+          phone: metadata.phone || sbUser.phone || null,
+          role: 'customer'
+        })
+        .select('role, phone')
+        .maybeSingle();
+
+      if (created) {
+        return {
+          role: (created.role && ['customer', 'support', 'admin'].includes(created.role))
+            ? (created.role as CustomerRole)
+            : 'customer',
+          phone: created.phone || undefined
+        };
+      }
+    }
   } catch (err) {
-    console.warn('Could not fetch customer profile:', err);
+    console.warn('Could not fetch or auto-create customer profile:', err);
   }
   return { role: 'customer' };
 }
@@ -185,7 +214,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(initialSession);
         setSupabaseUser(initialSession?.user ?? null);
         if (initialSession?.user) {
-          const profile = await fetchCustomerProfile(initialSession.user.id);
+          const profile = await fetchCustomerProfile(initialSession.user);
           const appUser = mapSupabaseUserToAppUser(initialSession.user, [], profile.role, profile.phone);
           if (isMounted) {
             setUser(appUser);
@@ -208,7 +237,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(currentSession);
       setSupabaseUser(currentSession?.user ?? null);
       if (currentSession?.user) {
-        const profile = await fetchCustomerProfile(currentSession.user.id);
+        const profile = await fetchCustomerProfile(currentSession.user);
         const appUser = mapSupabaseUserToAppUser(currentSession.user, [], profile.role, profile.phone);
         if (isMounted) {
           setUser(appUser);

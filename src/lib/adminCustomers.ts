@@ -136,87 +136,11 @@ export async function fetchAdminCustomers(): Promise<CustomerSummaryItem[]> {
         };
       });
     }
+    return [];
   } catch (err) {
-    console.warn('fetchAdminCustomers exception (falling back to demo directory):', err);
+    console.warn('fetchAdminCustomers exception:', err);
+    return [];
   }
-
-  // Fallback demo customers list
-  const roleOverrides = getRoleOverrides();
-  const pointsOverrides = getPointsOverrides();
-
-  const demoCustomers: CustomerSummaryItem[] = [
-    {
-      id: 'cust-karim-mansour',
-      email: 'k.mansour@cairoatelier.eg',
-      full_name: 'Karim Mansour',
-      avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-      phone: '+20 102 334 9988',
-      role: 'customer',
-      loyalty_points: 360,
-      orders_count: 2,
-      lifetime_spent: 540.0,
-      created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
-      last_order_date: new Date(Date.now() - 3600000 * 2).toISOString()
-    },
-    {
-      id: 'cust-nour-sherif',
-      email: 'nour.sherif@fashionhouse.com',
-      full_name: 'Nour El-Sherif',
-      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-      phone: '+20 111 889 0012',
-      role: 'customer',
-      loyalty_points: 180,
-      orders_count: 1,
-      lifetime_spent: 180.0,
-      created_at: new Date(Date.now() - 86400000 * 15).toISOString(),
-      last_order_date: new Date(Date.now() - 3600000 * 18).toISOString()
-    },
-    {
-      id: 'cust-alex-wright',
-      email: 'a.wright@manhattan.com',
-      full_name: 'Alexander Wright',
-      avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
-      phone: '+1 212 555 0199',
-      role: 'support',
-      loyalty_points: 486,
-      orders_count: 3,
-      lifetime_spent: 1026.0,
-      created_at: new Date(Date.now() - 86400000 * 60).toISOString(),
-      last_order_date: new Date(Date.now() - 86400000 * 2).toISOString()
-    },
-    {
-      id: 'cust-yasmine-fahmy',
-      email: 'yasmine.f@artscouncil.eg',
-      full_name: 'Yasmine Fahmy',
-      avatar_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
-      phone: '+20 100 445 6677',
-      role: 'customer',
-      loyalty_points: 720,
-      orders_count: 4,
-      lifetime_spent: 720.0,
-      created_at: new Date(Date.now() - 86400000 * 90).toISOString(),
-      last_order_date: new Date(Date.now() - 86400000 * 5).toISOString()
-    },
-    {
-      id: 'cust-admin-primary',
-      email: 'admin@vbfitsstudios.com',
-      full_name: 'Atelier Administrator',
-      avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80',
-      phone: '+20 100 999 8888',
-      role: 'admin',
-      loyalty_points: 1500,
-      orders_count: 5,
-      lifetime_spent: 1250.0,
-      created_at: new Date(Date.now() - 86400000 * 180).toISOString(),
-      last_order_date: new Date(Date.now() - 86400000 * 10).toISOString()
-    }
-  ];
-
-  return demoCustomers.map((c) => ({
-    ...c,
-    role: roleOverrides[c.id] || c.role,
-    loyalty_points: pointsOverrides[c.id] !== undefined ? pointsOverrides[c.id] : c.loyalty_points
-  }));
 }
 
 /**
@@ -275,20 +199,6 @@ export async function fetchCustomerDetail(customerId: string): Promise<CustomerD
       });
     });
   });
-
-  // Demo fallback for return request if empty
-  if (returnRequests.length === 0 && customerOrders.length > 0 && customerOrders[0].order_number === 'VB-89241') {
-    returnRequests.push({
-      id: 'ret-demo-01',
-      order_id: customerOrders[0].id,
-      order_number: customerOrders[0].order_number,
-      reason: 'wrong_size',
-      reason_note: 'Customer requests exchange from size L to size M.',
-      status: 'pending',
-      items: [{ name: 'Long Sleeve Shirt', size: 'L', quantity_to_return: 1 }],
-      created_at: new Date(Date.now() - 3600000 * 5).toISOString()
-    });
-  }
 
   const shippingAddresses = customerOrders.map((o) => o.shipping_address).filter(Boolean);
 
