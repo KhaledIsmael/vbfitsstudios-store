@@ -254,6 +254,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email,
       password: pass,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           full_name: name,
           name,
@@ -293,7 +294,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string): Promise<{ error: string | null }> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`
+      redirectTo: `${window.location.origin}/auth/callback`
     });
     return { error: error ? error.message : null };
   };

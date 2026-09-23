@@ -243,6 +243,7 @@ export const RegisterPage: React.FC = () => {
         email: email.trim(),
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             full_name: name.trim(),
             name: name.trim(),
@@ -289,7 +290,10 @@ export const RegisterPage: React.FC = () => {
     try {
       const { error: resendError } = await supabase.auth.resend({
         type: 'signup',
-        email: email.trim()
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
       });
       if (resendError) {
         setError(resendError.message);
@@ -495,7 +499,7 @@ export const ForgotPasswordPage: React.FC = () => {
 
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/login`
+        redirectTo: `${window.location.origin}/auth/callback`
       });
 
       if (resetError) {

@@ -33,6 +33,7 @@ const AboutPage = lazy(() => import('./pages/StaticPages').then(m => ({ default:
 const ContactPage = lazy(() => import('./pages/StaticPages').then(m => ({ default: m.ContactPage })));
 const PoliciesPage = lazy(() => import('./pages/StaticPages').then(m => ({ default: m.PoliciesPage })));
 const VerifyPage = lazy(() => import('./pages/VerifyPage').then(m => ({ default: m.VerifyPage })));
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage').then(m => ({ default: m.AuthCallbackPage })));
 
 // Code-split backoffice admin routes (loaded on-demand only when visiting /admin)
 const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage').then(m => ({ default: m.AdminLoginPage })));
@@ -119,6 +120,7 @@ const StorefrontLayout: React.FC = () => {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
