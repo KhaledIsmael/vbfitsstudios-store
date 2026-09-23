@@ -83,6 +83,9 @@ const StorefrontLayout: React.FC = () => {
     setIsMenuOpen(false);
   }, [location.pathname]);
 
+  // Checkout has its own self-contained header — suppress global chrome
+  const isCheckout = location.pathname === '/checkout';
+
   return (
     <div className="flex flex-col min-h-screen bg-white text-[#111111] selection:bg-black selection:text-white">
       {/* Skip to Main Content (WCAG 2.4.1 Bypass Blocks) */}
@@ -93,11 +96,13 @@ const StorefrontLayout: React.FC = () => {
         Skip to main content
       </a>
 
-      {/* Global Navigation */}
-      <Navbar
-        onOpenSearch={() => setIsSearchOpen(true)}
-        onOpenMenu={() => setIsMenuOpen(true)}
-      />
+      {/* Global Navigation — hidden on checkout */}
+      {!isCheckout && (
+        <Navbar
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onOpenMenu={() => setIsMenuOpen(true)}
+        />
+      )}
 
       {/* Global Slide Drawers & Modals */}
       <CartDrawer />
@@ -133,11 +138,11 @@ const StorefrontLayout: React.FC = () => {
         </Suspense>
       </main>
 
-      {/* Footer */}
-      <Footer />
+      {/* Footer — hidden on checkout */}
+      {!isCheckout && <Footer />}
 
-      {/* Floating Concierge WhatsApp Action */}
-      <WhatsAppButton />
+      {/* Floating Concierge WhatsApp Action — hidden on checkout */}
+      {!isCheckout && <WhatsAppButton />}
     </div>
   );
 };
