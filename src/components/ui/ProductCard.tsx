@@ -341,7 +341,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </ProductImage>
 
       {/* Product Information: image, title (single line, uppercase, truncate with ellipsis), price */}
-      <div className="mt-3 sm:mt-4 space-y-1">
+      <div className="mt-3 sm:mt-4 space-y-1 overflow-visible">
         <h3
           title={product.name}
           className="font-spec font-bold text-[12px] uppercase text-spec-text tracking-spec truncate block"
@@ -349,8 +349,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {product.name}
         </h3>
 
-        <p className="font-spec font-normal text-[12px] sm:text-[13px] uppercase text-spec-muted tracking-spec whitespace-nowrap overflow-visible">
-          {product.currency}{product.price.toFixed(2)}
+        <p className="font-spec font-normal text-[12px] sm:text-[13px] uppercase text-spec-muted tracking-spec whitespace-nowrap overflow-visible min-w-0">
+          {product.currency}{product.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </p>
       </div>
     </div>
