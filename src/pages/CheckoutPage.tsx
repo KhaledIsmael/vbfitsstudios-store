@@ -263,7 +263,7 @@ export const CheckoutPage: React.FC = () => {
         subtotal: grandTotal,
         shippingAddress: finalAddressSnapshot,
         paymentMethod: 'Pay Online',
-        status: 'Placed',
+        status: 'pending',
         notes: `Payment: ${paymentMethod} (pending) | Email: ${contactEmail} | Phone: ${contactPhone}${orderNotes ? ' | ' + orderNotes : ''}`
       });
 
@@ -360,7 +360,7 @@ export const CheckoutPage: React.FC = () => {
       shippingAddress: finalAddressSnapshot,
       paymentMethod: 'Cash on Delivery',
       notes: notesSummary,
-      status: 'Placed'
+      status: 'pending'
     });
 
     setIsSubmitting(false);

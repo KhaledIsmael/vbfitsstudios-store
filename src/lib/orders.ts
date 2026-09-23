@@ -142,7 +142,7 @@ export async function createOrder({
   items,
   subtotal,
   shippingAddress,
-  status = 'Placed',
+  status = 'pending',
   paymentMethod = 'Cash on Delivery',
   notes
 }: CreateOrderParams): Promise<{ order: any; error: string | null }> {
@@ -185,11 +185,17 @@ export async function createOrder({
     const initialPaymentStatus = isCOD ? 'pending_collection' : 'paid';
     const orderNotes = notes || `Payment: ${methodStr} (${initialPaymentStatus})`;
 
+    // PostgreSQL schema constraint check:
+    // Base schema: CHECK (status IN ('pending', 'processing', 'in_transit', 'delivered', 'cancelled', 'refunded'))
+    // Using 'pending' guarantees compatibility with both original and updated check constraints.
+    const rawStatus = (status || 'pending').toLowerCase();
+    const safeStatus = rawStatus === 'placed' ? 'pending' : rawStatus;
+
     // 1. Insert order record with COD and pending_collection
     const primaryPayload: any = {
       customer_id: customerId || null,
       order_number: orderNumber,
-      status,
+      status: safeStatus,
       currency: 'USD',
       subtotal,
       total: subtotal,
@@ -206,19 +212,20 @@ export async function createOrder({
       .select()
       .single();
 
-    // If constraint or column error occurs before migration 20260919000005 is run, retry with fallback
+    // If constraint or column error occurs, retry with fallback
     if (
       orderError &&
       (orderError.message.includes('payment_status') ||
         orderError.message.includes('payment_method') ||
+        orderError.message.includes('orders_status_check') ||
         orderError.code === '42703' ||
         orderError.code === '23514')
     ) {
-      console.warn('Retrying order insert with fallback payment_status=unpaid...');
+      console.warn('Retrying order insert with fallback payload (status=pending, payment_status=unpaid)...', orderError.message);
       const fallbackPayload: any = {
         customer_id: customerId || null,
         order_number: orderNumber,
-        status,
+        status: 'pending',
         currency: 'USD',
         subtotal,
         total: subtotal,
@@ -234,6 +241,28 @@ export async function createOrder({
         .single();
       order = fallbackRes.data;
       orderError = fallbackRes.error;
+    }
+
+    // Secondary fallback: if still failing on status check, omit status entirely and let database default 'pending' handle it
+    if (orderError && (orderError.message.includes('orders_status_check') || orderError.code === '23514')) {
+      console.warn('Retrying order insert letting database DEFAULT status apply...');
+      const noStatusPayload: any = {
+        customer_id: customerId || null,
+        order_number: orderNumber,
+        currency: 'USD',
+        subtotal,
+        total: subtotal,
+        tracking_number: trackingNumber,
+        shipping_address_snapshot: finalAddress || {},
+        notes: `[Payment Method: ${methodStr} | Status: ${initialPaymentStatus}] ${orderNotes || ''}`
+      };
+      const noStatusRes = await supabase
+        .from('orders')
+        .insert(noStatusPayload)
+        .select()
+        .single();
+      order = noStatusRes.data;
+      orderError = noStatusRes.error;
     }
 
     if (orderError) {
