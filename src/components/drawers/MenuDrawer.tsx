@@ -92,7 +92,7 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({ isOpen, onClose }) => {
       <div className="fixed inset-y-0 right-0 max-w-full flex">
         <div
           ref={panelRef}
-          className="w-screen max-w-full sm:max-w-lg bg-white shadow-2xl flex flex-col justify-between p-6 sm:p-12 transform transition-transform duration-medium ease-drawer"
+          className="w-screen max-w-full sm:max-w-md bg-white shadow-2xl flex flex-col justify-between p-6 sm:p-10 transform transition-transform duration-medium ease-drawer"
         >
           {/* Top Bar with Close Button (Navigation heading removed) */}
           <div className="flex items-center justify-end pb-4 border-b border-[#EAEAEA]">
@@ -112,23 +112,23 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({ isOpen, onClose }) => {
             </button>
           </div>
 
-          {/* Main Navigation Links: Large uppercase, generous spacing */}
-          <nav className="py-12 sm:py-16 space-y-8 sm:space-y-10 my-auto" aria-label="Primary Navigation">
+          {/* Main Navigation Links: Refined uppercase editorial typography */}
+          <nav className="py-8 sm:py-12 space-y-6 sm:space-y-7 my-auto" aria-label="Primary Navigation">
             {MENU_LINKS.map((link, idx) => (
               <div key={link.path} className="overflow-hidden">
                 <NavLink
                   to={link.path}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    `group flex items-baseline justify-between font-sans font-bold uppercase tracking-spec transition-all duration-default text-3xl sm:text-4xl lg:text-5xl ${
+                    `group flex items-center justify-between font-sans font-medium uppercase tracking-[0.14em] transition-all duration-200 text-lg sm:text-xl lg:text-2xl py-1 ${
                       isActive
-                        ? 'text-black font-extrabold'
-                        : 'text-[#2D2D2D] hover:text-black hover:translate-x-2'
+                        ? 'text-black font-semibold'
+                        : 'text-[#333333] hover:text-black hover:translate-x-1.5'
                     }`
                   }
                 >
                   <span>{link.name}</span>
-                  <span className="text-xs tracking-widest text-[#ADADAD] group-hover:text-black transition-colors font-mono font-normal">
+                  <span className="text-[11px] tracking-wider text-[#999999] group-hover:text-black transition-colors font-mono">
                     0{idx + 1}
                   </span>
                 </NavLink>

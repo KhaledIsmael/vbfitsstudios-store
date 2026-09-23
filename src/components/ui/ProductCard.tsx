@@ -169,35 +169,42 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     setShowMobileQuickView(false);
   };
 
-  return (
-    <div
-      ref={cardRef}
-      role="link"
-      tabIndex={0}
-      aria-label={`${product.name}, ${product.currency}${product.price.toFixed(2)}`}
-      onClick={handleCardClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleCardClick(e as any);
-        }
-      }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onContextMenu={handleContextMenu}
-      className={`group block text-left cursor-pointer transition-transform duration-200 select-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-4 rounded-sm ${
-        isHolding ? 'scale-[0.98]' : 'scale-100'
-      }`}
-    >
-      {/* Product Image Container via shared ProductImage component */}
-      <ProductImage
-        src={product.images[0]}
-        alt={product.name}
-        placement="grid"
-        secondarySrc={product.images[1]}
-        secondaryAlt={`${product.name} alternate view`}
+    // Suppress model photo on card hover so flat-lay garment design is displayed directly
+    const isModelPhoto = (url?: string) =>
+      url ? url.toLowerCase().includes('hero') || url.toLowerCase().includes('model') : false;
+
+    const primaryImg = product.images.find((img) => !isModelPhoto(img)) || product.images[0];
+    const secondaryImg = product.images.slice(1).find((img) => !isModelPhoto(img));
+
+    return (
+      <div
+        ref={cardRef}
+        role="link"
+        tabIndex={0}
+        aria-label={`${product.name}, ${product.currency}${product.price.toFixed(2)}`}
+        onClick={handleCardClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleCardClick(e as any);
+          }
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onContextMenu={handleContextMenu}
+        className={`group block text-left cursor-pointer transition-transform duration-200 select-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-4 rounded-sm ${
+          isHolding ? 'scale-[0.98]' : 'scale-100'
+        }`}
       >
+        {/* Product Image Container via shared ProductImage component */}
+        <ProductImage
+          src={primaryImg}
+          alt={product.name}
+          placement="grid"
+          secondarySrc={secondaryImg}
+          secondaryAlt={`${product.name} alternate view`}
+        >
         {/* Badges per REFERENCE-SPEC 1.2 */}
         <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
           {isTotalSoldOut ? (

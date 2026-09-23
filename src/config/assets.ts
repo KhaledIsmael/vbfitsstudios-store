@@ -273,7 +273,6 @@ export const FOOTER_DATA = {
   socials: [
     { name: "WhatsApp", url: "https://whatsapp.com" },
     { name: "Instagram", url: "https://instagram.com" },
-    { name: "TikTok", url: "https://tiktok.com" },
-    { name: "Pinterest", url: "https://pinterest.com" }
+    { name: "TikTok", url: "https://tiktok.com" }
   ]
 };

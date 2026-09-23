@@ -7,7 +7,8 @@
     <title>VB FITS STUDIOS — Luxury Streetwear & Ready-to-Wear</title>
     <meta name="description" content="Luxury minimalist streetwear fashion brand. Shop the iconic Long Sleeve collection, refined tailoring, and premium essentials." />
     
-    <!-- High Priority Preload for LCP Hero Image (Modern WebP, 33.7 KB) -->
+    <!-- High Priority Preload for Brand Logo & Hero Image -->
+    <link rel="preload" as="image" href="/assets/logo/logo-dark.png" fetchpriority="high" type="image/png" />
     <link rel="preload" as="image" href="/assets/hero/hero.webp" fetchpriority="high" type="image/webp" />
 
     <!-- Google Fonts for High-Fashion Editorial Typography with Preconnect -->
@@ -18,9 +19,29 @@
     <noscript>
       <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Inter:wght@200;300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Italiana&display=swap" rel="stylesheet">
     </noscript>
+    <style>
+      @keyframes splashFade {
+        0%, 100% { opacity: 0.85; transform: scale(0.99); }
+        50% { opacity: 1; transform: scale(1); }
+      }
+      .initial-splash-logo {
+        animation: splashFade 1.6s ease-in-out infinite;
+      }
+    </style>
   </head>
   <body class="bg-white text-luxury-black antialiased selection:bg-black selection:text-white font-sans overflow-x-hidden">
-    <div id="root"></div>
+    <div id="root">
+      <div id="initial-splash" style="position: fixed; inset: 0; background: #ffffff; display: flex; align-items: center; justify-content: center; z-index: 99999;">
+        <img
+          src="/assets/logo/logo-dark.png"
+          alt="VB FITS STUDIOS"
+          class="initial-splash-logo"
+          style="width: 220px; max-width: 75vw; height: auto; object-fit: contain;"
+          decoding="sync"
+          fetchpriority="high"
+        />
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

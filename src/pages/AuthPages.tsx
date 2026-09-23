@@ -71,7 +71,7 @@ export const LoginPage: React.FC = () => {
       setLockoutSeconds(0);
 
       if (data.session) {
-        navigate('/profile');
+        navigate('/');
       }
     } catch (err: any) {
       setError(err?.message || 'An unexpected error occurred during sign in.');
@@ -251,7 +251,7 @@ export const RegisterPage: React.FC = () => {
       }
 
       if (data.session) {
-        navigate('/profile');
+        navigate('/');
       }
     } catch (err: any) {
       setError(err?.message || 'An unexpected error occurred during account creation.');

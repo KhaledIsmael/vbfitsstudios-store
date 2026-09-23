@@ -60,11 +60,14 @@ const ScrollToTop: React.FC = () => {
 
 // Luxury Minimalist Route Loading Fallback
 const RouteLoadingFallback: React.FC = () => (
-  <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4 bg-white select-none">
-    <div className="w-8 h-8 rounded-full border-2 border-black/15 border-t-black animate-spin" />
-    <span className="text-[10px] uppercase font-mono tracking-widest text-[#888888]">
-      Loading Silhouettes...
-    </span>
+  <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4 bg-white select-none">
+    <img
+      src="/assets/logo/logo-dark.png"
+      alt="VB FITS STUDIOS"
+      className="w-48 sm:w-56 h-auto object-contain animate-pulse"
+      width={220}
+      height={55}
+    />
   </div>
 );
 

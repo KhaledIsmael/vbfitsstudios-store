@@ -139,24 +139,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMenu }) => {
           </Link>
         </div>
 
-        {/* RIGHT: Language Toggle, Search (Desktop), Profile, and Cart Drawer */}
+        {/* RIGHT: Search (Desktop), Profile, and Cart Drawer */}
         <div className="flex items-center justify-end space-x-2 sm:space-x-5">
-          {/* 0. Language Selector (Desktop only on Sorvea) */}
-          <button
-            type="button"
-            aria-label="Select Language (EN)"
-            className={`hidden sm:flex items-center space-x-0.5 text-xs font-spec font-bold uppercase tracking-spec p-1.5 transition-opacity duration-default ${
-              isTransparent
-                ? 'text-white hover:opacity-75 focus-visible:outline-white'
-                : 'text-[#2D2D2D] hover:opacity-50 focus-visible:outline-black'
-            }`}
-          >
-            <span>EN</span>
-            <svg className="w-2.5 h-2.5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
           {/* 1. Search Trigger (Desktop) */}
           <button
             type="button"
@@ -203,9 +187,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMenu }) => {
               height={20}
               decoding="async"
             />
-            {isLoggedIn && (
-              <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-emerald-400 rounded-full ring-2 ring-black"></span>
-            )}
           </button>
 
           {/* 3. Shopping Bag Cart Trigger */}

@@ -63,7 +63,6 @@ export const Footer: React.FC = () => {
     { name: 'WHATSAPP', url: whatsappUrl },
     { name: 'INSTAGRAM', url: 'https://instagram.com/vbfitsstudios' },
     { name: 'TIKTOK', url: 'https://tiktok.com/@vbfitsstudios' },
-    { name: 'PINTEREST', url: 'https://pinterest.com/vbfitsstudios' },
   ];
 
   return (
@@ -246,18 +245,6 @@ export const Footer: React.FC = () => {
                 <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
                 <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
                 <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-              </svg>
-            </a>
-            {/* Pinterest Icon */}
-            <a
-              href="https://pinterest.com/vbfitsstudios"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Pinterest"
-              className="hover:opacity-60 transition-opacity"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 0a12 12 0 0 0-4.37 23.18c-.06-.98-.12-2.48.02-3.55.15-1.02.96-4.08.96-4.08s-.24-.49-.24-1.22c0-1.14.66-1.99 1.48-1.99.7 0 1.04.52 1.04 1.15 0 .7-.45 1.76-.68 2.73-.19.82.41 1.48 1.22 1.48 1.46 0 2.59-1.54 2.59-3.76 0-1.97-1.41-3.34-3.43-3.34-2.51 0-3.98 1.88-3.98 3.82 0 .76.29 1.57.66 2.01.07.09.08.17.06.26-.07.28-.22.89-.25 1.01-.04.17-.14.2-.32.12-1.2-.56-1.95-2.31-1.95-3.72 0-3.03 2.2-5.81 6.35-5.81 3.33 0 5.92 2.37 5.92 5.55 0 3.31-2.09 5.98-4.99 5.98-.97 0-1.89-.51-2.2-.11l-.6 2.29c-.22.84-.81 1.9-1.21 2.54A11.96 11.96 0 0 0 12 24c6.63 0 12-5.37 12-12S18.63 0 12 0z"/>
               </svg>
             </a>
             {/* TikTok Icon */}

@@ -65,10 +65,10 @@ export const ProductImage: React.FC<ProductImageProps> = ({
       break;
 
     case 'pdp-main':
-      containerClasses += 'w-full aspect-[2/3] flex items-center justify-center ';
-      primaryImgClasses += 'object-contain object-center p-6 sm:p-10 mix-blend-multiply ';
-      defaultWidth = width || 800;
-      defaultHeight = height || 1200;
+      containerClasses += 'w-full aspect-[3/4] flex items-center justify-center ';
+      primaryImgClasses += 'object-contain object-center p-4 sm:p-6 mix-blend-multiply ';
+      defaultWidth = width || 600;
+      defaultHeight = height || 800;
       break;
 
     case 'pdp-thumb':

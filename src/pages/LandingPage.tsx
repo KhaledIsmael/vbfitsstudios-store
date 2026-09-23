@@ -5,7 +5,6 @@ import { fetchHeroBanners } from '../lib/heroBanners';
 import { getFilteredProducts } from '../lib/products';
 import { ProductImage } from '../components/ui/ProductImage';
 import { ProductCard } from '../components/ui/ProductCard';
-import { InstagramStrip } from '../components/landing/InstagramStrip';
 
 interface HeroData {
   image: string;
@@ -87,10 +86,10 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* 2. FEATURED COLLECTION: ARCHITECTURAL 4-COLUMN GRID WITH 1PX BORDER DIVIDERS */}
-      <section className="bg-white select-none" aria-label="Featured Collection">
+      <section className="bg-white select-none pb-12 sm:pb-20" aria-label="Featured Collection">
         <div className="max-w-[1900px] mx-auto">
           <div className="sorvea-grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-            {products.slice(0, 8).map((product) => (
+            {products.slice(0, 4).map((product) => (
               <div key={product.id} className="sorvea-grid-item p-4 sm:p-6">
                 <ProductCard product={product} />
               </div>
@@ -98,9 +97,6 @@ export const LandingPage: React.FC = () => {
           </div>
         </div>
       </section>
-
-      {/* 3. LIFESTYLE & ATELIER COMMUNITY GALLERY (Sorvea Parity) */}
-      <InstagramStrip />
     </div>
   );
 };

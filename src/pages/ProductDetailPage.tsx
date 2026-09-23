@@ -347,7 +347,7 @@ export const ProductDetailPage: React.FC = () => {
 
   return (
     <div className="pt-24 sm:pt-32 min-h-screen bg-white">
-      <div className="max-w-[1720px] mx-auto px-6 sm:px-10 lg:px-16">
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-8 lg:px-12">
 
         {/* Breadcrumb */}
         <div className="py-4 text-[11px] text-[#888888] tracking-luxury uppercase">
@@ -359,45 +359,47 @@ export const ProductDetailPage: React.FC = () => {
         </div>
 
         {/* Main Two-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 xl:gap-16 pt-4 sm:pt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 xl:gap-14 pt-4 sm:pt-6">
 
           {/* LEFT: Gallery */}
-          <div className="lg:col-span-7">
-            {/* Zoom hint */}
-            {primaryIsImage && (
-              <p className="text-[10px] text-[#AAAAAA] uppercase tracking-widest mb-2 text-right hidden sm:block">
-                Click image to zoom
-              </p>
-            )}
-            <div
-              className={primaryIsImage ? 'cursor-zoom-in' : ''}
-              onClick={() => {
-                if (primaryIsImage) setLightboxSrc(lightboxTriggerSrc);
-              }}
-            >
-              <ProductGallery
-                mediaItems={product.mediaItems ?? product.images.map((url, i) => ({ url, type: 'image' as const, displayOrder: i }))}
-                productName={product.name}
-                selectedIndex={selectedImageIndex}
-                onSelect={setSelectedImageIndex}
-                viewerSlot={
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleSaveItem(product.id); }}
-                    aria-label={isSaved ? 'Remove from Wishlist' : 'Save to Wishlist'}
-                    className="bg-white/80 backdrop-blur-sm p-2 rounded-full hover:bg-white text-black transition-all shadow-sm"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                      fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
-                      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-                    </svg>
-                  </button>
-                }
-              />
+          <div className="lg:col-span-7 flex flex-col items-center lg:items-end">
+            <div className="w-full max-w-[540px]">
+              {/* Zoom hint */}
+              {primaryIsImage && (
+                <p className="text-[10px] text-[#AAAAAA] uppercase tracking-widest mb-2 text-right hidden sm:block">
+                  Click image to zoom
+                </p>
+              )}
+              <div
+                className={primaryIsImage ? 'cursor-zoom-in' : ''}
+                onClick={() => {
+                  if (primaryIsImage) setLightboxSrc(lightboxTriggerSrc);
+                }}
+              >
+                <ProductGallery
+                  mediaItems={product.mediaItems ?? product.images.map((url, i) => ({ url, type: 'image' as const, displayOrder: i }))}
+                  productName={product.name}
+                  selectedIndex={selectedImageIndex}
+                  onSelect={setSelectedImageIndex}
+                  viewerSlot={
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleSaveItem(product.id); }}
+                      aria-label={isSaved ? 'Remove from Wishlist' : 'Save to Wishlist'}
+                      className="bg-white/80 backdrop-blur-sm p-2 rounded-full hover:bg-white text-black transition-all shadow-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                        fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
+                        <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                      </svg>
+                    </button>
+                  }
+                />
+              </div>
             </div>
           </div>
 
           {/* RIGHT: Details (Sticky Column on Desktop per REFERENCE-SPEC 8.1) */}
-          <div className="lg:col-span-5 flex flex-col justify-start lg:sticky lg:top-24 self-start space-y-6 select-none">
+          <div className="lg:col-span-5 flex flex-col justify-start lg:sticky lg:top-24 self-start space-y-6 select-none max-w-[480px]">
 
             {/* Top Stock Badge + Brand + Title + Price (Sorvea Reference Hierarchy) */}
             <div className="space-y-2 border-b border-[#DDDDDD] pb-6">

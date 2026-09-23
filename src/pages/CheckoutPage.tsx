@@ -43,12 +43,9 @@ interface OrderSuccessData {
   total: number;
 }
 
-// Config flag: Apple Pay availability (Decision D2: disabled with 'Coming soon' until Apple Merchant & provider certificates are provisioned)
-const APPLE_PAY_ENABLED = false;
-
 // Payment Method: Visible options in order:
-// 1. Cash on Delivery, 2. Pay Online, 3. Bank Cards, 4. Smart Wallets, 5. Apple Pay
-type PaymentMethodOption = 'Cash on Delivery' | 'Pay Online' | 'Bank Cards' | 'Smart Wallets' | 'Apple Pay';
+// 1. Cash on Delivery, 2. Bank Cards, 3. Smart Wallets, 4. Apple Pay
+type PaymentMethodOption = 'Cash on Delivery' | 'Bank Cards' | 'Smart Wallets' | 'Apple Pay';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -225,13 +222,6 @@ export const CheckoutPage: React.FC = () => {
 
     // ── ONLINE PAYMENT PATH: Create pending order → call Paymob → redirect ──
     if (paymentMethod !== 'Cash on Delivery') {
-      // Guard against Apple Pay submission if not enabled or unconfigured
-      if (paymentMethod === 'Apple Pay' && !APPLE_PAY_ENABLED) {
-        setErrorMessage('Apple Pay is currently coming soon. Please choose Cash on Delivery or another online settlement channel.');
-        setIsSubmitting(false);
-        return;
-      }
-
       // 1. Create a 'pending' order in Supabase first so we never lose the order
       const { order: pendingOrder, error: orderErr } = await createOrder({
         customerId: isLoggedIn && user ? user.id : null,
@@ -273,8 +263,8 @@ export const CheckoutPage: React.FC = () => {
       // 3. Call Paymob serverless function
       try {
         setIsSubmitting(true);
-        // Map Bank Cards and Smart Wallets to existing Paymob flow
-        const channel = paymentMethod === 'Smart Wallets' ? 'wallet' : 'card';
+        // Map Bank Cards, Smart Wallets, and Apple Pay
+        const channel = paymentMethod === 'Apple Pay' ? 'applepay' : paymentMethod === 'Smart Wallets' ? 'wallet' : 'card';
         const finalWalletPhone = paymentMethod === 'Smart Wallets'
           ? (walletPhone.trim() || contactPhone.trim())
           : undefined;
@@ -857,44 +847,7 @@ export const CheckoutPage: React.FC = () => {
                     </p>
                   </label>
 
-                  {/* Option 2: Pay Online */}
-                  <label
-                    className={`border p-4 sm:p-5 cursor-pointer block transition-all ${
-                      paymentMethod === 'Pay Online'
-                        ? 'border-black ring-1 ring-black bg-[#FAFAFA]'
-                        : 'border-[#EAEAEA] hover:border-[#CCCCCC] bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="radio"
-                          name="payment_choice"
-                          value="Pay Online"
-                          checked={paymentMethod === 'Pay Online'}
-                          onChange={() => setPaymentMethod('Pay Online')}
-                          className="accent-black"
-                        />
-                        <span className="text-xs font-semibold text-black uppercase tracking-wider">
-                          Pay Online
-                        </span>
-                      </div>
-                      <span className="text-[9px] uppercase tracking-widest text-black bg-[#EEEEEE] px-1.5 py-0.5 font-semibold">
-                        Instant Lock
-                      </span>
-                    </div>
-                    <p className="pl-7 pt-2 text-[11px] text-[#666666] leading-relaxed">
-                      All-in-one payment gateway powered by Paymob. Accepts international cards, mobile wallets, and regional settlement channels.
-                    </p>
-                    {paymentMethod === 'Pay Online' && (
-                      <div className="mt-3 pt-3 border-t border-[#EAEAEA] pl-7 flex items-center justify-between text-[10px] text-[#888888]">
-                        <span>Powered by Paymob Egypt • 256-bit SSL encrypted checkout</span>
-                        <span className="font-mono uppercase text-black font-medium">Paymob Unified</span>
-                      </div>
-                    )}
-                  </label>
-
-                  {/* Option 3: Bank Cards */}
+                  {/* Option 2: Bank Cards */}
                   <label
                     className={`border p-4 sm:p-5 cursor-pointer block transition-all ${
                       paymentMethod === 'Bank Cards'
@@ -931,7 +884,7 @@ export const CheckoutPage: React.FC = () => {
                     )}
                   </label>
 
-                  {/* Option 4: Smart Wallets */}
+                  {/* Option 3: Smart Wallets */}
                   <label
                     className={`border p-4 sm:p-5 cursor-pointer block transition-all ${
                       paymentMethod === 'Smart Wallets'
@@ -979,21 +932,13 @@ export const CheckoutPage: React.FC = () => {
                     )}
                   </label>
 
-                  {/* Option 5: Apple Pay (Controlled by APPLE_PAY_ENABLED config flag) */}
-                  <div
-                    className={`border p-4 sm:p-5 transition-all ${
-                      APPLE_PAY_ENABLED
-                        ? paymentMethod === 'Apple Pay'
-                          ? 'border-black ring-1 ring-black bg-[#FAFAFA] cursor-pointer'
-                          : 'border-[#EAEAEA] hover:border-[#CCCCCC] bg-white cursor-pointer'
-                        : 'border-[#EAEAEA] bg-[#FBFBFB] opacity-60 cursor-not-allowed select-none'
+                  {/* Option 4: Apple Pay (Active & Integrated) */}
+                  <label
+                    className={`border p-4 sm:p-5 cursor-pointer block transition-all ${
+                      paymentMethod === 'Apple Pay'
+                        ? 'border-black ring-1 ring-black bg-[#FAFAFA]'
+                        : 'border-[#EAEAEA] hover:border-[#CCCCCC] bg-white'
                     }`}
-                    onClick={() => {
-                      if (APPLE_PAY_ENABLED) {
-                        setPaymentMethod('Apple Pay');
-                      }
-                    }}
-                    aria-disabled={!APPLE_PAY_ENABLED}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -1002,11 +947,8 @@ export const CheckoutPage: React.FC = () => {
                           name="payment_choice"
                           value="Apple Pay"
                           checked={paymentMethod === 'Apple Pay'}
-                          disabled={!APPLE_PAY_ENABLED}
-                          onChange={() => {
-                            if (APPLE_PAY_ENABLED) setPaymentMethod('Apple Pay');
-                          }}
-                          className="accent-black disabled:cursor-not-allowed"
+                          onChange={() => setPaymentMethod('Apple Pay')}
+                          className="accent-black"
                         />
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-semibold text-black uppercase tracking-wider">
@@ -1017,14 +959,20 @@ export const CheckoutPage: React.FC = () => {
                           </svg>
                         </div>
                       </div>
-                      <span className="text-[9px] uppercase tracking-widest bg-[#EEEEEE] text-[#777777] px-2 py-0.5 font-medium border border-[#E0E0E0]">
-                        Coming soon
+                      <span className="text-[9px] uppercase tracking-widest text-black bg-[#EEEEEE] px-1.5 py-0.5 font-semibold">
+                        Instant Touch
                       </span>
                     </div>
-                    <p className="pl-7 pt-2 text-[11px] text-[#777777] leading-relaxed">
+                    <p className="pl-7 pt-2 text-[11px] text-[#666666] leading-relaxed">
                       Fast and secure one-touch settlement via Apple Wallet on compatible Safari and iOS devices.
                     </p>
-                  </div>
+                    {paymentMethod === 'Apple Pay' && (
+                      <div className="mt-3 pt-3 border-t border-[#EAEAEA] pl-7 flex items-center justify-between text-[10px] text-[#888888]">
+                        <span>Seamless biometric payment via Face ID / Touch ID</span>
+                        <span className="font-mono uppercase text-black font-medium">Apple Pay</span>
+                      </div>
+                    )}
+                  </label>
                 </div>
               </section>
 

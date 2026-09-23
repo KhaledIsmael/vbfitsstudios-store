@@ -214,7 +214,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         <div
           ref={mobileScrollRef}
           onScroll={handleMobileScroll}
-          className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full aspect-[2/3] bg-white border border-spec-border"
+          className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full max-w-[480px] mx-auto aspect-[3/4] bg-white border border-spec-border"
           tabIndex={0}
           role="region"
           aria-label="Swipeable product images"
@@ -289,7 +289,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
           return (
             <div
               key={`${item.url}-${idx}`}
-              className="relative w-full aspect-[2/3] bg-white border border-[#DDDDDD] overflow-hidden group cursor-zoom-in"
+              className="relative w-full max-w-[520px] mx-auto aspect-[3/4] bg-white border border-[#DDDDDD] overflow-hidden group cursor-zoom-in"
               onClick={() => onSelect(idx)}
             >
               {item.type === 'video' ? (

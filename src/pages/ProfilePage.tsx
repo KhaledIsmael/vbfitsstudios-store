@@ -330,34 +330,19 @@ export const ProfilePage: React.FC = () => {
 
   return (
     <div className="pt-24 sm:pt-32 pb-24 min-h-screen bg-white">
-      <div className="max-w-[1720px] mx-auto px-6 sm:px-10 lg:px-16">
+      <div className="max-w-[1280px] mx-auto px-6 sm:px-10 lg:px-16">
         
         {/* Profile Header */}
         <div className="border-b border-[#EAEAEA] pb-10 pt-4 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-6">
-            {/* Profile Avatar */}
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border border-[#EAEAEA] bg-[#FAFAFA] flex-shrink-0">
-              <img
-                src={user.avatar}
-                alt={user.name}
-                className="w-full h-full object-cover"
-                loading="lazy"
-                decoding="async"
-                width={96}
-                height={96}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] text-[#888888] tracking-luxury uppercase">
-                Private Client Profile
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-light uppercase tracking-wider text-black">
-                {user.name}
-              </h1>
-              <p className="text-xs text-[#666666]">{user.email}</p>
-              <p className="text-[11px] text-[#999999] pt-1">Client Member since {user.memberSince}</p>
-            </div>
+          <div className="space-y-1.5">
+            <span className="text-[10px] text-[#888888] tracking-luxury uppercase">
+              Private Client Profile
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-light uppercase tracking-wider text-black">
+              {user.name}
+            </h1>
+            <p className="text-xs text-[#666666]">{user.email}</p>
+            <p className="text-[11px] text-[#999999] pt-1">Client Member since {user.memberSince}</p>
           </div>
 
           <button
