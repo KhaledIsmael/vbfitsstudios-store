@@ -218,7 +218,19 @@ export const RegisterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmationNotice, setConfirmationNotice] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const navigate = useNavigate();
+
+  // Countdown timer for resend cooldown
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,18 +252,26 @@ export const RegisterPage: React.FC = () => {
       });
 
       if (authError) {
-        setError(authError.message);
+        // Handle case where user already exists but is unconfirmed
+        const msg = authError.message?.toLowerCase() || '';
+        if (msg.includes('already registered') || msg.includes('user already exists')) {
+          setError('An account with this email already exists. Please sign in or use a different email.');
+        } else {
+          setError(authError.message);
+        }
         setLoading(false);
         return;
       }
 
-      // If email confirmation is required by Supabase project settings
+      // Email confirmation required by Supabase project settings
       if (data.user && !data.session) {
         setConfirmationNotice(true);
+        setResendCooldown(60);
         setLoading(false);
         return;
       }
 
+      // Email confirmation disabled — session created immediately
       if (data.session) {
         navigate('/');
       }
@@ -259,6 +279,28 @@ export const RegisterPage: React.FC = () => {
       setError(err?.message || 'An unexpected error occurred during account creation.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    if (resendCooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setResendSuccess(false);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim()
+      });
+      if (resendError) {
+        setError(resendError.message);
+      } else {
+        setResendSuccess(true);
+        setResendCooldown(60);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to resend verification email.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -296,11 +338,41 @@ export const RegisterPage: React.FC = () => {
         {/* Confirmation State */}
         {confirmationNotice ? (
           <div className="p-6 bg-[#FAFAFA] border border-[#EAEAEA] text-center space-y-4 animate-fade-in">
-            <h3 className="text-xs uppercase tracking-luxury text-black font-medium">Verification Link Dispatched</h3>
+            {/* Envelope icon */}
+            <div className="flex justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-black opacity-60">
+                <rect width="20" height="16" x="2" y="4" rx="2"/>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+            </div>
+            <h3 className="text-xs uppercase tracking-luxury text-black font-medium">Check Your Inbox</h3>
             <p className="text-xs text-[#666666] leading-relaxed">
-              We have sent an authentication link to <strong className="text-black">{email}</strong>. Please check your inbox to confirm your account and activate your private client access.
+              A verification link has been sent to{' '}
+              <strong className="text-black">{email}</strong>.<br />
+              Click the link in the email to activate your account.
             </p>
-            <div className="pt-2">
+            <p className="text-[11px] text-[#999999]">
+              Can't find it? Check your spam folder.
+            </p>
+
+            {/* Resend button */}
+            {resendSuccess && (
+              <p className="text-[11px] text-green-700 font-medium">Email resent successfully.</p>
+            )}
+            <button
+              type="button"
+              onClick={handleResendEmail}
+              disabled={resendCooldown > 0 || resendLoading}
+              className="text-xs uppercase tracking-luxury text-black underline underline-offset-4 hover:opacity-60 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+            >
+              {resendLoading
+                ? 'Sending…'
+                : resendCooldown > 0
+                ? `Resend in ${resendCooldown}s`
+                : 'Resend Verification Email'}
+            </button>
+
+            <div className="pt-2 border-t border-[#EAEAEA]">
               <Link
                 to="/login"
                 className="text-xs uppercase tracking-luxury text-black underline underline-offset-4 hover:opacity-60"
