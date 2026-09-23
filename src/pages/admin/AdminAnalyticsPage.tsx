@@ -233,7 +233,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                 </div>
 
                 <div className="text-right font-mono text-xs flex-shrink-0">
-                  <p className="font-bold text-white">${item.total_revenue.toFixed(2)}</p>
+                  <p className="font-bold text-white">{item.total_revenue.toFixed(2)} EGP</p>
                   <p className="text-[10px] text-emerald-400 mt-0.5">{item.units_sold} garments sold</p>
                 </div>
               </div>

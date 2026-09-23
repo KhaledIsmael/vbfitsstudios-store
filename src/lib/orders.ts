@@ -30,6 +30,7 @@ export interface Order {
   total: number;
   trackingNumber: string;
   deliveredAt?: string | null;
+  currency?: string;
 }
 
 export interface CreateOrderParams {
@@ -125,7 +126,8 @@ export async function getUserOrders(customerId: string): Promise<Order[]> {
         total: Number(orderRow.total),
         trackingNumber:
           orderRow.tracking_number || `DHL-${Math.floor(100000000 + Math.random() * 900000000)}`,
-        deliveredAt: orderRow.delivered_at || null
+        deliveredAt: orderRow.delivered_at || null,
+        currency: orderRow.currency || 'EGP'
       };
     });
   } catch (err) {
@@ -196,7 +198,7 @@ export async function createOrder({
       customer_id: customerId || null,
       order_number: orderNumber,
       status: safeStatus,
-      currency: 'USD',
+      currency: 'EGP',
       subtotal,
       total: subtotal,
       tracking_number: trackingNumber,
@@ -226,7 +228,7 @@ export async function createOrder({
         customer_id: customerId || null,
         order_number: orderNumber,
         status: 'pending',
-        currency: 'USD',
+        currency: 'EGP',
         subtotal,
         total: subtotal,
         tracking_number: trackingNumber,
@@ -249,7 +251,7 @@ export async function createOrder({
       const noStatusPayload: any = {
         customer_id: customerId || null,
         order_number: orderNumber,
-        currency: 'USD',
+        currency: 'EGP',
         subtotal,
         total: subtotal,
         tracking_number: trackingNumber,
@@ -308,7 +310,7 @@ export async function createOrder({
               orderId: order.id,
               trackingNumber: order.tracking_number || '',
               total: Number(order.total),
-              currency: order.currency || 'USD',
+              currency: order.currency || 'EGP',
               paymentMethod: methodStr,
               paymentStatus: initialPaymentStatus,
               deliveryWindow: getDeliveryWindow(order.created_at),
@@ -411,7 +413,7 @@ export async function convertOrderToCOD(
             orderId: orderData.id,
             trackingNumber: orderData.tracking_number || '',
             total: Number(orderData.total),
-            currency: orderData.currency || 'USD',
+            currency: orderData.currency || 'EGP',
             paymentMethod: 'COD',
             paymentStatus: 'pending_collection',
             deliveryWindow: getDeliveryWindow(orderData.created_at),
@@ -592,7 +594,7 @@ export async function getOrderById(
 ): Promise<{ order: OrderDetail | null; error: string | null }> {
   if (!orderId) return { order: null, error: 'No order ID provided.' };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('orders')
     .select(`
       id,
@@ -619,6 +621,39 @@ export async function getOrderById(
     `)
     .eq('id', orderId)
     .maybeSingle();
+
+  // Resilience: If payment_method column does not exist yet in database, retry query without it
+  if (error && (error.message?.includes('payment_method') || error.code === '42703')) {
+    console.warn('[orders] Retrying getOrderById without payment_method column...');
+    const retryRes = await supabase
+      .from('orders')
+      .select(`
+        id,
+        order_number,
+        tracking_number,
+        status,
+        payment_status,
+        currency,
+        subtotal,
+        total,
+        notes,
+        created_at,
+        shipping_address_snapshot,
+        items:order_items(
+          id,
+          product_name,
+          variant_title,
+          unit_price,
+          quantity,
+          total_price,
+          image_url
+        )
+      `)
+      .eq('id', orderId)
+      .maybeSingle();
+    data = retryRes.data ? ({ ...retryRes.data, payment_method: 'COD' } as any) : null;
+    error = retryRes.error;
+  }
 
   if (error) {
     console.warn('getOrderById error:', error.message);
@@ -647,7 +682,7 @@ export async function getOrderById(
     status: data.status || 'Placed',
     paymentMethod: data.payment_method || 'COD',
     paymentStatus: data.payment_status || 'pending_collection',
-    currency: data.currency || 'USD',
+    currency: data.currency || 'EGP',
     subtotal: Number(data.subtotal),
     total: Number(data.total),
     notes: data.notes || '',

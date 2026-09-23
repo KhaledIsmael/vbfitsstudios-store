@@ -109,7 +109,7 @@ export const AdminProductsPage: React.FC = () => {
       subtitle: 'Luxury Archival Silhouette',
       description: '',
       price: 180,
-      currency: 'USD',
+      currency: 'EGP',
       category_id: categories[0]?.id || 'cat-shirts',
       collection_tag: 'all',
       featured: false,
@@ -370,7 +370,7 @@ export const AdminProductsPage: React.FC = () => {
 
                     {/* Price */}
                     <td className="py-3.5 px-4 font-mono text-white font-medium">
-                      ${p.price.toFixed(2)}
+                      {p.price.toFixed(2)} {p.currency || 'EGP'}
                     </td>
 
                     {/* Variants & Stock */}
@@ -584,7 +584,7 @@ export const AdminProductsPage: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-[10px] font-mono uppercase tracking-widest text-white/60 mb-1.5">
-                          Base Price (USD) *
+                          Base Price (EGP) *
                         </label>
                         <input
                           type="number"

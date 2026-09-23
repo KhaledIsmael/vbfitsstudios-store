@@ -12,7 +12,8 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMenu }) => {
   const { totalItems, setIsCartOpen, isCartBouncing } = useCart();
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, role, user } = useAuth();
+  const isStaff = role === 'admin' || role === 'support' || user?.role === 'admin' || user?.role === 'support';
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -141,6 +142,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMenu }) => {
 
         {/* RIGHT: Search (Desktop), Profile, and Cart Drawer */}
         <div className="flex items-center justify-end space-x-2 sm:space-x-5">
+          {/* Staff / Admin Dashboard Quick Link */}
+          {isStaff && (
+            <Link
+              to="/admin"
+              className={`hidden sm:inline-flex items-center px-2.5 py-1 text-[10px] font-mono uppercase tracking-widest font-semibold border transition-all ${
+                isTransparent
+                  ? 'border-white/60 text-white hover:bg-white hover:text-black'
+                  : 'border-black text-black hover:bg-black hover:text-white'
+              }`}
+            >
+              Admin
+            </Link>
+          )}
+
           {/* 1. Search Trigger (Desktop) */}
           <button
             type="button"

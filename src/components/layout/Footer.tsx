@@ -260,9 +260,13 @@ export const Footer: React.FC = () => {
               </svg>
             </a>
           </div>
-          <p className="font-spec text-[11px] text-[#ADADAD] tracking-spec uppercase">
-            © 2026 VB FITS STUDIOS
-          </p>
+          <div className="flex items-center gap-3 text-[11px] font-spec tracking-spec uppercase text-[#ADADAD]">
+            <span>© 2026 VB FITS STUDIOS</span>
+            <span aria-hidden="true">•</span>
+            <Link to="/admin/login" className="hover:text-black transition-colors underline underline-offset-2">
+              Staff Portal
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

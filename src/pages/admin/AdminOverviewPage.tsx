@@ -93,7 +93,7 @@ export const AdminOverviewPage: React.FC = () => {
       o.order_number,
       o.customer_name,
       o.customer_email,
-      `$${o.total.toFixed(2)}`,
+      `${o.total.toFixed(2)} ${o.currency || 'EGP'}`,
       o.payment_status,
       o.status,
       new Date(o.created_at).toLocaleString()
@@ -335,7 +335,7 @@ export const AdminOverviewPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <span className="font-bold text-white">${o.total.toFixed(2)}</span>
+                  <span className="font-bold text-white">{o.total.toFixed(2)} {o.currency || 'EGP'}</span>
                   <span className={`px-2 py-0.5 text-[9px] uppercase font-mono border ${
                     o.status === 'delivered'
                       ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'

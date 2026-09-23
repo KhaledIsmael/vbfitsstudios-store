@@ -202,7 +202,7 @@ export const AdminCustomersPage: React.FC = () => {
 
         <div className="p-4 bg-[#121215] border border-white/10">
           <div className="flex items-center justify-between text-emerald-400">
-            <span className="text-[10px] font-mono uppercase tracking-wider">VIP Spenders ($500+)</span>
+            <span className="text-[10px] font-mono uppercase tracking-wider">VIP Spenders (5,000+ EGP)</span>
             <span className="text-[10px] font-mono">Tier 1</span>
           </div>
           <p className="text-2xl font-light font-mono text-emerald-300 mt-1">{vipClientsCount}</p>
@@ -257,7 +257,7 @@ export const AdminCustomersPage: React.FC = () => {
         <div className="flex items-center overflow-x-auto gap-1 bg-[#18181D] p-1 border border-white/10">
           {[
             { id: 'all', label: 'All Clients' },
-            { id: 'vip', label: 'VIP ($500+)' },
+            { id: 'vip', label: 'VIP (5,000+ EGP)' },
             { id: 'customer', label: 'Customers' },
             { id: 'support', label: 'Support' },
             { id: 'admin', label: 'Admins' }

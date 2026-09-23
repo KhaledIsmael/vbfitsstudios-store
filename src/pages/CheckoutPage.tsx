@@ -433,7 +433,7 @@ export const CheckoutPage: React.FC = () => {
             </div>
             <div className="flex justify-between items-center pt-1 text-xs">
               <span className="text-[#888888] uppercase tracking-wider">Total Value</span>
-              <span className="font-semibold text-black text-sm">${orderSuccess.total.toFixed(2)}</span>
+              <span className="font-semibold text-black text-sm">{orderSuccess.total.toFixed(2)} EGP</span>
             </div>
           </div>
 
@@ -1076,7 +1076,6 @@ export const CheckoutPage: React.FC = () => {
                           <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.08-7.73-7.94-12.11-14.58-6.19-9.37-11.05-20.2-14.58-32.48-3.53-12.28-5.3-23.75-5.3-34.41 0-14.58 3.64-26.69 10.92-36.33 7.28-9.64 16.59-14.52 27.93-14.65 4.89 0 10.16 1.34 15.81 4.02 5.65 2.68 9.3 4.08 10.95 4.19 1.35 0 5.17-1.46 11.46-4.36 6.3-2.9 11.95-4.24 16.97-4.02 12.51.65 22.38 5.48 29.6 14.5-10.98 6.64-16.36 15.82-16.14 27.53.22 9.14 3.75 16.86 10.6 23.16 6.85 6.3 15.02 9.89 24.51 10.77-2.18 6.53-4.73 13.06-7.66 19.59zM119.22 33.15c0-7.39 2.66-14.28 7.98-20.67 5.33-6.39 12-10.63 20.02-12.73.22 1.09.33 2.07.33 2.94 0 7.29-2.77 14.23-8.31 20.82-5.54 6.59-12.28 10.74-20.22 12.44-.01-.98-.01-1.78.2-2.8z" />
                         </svg>
                       </div>
-                      <span className="text-[11px] text-white bg-black px-2 py-0.5 rounded uppercase tracking-wide font-medium">Active</span>
                     </div>
                     {paymentMethod === 'Apple Pay' && (
                       <p className="text-[12px] text-[#666666] mt-2 leading-relaxed">
@@ -1127,8 +1126,8 @@ export const CheckoutPage: React.FC = () => {
               ) : (
                 <span>
                   {paymentMethod === 'Cash on Delivery'
-                    ? `Confirm order · $${grandTotal.toFixed(2)}`
-                    : `Pay now · $${grandTotal.toFixed(2)}`}
+                    ? `Confirm order · ${grandTotal.toFixed(2)} EGP`
+                    : `Pay now · ${grandTotal.toFixed(2)} EGP`}
                 </span>
               )}
             </button>
@@ -1188,7 +1187,7 @@ export const CheckoutPage: React.FC = () => {
 
                   {/* Price */}
                   <div className="text-[14px] font-medium text-[#1a1a1a] flex-shrink-0 whitespace-nowrap overflow-visible">
-                    ${(item.price * item.quantity).toFixed(2)}
+                    {(item.price * item.quantity).toFixed(2)} EGP
                   </div>
                 </div>
               ))}
@@ -1224,13 +1223,13 @@ export const CheckoutPage: React.FC = () => {
             <div className="space-y-2.5 text-[14px]">
               <div className="flex justify-between text-[#555555]">
                 <span>Subtotal · {totalItems} {totalItems === 1 ? 'item' : 'items'}</span>
-                <span className="text-[#1a1a1a] font-medium">${subtotal.toFixed(2)}</span>
+                <span className="text-[#1a1a1a] font-medium">{subtotal.toFixed(2)} EGP</span>
               </div>
 
               {appliedDiscount > 0 && (
                 <div className="flex justify-between text-emerald-700">
                   <span>Discount</span>
-                  <span>−${appliedDiscount.toFixed(2)}</span>
+                  <span>−{appliedDiscount.toFixed(2)} EGP</span>
                 </div>
               )}
 
@@ -1242,8 +1241,7 @@ export const CheckoutPage: React.FC = () => {
               <div className="border-t border-[#E0E0E0] pt-3 flex justify-between items-baseline">
                 <span className="text-[16px] font-semibold text-[#1a1a1a]">Total</span>
                 <span className="text-[18px] font-bold text-[#1a1a1a]">
-                  <span className="text-[12px] font-normal text-[#888888] mr-1">USD</span>
-                  ${grandTotal.toFixed(2)}
+                  {grandTotal.toFixed(2)} <span className="text-[12px] font-normal text-[#888888] ml-1">EGP</span>
                 </span>
               </div>
             </div>

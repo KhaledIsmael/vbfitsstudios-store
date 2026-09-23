@@ -176,7 +176,7 @@ export const CompleteTheLook: React.FC<CompleteTheLookProps> = ({ currentProduct
                   {item.name}
                 </p>
                 <p className="text-xs font-mono font-bold text-black mt-1">
-                  ${item.price}
+                  {item.price} EGP
                 </p>
               </div>
             </div>

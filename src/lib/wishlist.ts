@@ -59,7 +59,7 @@ export async function getWishlist(userId: string): Promise<WishlistProduct[]> {
         productId: p.id,
         name: p.name,
         price: Number(p.price),
-        currency: p.currency || 'USD',
+        currency: p.currency || 'EGP',
         image,
         slug: p.slug
       } satisfies WishlistProduct;

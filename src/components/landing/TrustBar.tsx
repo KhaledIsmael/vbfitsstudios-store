@@ -11,7 +11,7 @@ const TRUST_ITEMS = [
       </svg>
     ),
     label: 'Free Shipping',
-    sub: 'On orders over $250',
+    sub: 'On orders over 1,500 EGP',
   },
   {
     icon: (

@@ -213,7 +213,7 @@ export const PoliciesPage: React.FC = () => {
       case 'shipping':
         return {
           title: 'Shipping Policy',
-          content: 'All orders from VB Fits Studios are processed Monday through Friday, excluding public holidays. Orders placed before 2:00 PM EST ship same business day. We offer complimentary express courier shipping on all domestic and international orders surpassing $250. Full tracking telemetry is transmitted to your registered email upon courier handover.'
+          content: 'All orders from VB Fits Studios are processed Monday through Friday, excluding public holidays. Orders placed before 2:00 PM EST ship same business day. We offer complimentary express courier shipping on all domestic and international orders surpassing 1,500 EGP. Full tracking telemetry is transmitted to your registered email upon courier handover.'
         };
       case 'returns':
       case 'refund':

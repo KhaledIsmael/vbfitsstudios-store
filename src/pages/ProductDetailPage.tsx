@@ -188,7 +188,7 @@ const StickyATCBar: React.FC<{
 
       {/* Price */}
       <span className="text-xs sm:text-sm font-medium text-[#111111] flex-shrink-0 whitespace-nowrap overflow-visible">
-        {product.currency}{(product.price * quantity).toFixed(2)}
+        {(product.price * quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
       </span>
 
       {/* CTA */}
@@ -417,7 +417,7 @@ export const ProductDetailPage: React.FC = () => {
               </h1>
               <div className="pt-1 flex items-baseline gap-3">
                 <span className="text-base font-spec font-normal text-[#2D2D2D] tracking-spec whitespace-nowrap overflow-visible">
-                  {product.currency}{product.price.toFixed(2)}
+                  {product.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
                 </span>
               </div>
             </div>
@@ -540,7 +540,7 @@ export const ProductDetailPage: React.FC = () => {
                   onClick={handleAddToCart}
                   className="w-full text-xs font-spec font-bold uppercase tracking-spec py-3.5 px-6 transition-all duration-default bg-[#4D4D4D] hover:bg-black text-white rounded-none btn-fill-hover shadow-sm whitespace-nowrap overflow-visible"
                 >
-                  Add to Cart — {product.currency}{(product.price * quantity).toFixed(2)}
+                  Add to Cart — {(product.price * quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
                 </button>
               )}
 
@@ -595,7 +595,7 @@ export const ProductDetailPage: React.FC = () => {
                 </button>
                 {openSection === 'delivery' && (
                   <div className="pt-3 text-[#6B6B6B] leading-relaxed animate-fade-in font-spec text-xs">
-                    <p>{product.shippingInfo || 'Free express shipping on all domestic orders above $200. Standard courier delivery takes 2-4 business days. 14-day hassle-free return policy.'}</p>
+                    <p>{product.shippingInfo || 'Free express shipping on all domestic orders above 1,500 EGP. Standard courier delivery takes 2-4 business days. 14-day hassle-free return policy.'}</p>
                   </div>
                 )}
               </div>

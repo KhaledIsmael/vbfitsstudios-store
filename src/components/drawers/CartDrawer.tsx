@@ -235,7 +235,7 @@ export const CartDrawer: React.FC = () => {
                       <p className="text-[11px] font-mono text-spec-muted whitespace-nowrap">Qty: {justAddedItem.quantity}</p>
                     </div>
                     <p className="text-xs font-semibold text-[#111111] mt-2 whitespace-nowrap overflow-visible">
-                      {justAddedItem.currency}{justAddedItem.price.toFixed(2)}
+                      {justAddedItem.price.toFixed(2)} EGP
                     </p>
                   </div>
                 </div>
@@ -243,7 +243,7 @@ export const CartDrawer: React.FC = () => {
                 {/* Subtotal preview */}
                 <div className="flex justify-between items-center text-xs tracking-wider uppercase font-semibold text-[#111111] pt-1">
                   <span>Bag Subtotal</span>
-                  <span>${subtotal.toFixed(2)}</span>
+                  <span>{subtotal.toFixed(2)} EGP</span>
                 </div>
 
                 {/* Two Action Buttons: Check out and Continue shopping */}
@@ -284,7 +284,7 @@ export const CartDrawer: React.FC = () => {
                     {isFreeShipping ? (
                       <span className="text-black font-semibold">Complimentary Express Shipping Unlocked</span>
                     ) : (
-                      <span>${(freeShippingThreshold - subtotal).toFixed(2)} away from free shipping</span>
+                      <span>{(freeShippingThreshold - subtotal).toFixed(2)} EGP away from free shipping</span>
                     )}
                     <span>{Math.round(progressPercent)}%</span>
                   </div>
@@ -326,7 +326,7 @@ export const CartDrawer: React.FC = () => {
                           </div>
                           <p className="text-[11px] font-mono text-spec-muted mt-1 whitespace-nowrap">Size: {item.size}</p>
                           <p className="text-xs font-semibold text-[#111111] mt-1 whitespace-nowrap overflow-visible">
-                            {item.currency}{item.price.toFixed(2)}
+                            {item.price.toFixed(2)} EGP
                           </p>
                         </div>
 
@@ -381,7 +381,7 @@ export const CartDrawer: React.FC = () => {
 
               <div className="flex justify-between items-center text-xs tracking-spec uppercase font-bold text-[#2D2D2D]">
                 <span>Estimated Total</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>{subtotal.toFixed(2)} EGP</span>
               </div>
               <p className="text-[11px] text-[#8E8E8E] font-spec leading-relaxed">
                 Taxes and shipping calculated at checkout.
@@ -391,7 +391,7 @@ export const CartDrawer: React.FC = () => {
                 onClick={handleProceedToCheckout}
                 className="w-full bg-[#4D4D4D] hover:bg-black text-white text-xs font-spec font-bold uppercase tracking-spec py-4 px-6 transition-colors flex items-center justify-center gap-2 rounded-none btn-fill-hover shadow-sm"
               >
-                Check out — ${subtotal.toFixed(2)}
+                Check out — {subtotal.toFixed(2)} EGP
               </button>
               <div className="text-center">
                 <Link

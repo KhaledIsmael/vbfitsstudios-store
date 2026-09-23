@@ -66,7 +66,7 @@ export const OrderConfirmationPage: React.FC = () => {
     order?.trackingNumber || stateData.trackingNumber || '—';
   const displayTotal =
     order != null ? order.total : (stateData.total ?? 0);
-  const displayCurrency = order?.currency || 'USD';
+  const displayCurrency = order?.currency || 'EGP';
   const displayPaymentMethod =
     order?.paymentMethod || stateData.paymentMethod || 'COD';
   const displayPaymentStatus =

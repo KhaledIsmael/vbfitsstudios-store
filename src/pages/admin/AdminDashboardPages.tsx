@@ -367,9 +367,9 @@ export const AdminAnalyticsPage: React.FC = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Gross Volume', val: '$24,850.00', change: '+18.4% vs last month', up: true },
+          { label: 'Gross Volume', val: '124,850 EGP', change: '+18.4% vs last month', up: true },
           { label: 'Conversion Rate', val: '3.42%', change: '+0.6% vs benchmark', up: true },
-          { label: 'Average Order Value', val: '$220.00', change: '+5.1% luxury basket', up: true },
+          { label: 'Average Order Value', val: '2,450 EGP', change: '+5.1% luxury basket', up: true },
           { label: 'Fulfilment Velocity', val: '1.8 Days', change: 'Cairo & Giza Hub', up: true }
         ].map((stat) => (
           <div key={stat.label} className="p-5 bg-[#121215] border border-white/10">

@@ -333,7 +333,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               </>
             ) : (
               <span>
-                Add to Bag — {product.currency}{product.price.toFixed(0)}
+                Add to Bag — {product.price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} EGP
               </span>
             )}
           </button>
@@ -350,7 +350,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </h3>
 
         <p className="font-spec font-normal text-[12px] sm:text-[13px] uppercase text-spec-muted tracking-spec whitespace-nowrap overflow-visible min-w-0">
-          {product.currency}{product.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {product.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
         </p>
       </div>
     </div>

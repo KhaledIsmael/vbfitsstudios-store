@@ -119,7 +119,7 @@ function mapSupabaseToProduct(row: SupabaseProductRow): Product {
     name: row.name,
     subtitle: row.subtitle || undefined,
     price: Number(row.price),
-    currency: row.currency === 'USD' ? '$' : row.currency || '$',
+    currency: row.currency === 'USD' || !row.currency ? 'EGP' : row.currency,
     category: (row.category?.slug as any) || 'long-sleeve',
     featured: Boolean(row.featured),
     isNewArrival: Boolean(row.is_new_arrival),
@@ -136,7 +136,7 @@ function mapSupabaseToProduct(row: SupabaseProductRow): Product {
     fabricCare: Array.isArray(row.fabric_care) ? row.fabric_care : [],
     shippingInfo:
       row.shipping_info ||
-      'Complimentary express shipping on orders over $250. Standard delivery 3–5 business days. 14-day hassle-free returns.',
+      'Complimentary express shipping across Egypt. Standard delivery 2–4 business days. 14-day hassle-free returns.',
     stockBySize: Object.keys(stockBySize).length > 0 ? stockBySize : undefined,
     variantIdBySize: Object.keys(variantIdBySize).length > 0 ? variantIdBySize : undefined,
   };

@@ -181,7 +181,7 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
             Max Price
           </label>
           <span className="text-xs font-mono font-medium text-black">
-            ${maxPrice}
+            {maxPrice} EGP
           </span>
         </div>
         <input
@@ -195,14 +195,14 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
           aria-valuemin={100}
           aria-valuemax={500}
           aria-valuenow={maxPrice}
-          aria-valuetext={`$${maxPrice}`}
+          aria-valuetext={`${maxPrice} EGP`}
           onChange={(e) => onMaxPriceChange(Number(e.target.value))}
           className="w-full accent-black cursor-pointer h-1.5 bg-[#EAEAEA] appearance-none rounded-none"
         />
         <div className="flex justify-between text-[10px] text-[#888888] font-mono" aria-hidden="true">
-          <span>$100</span>
-          <span>$300</span>
-          <span>$500</span>
+          <span>100 EGP</span>
+          <span>300 EGP</span>
+          <span>500 EGP</span>
         </div>
       </div>
 

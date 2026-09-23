@@ -14,7 +14,7 @@ export const AnnouncementBar: React.FC = () => {
     });
   }, []);
 
-  const displayText = announcement?.text || "COMPLIMENTARY WORLDWIDE EXPRESS DISPATCH ON ORDERS OVER $250 // CERTIFIED 340 GSM PORTO ATELIER";
+  const displayText = announcement?.text || "COMPLIMENTARY WORLDWIDE EXPRESS DISPATCH ON ORDERS OVER 1,500 EGP // CERTIFIED 340 GSM PORTO ATELIER";
   const displayLink = announcement?.link || "/shop";
 
   return (

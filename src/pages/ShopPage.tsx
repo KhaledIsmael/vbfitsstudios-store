@@ -327,7 +327,7 @@ export const ShopPage: React.FC = () => {
                   {maxPrice < 500 && (
                     <button type="button" onClick={() => setMaxPrice(500)}
                       className="text-[11px] font-mono px-3 py-1 bg-white border border-[#CCCCCC] hover:border-black text-black flex items-center gap-1.5 transition-colors">
-                      <span>Under ${maxPrice}</span><span className="text-xs">×</span>
+                      <span>Under {maxPrice} EGP</span><span className="text-xs">×</span>
                     </button>
                   )}
                   {selectedSizes.map((sz) => (

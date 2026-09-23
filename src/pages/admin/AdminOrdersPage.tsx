@@ -461,7 +461,7 @@ export const AdminOrdersPage: React.FC = () => {
 
                     {/* Total Amount */}
                     <td className="py-3.5 px-4 text-white font-bold text-sm">
-                      ${order.total.toFixed(2)}
+                      {order.total.toFixed(2)} {order.currency || 'EGP'}
                     </td>
 
                     {/* Pipeline Status */}
@@ -660,7 +660,7 @@ export const AdminOrdersPage: React.FC = () => {
                         </div>
 
                         <div className="text-right font-mono text-xs">
-                          <span className="text-white font-medium">${it.total_price.toFixed(2)}</span>
+                          <span className="text-white font-medium">{it.total_price.toFixed(2)} {selectedOrder.currency || 'EGP'}</span>
                           <span className="text-[10px] text-white/40 block">Qty: {it.quantity}</span>
                         </div>
                       </div>
@@ -671,21 +671,21 @@ export const AdminOrdersPage: React.FC = () => {
                   <div className="p-3 bg-[#18181D] border border-white/10 text-xs font-mono space-y-1">
                     <div className="flex justify-between text-white/60">
                       <span>Subtotal:</span>
-                      <span>${selectedOrder.subtotal.toFixed(2)}</span>
+                      <span>{selectedOrder.subtotal.toFixed(2)} {selectedOrder.currency || 'EGP'}</span>
                     </div>
                     {selectedOrder.discount_amount > 0 && (
                       <div className="flex justify-between text-emerald-400">
                         <span>Discount:</span>
-                        <span>-${selectedOrder.discount_amount.toFixed(2)}</span>
+                        <span>-{selectedOrder.discount_amount.toFixed(2)} {selectedOrder.currency || 'EGP'}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-white/60">
                       <span>Delivery:</span>
-                      <span>{selectedOrder.shipping_amount === 0 ? 'Complimentary' : `$${selectedOrder.shipping_amount.toFixed(2)}`}</span>
+                      <span>{selectedOrder.shipping_amount === 0 ? 'Complimentary' : `${selectedOrder.shipping_amount.toFixed(2)} ${selectedOrder.currency || 'EGP'}`}</span>
                     </div>
                     <div className="flex justify-between font-bold text-sm text-white pt-1 border-t border-white/10">
                       <span>Total Amount:</span>
-                      <span>${selectedOrder.total.toFixed(2)}</span>
+                      <span>{selectedOrder.total.toFixed(2)} {selectedOrder.currency || 'EGP'}</span>
                     </div>
                   </div>
                 </div>
@@ -799,7 +799,7 @@ export const AdminOrdersPage: React.FC = () => {
             <form onSubmit={handleConfirmRefund} className="space-y-4 text-xs font-mono">
               <div>
                 <label className="block text-[10px] uppercase text-white/60 mb-1">
-                  Refund Amount (Max: ${selectedOrder.total.toFixed(2)}) *
+                  Refund Amount (Max: {selectedOrder.total.toFixed(2)} {selectedOrder.currency || 'EGP'}) *
                 </label>
                 <input
                   type="number"
