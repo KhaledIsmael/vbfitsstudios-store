@@ -4,6 +4,7 @@ import {
   updateAdminShippingZone,
   type AdminShippingZone
 } from '../../lib/adminShipping';
+import { AdminInfoTooltip } from '../../components/admin/AdminInfoTooltip';
 import {
   Truck,
   Search,
@@ -11,10 +12,12 @@ import {
   X,
   RefreshCw,
   Clock,
-  DollarSign,
   MapPin,
   ShieldCheck,
-  Edit2
+  Edit2,
+  CheckCircle2,
+  Save,
+  DollarSign
 } from 'lucide-react';
 
 export const AdminShippingPage: React.FC = () => {
@@ -25,11 +28,12 @@ export const AdminShippingPage: React.FC = () => {
 
   // Editing modal / drawer
   const [editingZone, setEditingZone] = useState<AdminShippingZone | null>(null);
-  const [editRate, setEditRate] = useState(15);
+  const [editRate, setEditRate] = useState(65);
   const [editMinDays, setEditMinDays] = useState(2);
   const [editMaxDays, setEditMaxDays] = useState(4);
   const [editCod, setEditCod] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [successToast, setSuccessToast] = useState(false);
 
   const loadZones = async () => {
     setLoading(true);
@@ -83,48 +87,55 @@ export const AdminShippingPage: React.FC = () => {
 
     setSaving(false);
     setEditingZone(null);
+    setSuccessToast(true);
+    setTimeout(() => setSuccessToast(false), 2500);
   };
 
-  const handleQuickToggleCod = async (zone: AdminShippingZone) => {
-    const nextVal = !zone.cod_available;
+  // Quick toggle COD
+  const handleToggleCod = async (zone: AdminShippingZone) => {
+    const nextCod = !zone.cod_available;
     setZones((prev) =>
-      prev.map((z) => (z.governorate === zone.governorate ? { ...z, cod_available: nextVal } : z))
+      prev.map((z) => (z.governorate === zone.governorate ? { ...z, cod_available: nextCod } : z))
     );
-    await updateAdminShippingZone(zone.governorate, { cod_available: nextVal });
+    await updateAdminShippingZone(zone.governorate, {
+      shipping_rate: zone.shipping_rate,
+      min_days: zone.min_days,
+      max_days: zone.max_days,
+      cod_available: nextCod
+    });
   };
 
-  // Filtered zones
   const filteredZones = zones.filter((z) => {
-    const matchesCod =
-      codFilter === 'all' ||
-      (codFilter === 'cod_enabled' && z.cod_available) ||
-      (codFilter === 'cod_disabled' && !z.cod_available);
+    if (codFilter === 'cod_enabled' && !z.cod_available) return false;
+    if (codFilter === 'cod_disabled' && z.cod_available) return false;
 
-    const q = searchQuery.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
       z.governorate.toLowerCase().includes(q) ||
-      (z.governorate_ar && z.governorate_ar.includes(q));
-
-    return matchesCod && matchesSearch;
+      (z.governorate_ar && z.governorate_ar.toLowerCase().includes(q))
+    );
   });
 
-  // Metrics
-  const totalGovernorates = zones.length;
-  const codAvailableCount = zones.filter((z) => z.cod_available).length;
-  const expressZonesCount = zones.filter((z) => z.min_days <= 2).length;
-  const avgRate = zones.length > 0 ? zones.reduce((s, z) => s + z.shipping_rate, 0) / zones.length : 15;
-
   return (
-    <div className="space-y-6 animate-fade-in text-white pb-12">
-      {/* ── HEADER ── */}
+    <div className="space-y-6 animate-fade-in pb-16 select-none text-white">
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 1. رأس الصفحة                                                 */}
+      {/* ───────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-light uppercase tracking-wider text-white">
-            Egyptian Shipping Zones & Logistics Rates
-          </h1>
-          <p className="text-xs text-white/50 tracking-wide mt-1">
-            Configure delivery SLAs, shipping fees, and Cash-on-Delivery (COD) availability across all 27 governorates.
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+              أسعار ومناطق الشحن بالمحافظات
+            </h1>
+            <AdminInfoTooltip
+              title="إعدادات الشحن المصري"
+              description="هنا يمكنك تحديد مصاريف الشحن بالجنيه المصري وعدد أيام التوصيل لكل محافظة في مصر (القاهرة، الجيزة، الإسكندرية، الصعيد، القناة، الدلتا). يتم احتساب التكلفة تلقائياً للعميل عند اختيار محافظته أثناء الشراء."
+              tip="تفعيل الدفع عند الاستلام (COD) في القاهرة الكبرى والإسكندرية يضاعف المبيعات للبراندات الجديدة."
+            />
+          </div>
+          <p className="text-xs sm:text-sm text-white/60 mt-1">
+            اضبط تكلفة الشحن لكل محافظة ومدة التوصيل وتفعيل خيار الدفع كاش عند الاستلام.
           </p>
         </div>
 
@@ -132,75 +143,48 @@ export const AdminShippingPage: React.FC = () => {
           type="button"
           onClick={loadZones}
           disabled={loading}
-          className="flex items-center gap-2 px-3 py-2 bg-[#151519] border border-white/15 hover:border-white/30 text-xs font-mono uppercase text-white/80 transition-colors"
+          className="flex items-center gap-2 bg-[#16161B] hover:bg-white/10 text-white px-4 py-2 text-xs font-semibold border border-white/15 transition-colors rounded-sm self-start sm:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Sync Zones</span>
+          <span>تحديث الأسعار</span>
         </button>
       </div>
 
-      {/* ── METRICS RIBBON ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 bg-[#121215] border border-white/10">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">
-            Covered Governorates
-          </span>
-          <p className="text-2xl font-light font-mono text-white mt-1">{totalGovernorates}</p>
-          <span className="text-[10px] font-mono text-emerald-400 mt-1 block">Full Egypt Coverage</span>
+      {/* Success alert */}
+      {successToast && (
+        <div className="p-3 bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 rounded text-xs font-semibold flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>تم تحديث سعر الشحن ومدة التوصيل بنجاح على المتجر!</span>
         </div>
+      )}
 
-        <div className="p-4 bg-[#121215] border border-sky-500/20">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-sky-400 block">
-            Express Hubs (2-4 Days)
-          </span>
-          <p className="text-2xl font-light font-mono text-sky-300 mt-1">{expressZonesCount}</p>
-          <span className="text-[10px] font-mono text-white/40 mt-1 block">Cairo, Giza, Qalyubia</span>
-        </div>
-
-        <div className="p-4 bg-[#121215] border border-emerald-500/20">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 block">
-            COD Enabled Zones
-          </span>
-          <p className="text-2xl font-light font-mono text-emerald-300 mt-1">{codAvailableCount}</p>
-          <span className="text-[10px] font-mono text-white/40 mt-1 block">Cash on delivery eligible</span>
-        </div>
-
-        <div className="p-4 bg-[#121215] border border-white/10">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">
-            Average Shipping Fee
-          </span>
-          <p className="text-2xl font-light font-mono text-white mt-1">${avgRate.toFixed(2)}</p>
-          <span className="text-[10px] font-mono text-white/40 mt-1 block">Standard courier tier</span>
-        </div>
-      </div>
-
-      {/* ── TOOLBAR ── */}
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[#121215] p-3 border border-white/10">
-        <div className="flex-1 flex items-center gap-2.5 bg-[#18181D] border border-white/10 px-3 py-2">
-          <Search className="w-4 h-4 text-white/40 flex-shrink-0" />
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 2. شريط البحث والفلترة                                         */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-[#141418] p-3 sm:p-4 border border-white/10 rounded-sm">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-white/40 absolute right-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search governorates in English or Arabic (e.g. Cairo / القاهرة, Alexandria / الإسكندرية)..."
-            className="bg-transparent text-xs text-white placeholder-white/30 focus:outline-none w-full font-mono"
+            placeholder="ابحث باسم المحافظة (مثال: القاهرة، الإسكندرية، الجيزة)..."
+            className="w-full bg-[#18181E] border border-white/10 rounded-sm pr-10 pl-4 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-amber-400"
           />
         </div>
 
-        {/* COD Filter */}
-        <div className="flex items-center overflow-x-auto gap-1 bg-[#18181D] p-1 border border-white/10 font-mono text-xs uppercase">
+        <div className="flex items-center gap-2 text-xs">
           {[
-            { id: 'all', label: 'All Regions' },
-            { id: 'cod_enabled', label: 'COD Enabled' },
-            { id: 'cod_disabled', label: 'COD Restricted' }
+            { id: 'all', label: 'كل المحافظات' },
+            { id: 'cod_enabled', label: 'الدفع عند الاستلام مفعّل' },
+            { id: 'cod_disabled', label: 'الدفع الإلكتروني فقط' }
           ].map((tab) => (
             <button
               key={tab.id}
-              type="button"
               onClick={() => setCodFilter(tab.id as any)}
-              className={`px-3 py-1.5 text-[11px] whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 rounded-sm whitespace-nowrap text-xs font-medium transition-colors ${
                 codFilter === tab.id
-                  ? 'bg-white text-black font-semibold shadow'
+                  ? 'bg-white text-black font-bold shadow-sm'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -210,172 +194,188 @@ export const AdminShippingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── GOVERNORATES TABLE ── */}
-      <div className="border border-white/10 bg-[#121215] overflow-x-auto">
-        <table className="w-full text-left text-xs font-mono">
-          <thead>
-            <tr className="border-b border-white/10 text-white/40 uppercase tracking-widest text-[10px]">
-              <th className="py-3 px-4">Governorate (EN / AR)</th>
-              <th className="py-3 px-4">Delivery Window (SLA)</th>
-              <th className="py-3 px-4">Shipping Tariff ($)</th>
-              <th className="py-3 px-4">Cash On Delivery (COD)</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {loading ? (
-              <tr><td colSpan={5} className="py-12 text-center text-white/40">Querying shipping matrix...</td></tr>
-            ) : filteredZones.length === 0 ? (
-              <tr><td colSpan={5} className="py-12 text-center text-white/40 font-sans">No governorates match criteria.</td></tr>
-            ) : (
-              filteredZones.map((z) => (
-                <tr key={z.governorate} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="py-3.5 px-4">
-                    <span className="font-bold text-white text-sm">{z.governorate}</span>
-                    {z.governorate_ar && (
-                      <span className="text-white/40 text-xs ml-2 font-arabic">({z.governorate_ar})</span>
-                    )}
-                  </td>
-
-                  <td className="py-3.5 px-4 text-white/80">
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">
-                      {z.min_days} – {z.max_days} Business Days
-                    </span>
-                  </td>
-
-                  <td className="py-3.5 px-4 font-bold text-white">
-                    ${z.shipping_rate.toFixed(2)}
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <button
-                      type="button"
-                      onClick={() => handleQuickToggleCod(z)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] uppercase border transition-colors ${
-                        z.cod_available
-                          ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30 hover:bg-emerald-900/30'
-                          : 'bg-red-950/40 text-red-400 border-red-500/30 hover:bg-red-900/30'
-                      }`}
-                    >
-                      {z.cod_available ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                      <span>{z.cod_available ? 'Available' : 'Disabled'}</span>
-                    </button>
-                  </td>
-
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(z)}
-                      className="inline-flex items-center gap-1 px-3 py-1 bg-[#18181D] hover:bg-white/10 text-white/80 hover:text-white border border-white/15 transition-colors uppercase text-[10px]"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      <span>Edit Tariff</span>
-                    </button>
-                  </td>
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 3. جدول المحافظات وأسعار الشحن                                */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="bg-[#141418] border border-white/10 rounded-sm overflow-hidden">
+        {filteredZones.length === 0 ? (
+          <div className="p-12 text-center text-white/50">
+            <Truck className="w-10 h-10 mx-auto text-white/20 mb-3" />
+            <p className="text-sm font-semibold text-white/80">لم يتم العثور على محافظات مطابقة للبحث</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs">
+              <thead className="bg-white/5 text-white/60 font-mono text-[11px] uppercase border-b border-white/10">
+                <tr>
+                  <th className="py-3.5 px-4 font-semibold">المحافظة / الإقليم</th>
+                  <th className="py-3.5 px-4 font-semibold">المنطقة الجغرافية</th>
+                  <th className="py-3.5 px-4 font-semibold">سعر الشحن للعميل</th>
+                  <th className="py-3.5 px-4 font-semibold">مدة التوصيل المتوقعة</th>
+                  <th className="py-3.5 px-4 font-semibold">الدفع كاش عند الاستلام</th>
+                  <th className="py-3.5 px-4 font-semibold text-center">تعديل</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredZones.map((z) => (
+                  <tr key={z.governorate} className="hover:bg-white/5 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                        <span className="font-bold text-white text-sm">{z.governorate_ar || z.governorate}</span>
+                      </div>
+                    </td>
+
+                    <td className="py-3.5 px-4 text-white/70 font-mono text-[11px]">
+                      {z.governorate}
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono font-bold text-amber-300 text-sm">
+                        {z.shipping_rate}{' '}
+                        <span className="text-[10px] font-sans text-amber-400">ج.م</span>
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 px-4 text-white/80">
+                      <span className="inline-flex items-center gap-1 font-mono">
+                        <Clock className="w-3 h-3 text-white/40" />
+                        <span>من {z.min_days} إلى {z.max_days} أيام عمل</span>
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleCod(z)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                          z.cod_available
+                            ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-white/5 text-white/50 border border-white/10'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            z.cod_available ? 'bg-emerald-400' : 'bg-white/40'
+                          }`}
+                        />
+                        <span>{z.cod_available ? 'مفعّل (كاش متاح)' : 'غير مفعّل'}</span>
+                      </button>
+                    </td>
+
+                    <td className="py-3.5 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(z)}
+                        title="تعديل السعر ومدة التوصيل"
+                        className="p-1.5 bg-white/5 hover:bg-white/10 text-white rounded border border-white/10 transition-colors inline-flex items-center gap-1 text-[11px]"
+                      >
+                        <Edit2 className="w-3 h-3 text-amber-400" />
+                        <span>تعديل</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* ── EDIT MODAL ── */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 4. نافذة تعديل سعر محافظة محددة                               */}
+      {/* ───────────────────────────────────────────────────────────── */}
       {editingZone && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-[#151519] border border-white/15 p-6 space-y-5 shadow-2xl text-white font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div>
-                <h3 className="text-sm font-light uppercase tracking-wider text-white">
-                  Configure Zone — {editingZone.governorate}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div
+            dir="rtl"
+            className="w-full max-w-md bg-[#141418] border border-white/15 rounded-sm p-6 shadow-2xl text-xs space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Truck className="w-4 h-4 text-amber-400" />
+                <h3 className="text-sm font-bold text-white">
+                  تعديل شحن محافظة: {editingZone.governorate}
                 </h3>
-                {editingZone.governorate_ar && (
-                  <p className="text-[10px] text-white/40 mt-0.5">{editingZone.governorate_ar}</p>
-                )}
               </div>
               <button
                 type="button"
                 onClick={() => setEditingZone(null)}
-                className="text-white/40 hover:text-white"
+                className="text-white/50 hover:text-white p-1"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-4">
-              {/* Shipping Rate */}
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase text-white/50 block">Shipping Tariff Fee ($)</label>
+              <div>
+                <label className="block text-white/70 font-semibold mb-1">
+                  سعر الشحن بالجنيه المصري (EGP) *
+                </label>
                 <input
                   type="number"
                   min="0"
-                  step="0.5"
                   value={editRate}
-                  onChange={(e) => setEditRate(parseFloat(e.target.value) || 0)}
-                  required
-                  className="w-full bg-[#101014] border border-white/15 p-2.5 text-white focus:outline-none focus:border-white"
+                  onChange={(e) => setEditRate(Number(e.target.value))}
+                  className="w-full bg-[#18181E] border border-white/15 p-2.5 rounded text-white font-mono font-bold text-sm focus:outline-none focus:border-amber-400"
                 />
               </div>
 
-              {/* Min & Max Days */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-white/50 block">Min Days</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="14"
-                    value={editMinDays}
-                    onChange={(e) => setEditMinDays(parseInt(e.target.value, 10) || 1)}
-                    required
-                    className="w-full bg-[#101014] border border-white/15 p-2.5 text-white focus:outline-none focus:border-white"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-white/50 block">Max Days</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="21"
-                    value={editMaxDays}
-                    onChange={(e) => setEditMaxDays(parseInt(e.target.value, 10) || 1)}
-                    required
-                    className="w-full bg-[#101014] border border-white/15 p-2.5 text-white focus:outline-none focus:border-white"
-                  />
-                </div>
-              </div>
-
-              {/* COD Toggle */}
-              <div className="flex items-center justify-between p-3 bg-[#101014] border border-white/10">
                 <div>
-                  <p className="text-white font-medium uppercase text-[11px]">Cash on Delivery (COD)</p>
-                  <p className="text-[9px] text-white/40">Enable courier cash collection at doorstep</p>
+                  <label className="block text-white/70 font-semibold mb-1">أقل عدد أيام (أيام عمل)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editMinDays}
+                    onChange={(e) => setEditMinDays(Number(e.target.value))}
+                    className="w-full bg-[#18181E] border border-white/15 p-2 rounded text-white font-mono focus:outline-none focus:border-amber-400"
+                  />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEditCod(!editCod)}
-                  className={`w-10 h-5 flex items-center transition-colors p-0.5 ${
-                    editCod ? 'bg-emerald-500 justify-end' : 'bg-white/10 justify-start'
-                  }`}
-                >
-                  <span className="w-4 h-4 bg-white shadow block" />
-                </button>
+
+                <div>
+                  <label className="block text-white/70 font-semibold mb-1">أقصى عدد أيام</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editMaxDays}
+                    onChange={(e) => setEditMaxDays(Number(e.target.value))}
+                    className="w-full bg-[#18181E] border border-white/15 p-2 rounded text-white font-mono focus:outline-none focus:border-amber-400"
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setEditingZone(null)}
-                  className="px-4 py-2 border border-white/15 text-white/60 hover:text-white uppercase"
-                >
-                  Cancel
-                </button>
+              <div className="p-3 bg-[#18181E] border border-white/10 rounded flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-white block">إتاحة الدفع كاش عند الاستلام (COD)</span>
+                  <span className="text-[11px] text-white/50 block">يسمح للعميل في هذه المحافظة بالدفع للمندوب</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editCod}
+                    onChange={(e) => setEditCod(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+
+              <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 bg-white text-black font-medium uppercase tracking-wider hover:bg-white/90 transition-colors shadow"
+                  className="flex-1 py-2.5 bg-white text-black font-bold rounded hover:bg-white/90 transition-colors shadow-md text-xs flex items-center justify-center gap-1.5"
                 >
-                  {saving ? 'Saving...' : 'Save Configuration'}
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{saving ? 'جاري الحفظ...' : 'حفظ التعديلات لايف'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingZone(null)}
+                  className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors text-xs"
+                >
+                  إلغاء
                 </button>
               </div>
             </form>

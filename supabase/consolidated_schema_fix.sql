@@ -14,6 +14,17 @@ ALTER TABLE public.orders
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
 
+-- Add tracking and fulfillment columns
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS tracking_number TEXT,
+  ADD COLUMN IF NOT EXISTS shipping_company TEXT,
+  ADD COLUMN IF NOT EXISTS internal_notes TEXT,
+  ADD COLUMN IF NOT EXISTS notes TEXT,
+  ADD COLUMN IF NOT EXISTS discount_code TEXT,
+  ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS subtotal NUMERIC(10, 2),
+  ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(10, 2) DEFAULT 0;
+
 -- Ensure currency column exists and defaults to EGP
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EGP';
@@ -55,7 +66,7 @@ ALTER TABLE public.orders
   ALTER COLUMN customer_id DROP NOT NULL;
 
 
--- 2. PRODUCTS TABLE FIXES
+-- 2. PRODUCTS TABLE FIXES (ALL MISSING COLUMNS)
 -- ------------------------------------------------------------------------------
 -- Ensure currency defaults to EGP
 ALTER TABLE public.products
@@ -68,10 +79,33 @@ UPDATE public.products
   SET currency = 'EGP'
   WHERE currency = 'USD' OR currency IS NULL;
 
--- Ensure is_archived and is_published columns exist
+-- Essential columns for clothing catalog and admin product management
 ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS collection_tag TEXT DEFAULT 'all',
+  ADD COLUMN IF NOT EXISTS subtitle TEXT,
   ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT false,
-  ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT true;
+  ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS is_new_arrival BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS seo_title TEXT,
+  ADD COLUMN IF NOT EXISTS seo_description TEXT,
+  ADD COLUMN IF NOT EXISTS related_product_ids JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS fabric_care JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS shipping_info TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_products_collection_tag ON public.products(collection_tag);
+CREATE INDEX IF NOT EXISTS idx_products_archived ON public.products(is_archived);
+CREATE INDEX IF NOT EXISTS idx_products_status ON public.products(is_archived, is_published);
+
+-- Product variants & images extra columns
+ALTER TABLE public.product_variants
+  ADD COLUMN IF NOT EXISTS color_hex TEXT DEFAULT '#111111',
+  ADD COLUMN IF NOT EXISTS price_override NUMERIC(10, 2);
+
+ALTER TABLE public.product_images
+  ADD COLUMN IF NOT EXISTS media_type TEXT DEFAULT 'image',
+  ADD COLUMN IF NOT EXISTS video_poster_url TEXT;
 
 
 -- 3. CUSTOMERS TABLE FIXES & ADMIN ROLES
@@ -159,7 +193,55 @@ CREATE POLICY "Users can view order items"
   USING (true);
 
 
--- 7. ELEVATE ALL EXISTING CUSTOMERS OR SPECIFIC USER TO ADMIN
+-- 7. STORE SETTINGS & ANNOUNCEMENTS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.store_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.store_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view store settings" ON public.store_settings;
+CREATE POLICY "Public can view store settings" ON public.store_settings FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Staff can manage store settings" ON public.store_settings;
+CREATE POLICY "Staff can manage store settings" ON public.store_settings FOR ALL USING (true);
+
+INSERT INTO public.store_settings (key, value)
+VALUES (
+  'announcement_bar',
+  '{"enabled": true, "text": "شحن مجاني على جميع الطلبات فوق 1500 جنيه بمناسبة الإطلاق", "link": "/shop"}'::jsonb
+) ON CONFLICT (key) DO NOTHING;
+
+
+-- 8. DISCOUNT CODES
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.discount_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT NOT NULL UNIQUE,
+  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
+  discount_value NUMERIC(10, 2) NOT NULL CHECK (discount_value > 0),
+  min_spend NUMERIC(10, 2) DEFAULT 0,
+  max_uses INT DEFAULT NULL,
+  times_used INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.discount_codes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can check active discount codes" ON public.discount_codes;
+CREATE POLICY "Public can check active discount codes" ON public.discount_codes FOR SELECT USING (is_active = true);
+DROP POLICY IF EXISTS "Staff can manage discount codes" ON public.discount_codes;
+CREATE POLICY "Staff can manage discount codes" ON public.discount_codes FOR ALL USING (true);
+
+INSERT INTO public.discount_codes (code, discount_type, discount_value, min_spend, is_active)
+VALUES 
+  ('VB10', 'percentage', 10.00, 0, true),
+  ('VIP15', 'percentage', 15.00, 1000.00, true)
+ON CONFLICT (code) DO NOTHING;
+
+
+-- 9. ELEVATE ALL EXISTING CUSTOMERS OR SPECIFIC USER TO ADMIN
 -- ------------------------------------------------------------------------------
 -- To make your account admin, run:
 -- UPDATE public.customers SET role = 'admin' WHERE email = 'your-email@example.com';

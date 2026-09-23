@@ -1,6 +1,6 @@
 import React from 'react';
 import { AdminOrder } from '../../lib/adminOrders';
-import { Printer, X, Check, ShieldCheck, Truck } from 'lucide-react';
+import { Printer, X, Check, Truck, MapPin, Phone } from 'lucide-react';
 
 interface PackingSlipModalProps {
   order: AdminOrder;
@@ -12,14 +12,16 @@ export const PackingSlipModal: React.FC<PackingSlipModalProps> = ({ order, onClo
     window.print();
   };
 
-  const isCOD = order.payment_method === 'cash_on_delivery';
+  const isCOD =
+    order.payment_method === 'COD' ||
+    order.payment_method === 'cash_on_delivery' ||
+    order.payment_status === 'pending_collection';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-sm overflow-y-auto">
       {/* Inject print-specific styling */}
       <style>{`
         @media print {
-          /* Hide everything in the page except the printable slip */
           body * {
             visibility: hidden !important;
           }
@@ -43,21 +45,22 @@ export const PackingSlipModal: React.FC<PackingSlipModalProps> = ({ order, onClo
           }
           @page {
             size: A4;
-            margin: 1.5cm;
+            margin: 1.2cm;
           }
         }
       `}</style>
 
       {/* Main Modal Wrapper */}
-      <div className="bg-[#151519] border border-white/20 max-w-4xl w-full flex flex-col max-h-[92vh] shadow-2xl relative">
+      <div className="bg-[#151519] border border-white/20 max-w-4xl w-full flex flex-col max-h-[92vh] shadow-2xl relative rounded-sm">
         {/* NON-PRINTABLE TOP ACTION BAR */}
         <div className="no-print h-14 px-6 border-b border-white/10 flex items-center justify-between bg-[#101014]">
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-semibold">
-              ● Ready for Courier Dispatch
+            <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              جاهز للطباعة وتسليم المندوب
             </span>
-            <span className="text-xs text-white/40 font-mono hidden sm:inline">
-              Order #{order.order_number}
+            <span className="text-xs text-white/50 font-mono hidden sm:inline">
+              طلب #{order.order_number}
             </span>
           </div>
 
@@ -65,190 +68,171 @@ export const PackingSlipModal: React.FC<PackingSlipModalProps> = ({ order, onClo
             <button
               type="button"
               onClick={handlePrint}
-              className="flex items-center gap-2 bg-white text-black hover:bg-white/90 px-4 py-1.5 text-xs font-mono uppercase tracking-wider font-semibold transition-colors shadow"
+              className="flex items-center gap-2 bg-white text-black hover:bg-white/90 px-4 py-2 text-xs font-bold rounded-sm transition-colors shadow"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Slip & Label</span>
+              <Printer className="w-4 h-4" />
+              <span>طباعة بوليصة الشحن والفاتورة (Print)</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
-              className="text-white/40 hover:text-white p-1"
+              className="text-white/60 hover:text-white p-1"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* PRINTABLE SLIP BODY (Pure Black on White Typography) */}
+        {/* PRINTABLE SLIP BODY (Bilingual High Contrast Black on White) */}
         <div className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white text-black">
-          <div id="printable-packing-slip" className="max-w-3xl mx-auto space-y-8 text-black bg-white select-text">
+          <div id="printable-packing-slip" className="max-w-3xl mx-auto space-y-6 text-black bg-white select-text">
             {/* 1. Header with Brand & Order Meta */}
-            <div className="border-b-2 border-black pb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-6">
+            <div className="border-b-2 border-black pb-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold uppercase tracking-widest leading-none">
+                <h1 className="text-2xl font-black uppercase tracking-widest leading-none">
                   VB FITS STUDIOS
                 </h1>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-gray-600 mt-1">
-                  Atelier Dispatch & Logistics · Ready-to-Wear Archive
+                <p className="text-xs font-bold text-gray-700 mt-1">
+                  بوليصة شحن وتوصيل وفاتورة طلب · Dispatch Manifest & Invoice
                 </p>
-                <p className="text-xs text-gray-500 mt-1 font-mono">
-                  Zamalek Atelier Hub, Cairo · New York Hub
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Cairo Atelier & Fulfillment Center, Egypt
                 </p>
               </div>
 
               <div className="text-left sm:text-right font-mono">
-                <span className="text-[10px] uppercase text-gray-500 block">Manifest Number</span>
-                <span className="text-xl font-bold text-black tracking-wider block">
+                <span className="text-[10px] uppercase text-gray-500 block font-bold">رقم الأوردر / Order No</span>
+                <span className="text-2xl font-bold text-black tracking-wider block">
                   {order.order_number}
                 </span>
-                <span className="text-xs text-gray-600 block mt-1">
-                  Date: {new Date(order.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                <span className="text-xs text-gray-600 block mt-0.5">
+                  التاريخ: {new Date(order.created_at).toLocaleDateString('ar-EG')}
                 </span>
-                {order.tracking_number && (
-                  <span className="text-xs text-gray-800 font-semibold block mt-0.5">
-                    AWB: {order.tracking_number}
-                  </span>
-                )}
               </div>
             </div>
 
             {/* 2. Payment Alert Badge */}
-            <div className={`p-3 border-2 flex items-center justify-between font-mono text-xs ${
-              isCOD
-                ? 'border-black bg-gray-100 font-bold'
-                : 'border-gray-300 bg-gray-50'
-            }`}>
+            <div
+              className={`p-3.5 border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs ${
+                isCOD
+                  ? 'border-black bg-yellow-50 text-black font-bold'
+                  : 'border-emerald-600 bg-emerald-50 text-emerald-950 font-bold'
+              }`}
+            >
               <div className="flex items-center gap-2">
-                <span className="uppercase tracking-widest text-[10px]">Payment Settlement:</span>
-                <span className="uppercase font-bold">
-                  {isCOD ? 'CASH ON DELIVERY (COD)' : 'PREPAID VIA CREDIT CARD (PAID IN FULL)'}
+                <span className="text-xs">طريقة السداد:</span>
+                <span className="text-sm">
+                  {isCOD ? '💵 دفع عند الاستلام (كاش للمندوب)' : '💳 تم الدفع إلكترونياً بالكامل (مدفوع)'}
                 </span>
               </div>
-              <div>
-                <span className="uppercase text-[11px]">
-                  {isCOD ? `COLLECT FROM RECIPIENT: $${order.total.toFixed(2)}` : 'AMOUNT DUE: $0.00'}
-                </span>
+
+              <div className="text-sm font-mono font-bold">
+                {isCOD ? (
+                  <span>المبلغ المطلوب تحصيله من العميل: {order.total.toLocaleString()} ج.م</span>
+                ) : (
+                  <span className="text-emerald-700">المبلغ المحصل: 0.00 ج.م (خالص الدفع)</span>
+                )}
               </div>
             </div>
 
-            {/* 3. Shipping & Sender Address Columns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-              {/* Deliver To */}
-              <div className="border border-black p-4 font-mono text-xs space-y-1">
-                <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block mb-2 border-b border-gray-200 pb-1">
-                  SHIP TO RECIPIENT
-                </span>
+            {/* 3. Shipping & Recipient Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Deliver To (العميل) */}
+              <div className="border border-black p-4 text-xs space-y-1.5 bg-gray-50">
+                <div className="flex items-center justify-between border-b border-gray-300 pb-1.5 mb-1.5">
+                  <span className="font-bold text-gray-900">بيانات المستلم (العميل):</span>
+                  <span className="text-[10px] text-gray-500 font-mono">RECIPIENT</span>
+                </div>
                 <p className="font-bold text-sm text-black">{order.customer_name}</p>
-                <p>{order.shipping_address?.street_line1}</p>
-                {order.shipping_address?.street_line2 && <p>{order.shipping_address.street_line2}</p>}
-                <p>
-                  {order.shipping_address?.city}, {order.shipping_address?.state} {order.shipping_address?.postal_code}
+                <p className="font-mono text-xs font-bold text-gray-900" dir="ltr">
+                  هاتف: {order.customer_phone || '-'}
                 </p>
-                <p className="uppercase">{order.shipping_address?.country}</p>
-                <p className="pt-2 font-bold text-black">Tel: {order.customer_phone}</p>
+                <p className="text-gray-700 font-medium">
+                  {((order.shipping_address as any)?.governorate || order.shipping_address?.state || 'المحافظة')}{' '}
+                  - {order.shipping_address?.city || 'المدينة'}
+                </p>
+                <p className="text-gray-700 text-xs">
+                  {order.shipping_address?.street_line1 ? `شارع: ${order.shipping_address.street_line1}` : ''}
+                  {(order.shipping_address as any)?.building ? ` - عمارة: ${(order.shipping_address as any).building}` : ''}
+                  {(order.shipping_address as any)?.apartment ? ` - شقة: ${(order.shipping_address as any).apartment}` : ''}
+                </p>
+                {(order.shipping_address as any)?.notes && (
+                  <p className="text-[11px] font-bold text-amber-900 mt-1">
+                    علامة مميزة: {(order.shipping_address as any).notes}
+                  </p>
+                )}
               </div>
 
-              {/* Shipped From */}
-              <div className="border border-gray-300 p-4 font-mono text-xs space-y-1 text-gray-700">
-                <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block mb-2 border-b border-gray-200 pb-1">
-                  DISPATCH ATELIER SENDER
-                </span>
-                <p className="font-bold text-sm text-black">VB Fits Studios Dispatch</p>
-                <p>14 Gezira Island Atelier Dock</p>
-                <p>Zamalek, Cairo 11211</p>
-                <p>Egypt</p>
-                <p className="pt-2 text-gray-600">Email: concierge@vbfitsstudios.com</p>
+              {/* Sender Details (الراسل) */}
+              <div className="border border-gray-300 p-4 text-xs space-y-1.5">
+                <div className="flex items-center justify-between border-b border-gray-200 pb-1.5 mb-1.5">
+                  <span className="font-bold text-gray-900">بيانات الراسل (البراند):</span>
+                  <span className="text-[10px] text-gray-500 font-mono">SENDER</span>
+                </div>
+                <p className="font-bold text-black">VB FITS STUDIOS</p>
+                <p className="text-gray-600">خدمة العملاء: support@vbfits.com</p>
+                <p className="text-gray-600">القاهرة، جمهورية مصر العربية</p>
+                <p className="text-[10px] text-gray-500 pt-2 border-t border-gray-200">
+                  سياسة الاسترجاع والاستبدال متاحة خلال 14 يوماً وفقاً للشروط المدونة على المتجر.
+                </p>
               </div>
             </div>
 
-            {/* 4. Garments Item Breakdown Table */}
-            <div className="pt-2">
-              <span className="text-[10px] uppercase tracking-widest text-gray-500 font-mono font-bold block mb-2">
-                Garments Manifest ({order.items.length} Items)
-              </span>
-              <table className="w-full text-left text-xs border border-black font-mono">
-                <thead>
-                  <tr className="border-b border-black bg-gray-100 text-black uppercase text-[10px] tracking-wider">
-                    <th className="py-2.5 px-3">Item #</th>
-                    <th className="py-2.5 px-3">Silhouette Name</th>
-                    <th className="py-2.5 px-3">Size</th>
-                    <th className="py-2.5 px-3">Colorway</th>
-                    <th className="py-2.5 px-3">SKU</th>
-                    <th className="py-2.5 px-3 text-center">Qty</th>
-                    <th className="py-2.5 px-3 text-right">Price</th>
-                    <th className="py-2.5 px-3 text-right">Total</th>
+            {/* 4. Order Items Table */}
+            <div className="border border-black">
+              <div className="bg-gray-100 p-2.5 font-bold text-xs border-b border-black flex justify-between">
+                <span>القطع المطلوبة بالأوردر (Items Manifest)</span>
+                <span className="font-mono">{order.items?.length || 1} قطعة</span>
+              </div>
+
+              <table className="w-full text-right text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                  <tr>
+                    <th className="p-2.5">الموديل</th>
+                    <th className="p-2.5">المقاس</th>
+                    <th className="p-2.5 text-center">الكمية</th>
+                    <th className="p-2.5 text-left">السعر</th>
+                    <th className="p-2.5 text-left">الإجمالي</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 text-black">
-                  {order.items.map((item, idx) => (
-                    <tr key={item.id || idx}>
-                      <td className="py-2.5 px-3 text-gray-500">{idx + 1}</td>
-                      <td className="py-2.5 px-3 font-semibold">{item.product_name}</td>
-                      <td className="py-2.5 px-3 font-bold">{item.size}</td>
-                      <td className="py-2.5 px-3">{item.color}</td>
-                      <td className="py-2.5 px-3 text-gray-600">{item.sku}</td>
-                      <td className="py-2.5 px-3 text-center font-bold">{item.quantity}</td>
-                      <td className="py-2.5 px-3 text-right">${item.unit_price.toFixed(2)}</td>
-                      <td className="py-2.5 px-3 text-right font-bold">${item.total_price.toFixed(2)}</td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-gray-200">
+                  {order.items?.map((item, idx) => {
+                    const price = item.unit_price || (item as any).price || 0;
+                    return (
+                      <tr key={idx}>
+                        <td className="p-2.5 font-bold text-black">{item.product_name}</td>
+                        <td className="p-2.5 font-mono font-bold">{item.size}</td>
+                        <td className="p-2.5 text-center font-mono">{item.quantity}</td>
+                        <td className="p-2.5 text-left font-mono">{price.toLocaleString()} ج.م</td>
+                        <td className="p-2.5 text-left font-mono font-bold">
+                          {(price * item.quantity).toLocaleString()} ج.م
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-            </div>
 
-            {/* 5. Financial Summary */}
-            <div className="flex justify-end pt-2">
-              <div className="w-64 border border-black p-3 font-mono text-xs space-y-1.5">
-                <div className="flex justify-between text-gray-600">
-                  <span>Subtotal:</span>
-                  <span>${order.subtotal.toFixed(2)}</span>
-                </div>
-                {order.discount_amount > 0 && (
-                  <div className="flex justify-between text-emerald-800">
-                    <span>Discount:</span>
-                    <span>-${order.discount_amount.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-gray-600">
-                  <span>Delivery:</span>
-                  <span>{order.shipping_amount === 0 ? 'Complimentary' : `$${order.shipping_amount.toFixed(2)}`}</span>
-                </div>
-                <div className="flex justify-between border-t border-black pt-1.5 font-bold text-sm text-black">
-                  <span>Grand Total:</span>
-                  <span>${order.total.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 6. Inspection & Return Policy Notice */}
-            <div className="border-t-2 border-black pt-6 grid grid-cols-1 sm:grid-cols-2 gap-6 text-[11px] font-mono text-gray-700">
-              <div className="border border-dashed border-gray-400 p-4 flex flex-col justify-between h-28">
-                <span className="text-[9px] uppercase tracking-wider text-gray-500 font-bold">
-                  Quality & Packaging Inspection Stamp
+              {/* Total Row */}
+              <div className="bg-gray-50 p-3 border-t-2 border-black flex items-center justify-between text-xs font-bold">
+                <span className="text-sm">إجمالي الفاتورة المطلوب سدادها:</span>
+                <span className="text-base font-mono font-black text-black">
+                  {order.total.toLocaleString()} جنيه مصري
                 </span>
-                <div className="flex items-center justify-between border-b border-gray-300 pb-1">
-                  <span>Inspected by Atelier Staff:</span>
-                  <span className="font-serif italic text-black">VB QA-4</span>
-                </div>
-                <span className="text-[9px] text-gray-400">Garment carefully pressed, boxed, and sealed.</span>
-              </div>
-
-              <div className="p-2 space-y-1">
-                <p className="font-bold text-black uppercase text-[10px]">14-Day Returns & Exchanges</p>
-                <p className="text-gray-600 leading-relaxed text-[10px]">
-                  All garments may be returned or exchanged within 14 days of delivery provided security tags remain affixed and packaging intact. Initiate at vbfitsstudios.com/track-order or contact concierge@vbfitsstudios.com.
-                </p>
               </div>
             </div>
 
-            {/* Barcode visual placeholder */}
-            <div className="text-center pt-2 font-mono text-xs text-gray-400 tracking-widest">
-              <div className="h-10 max-w-xs mx-auto border-y border-black flex items-center justify-center font-bold tracking-widest text-black">
-                ||| | |||| | ||| ||||| || ||| | ||||
+            {/* 5. Courier Signature & Instructions */}
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-300 text-xs">
+              <div className="border border-dashed border-gray-400 p-3">
+                <p className="font-bold text-gray-700">توقيع واستلام العميل:</p>
+                <div className="h-12" />
               </div>
-              <span className="text-[9px] mt-1 block">*{order.order_number}*</span>
+              <div className="border border-dashed border-gray-400 p-3">
+                <p className="font-bold text-gray-700">توقيع وخاتم مندوب الشحن:</p>
+                <div className="h-12" />
+              </div>
             </div>
           </div>
         </div>

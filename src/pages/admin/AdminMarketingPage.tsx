@@ -4,36 +4,31 @@ import {
   createDiscountCode,
   toggleDiscountCodeActive,
   deleteDiscountCode,
-  fetchNewsletterSubscribers,
-  exportSubscribersCSV,
   getStorefrontAnnouncement,
   updateStorefrontAnnouncement,
   type DiscountCode,
-  type NewsletterSubscriber,
   type StoreAnnouncement
 } from '../../lib/adminMarketing';
+import { AdminInfoTooltip } from '../../components/admin/AdminInfoTooltip';
 import {
   Sparkles,
   Tag,
-  Mail,
   Plus,
-  Download,
   Trash2,
   Check,
   X,
   Search,
-  ExternalLink,
   Percent,
-  DollarSign,
-  AlertCircle,
-  Calendar,
-  Layers,
-  Copy
+  CheckCircle2,
+  Save,
+  Megaphone,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 
 export const AdminMarketingPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'discounts' | 'newsletter' | 'banner'>('discounts');
-  
+  const [activeTab, setActiveTab] = useState<'discounts' | 'banner'>('discounts');
+
   // Discounts state
   const [codes, setCodes] = useState<DiscountCode[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,20 +39,14 @@ export const AdminMarketingPage: React.FC = () => {
   // New Code Form State
   const [newCodeName, setNewCodeName] = useState('');
   const [newCodeType, setNewCodeType] = useState<'percentage' | 'fixed'>('percentage');
-  const [newCodeValue, setNewCodeValue] = useState(10);
+  const [newCodeValue, setNewCodeValue] = useState(15);
   const [newCodeMinSpend, setNewCodeMinSpend] = useState(0);
-  const [newCodeMaxUses, setNewCodeMaxUses] = useState<string>('');
-  const [newCodeExpiry, setNewCodeExpiry] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
-
-  // Newsletter state
-  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
-  const [subSearch, setSubSearch] = useState('');
 
   // Announcement Banner state
   const [banner, setBanner] = useState<StoreAnnouncement>({
     enabled: true,
-    text: 'COMPLIMENTARY EXPRESS DELIVERY ON ALL ORDERS ABOVE $200 · CAIRO & GIZA HUB',
+    text: 'شحن مجاني على جميع الطلبات فوق 1,500 ج.م لجميع محافظات مصر بمناسبة الإطلاق',
     link: '/shop'
   });
   const [bannerSaved, setBannerSaved] = useState(false);
@@ -65,14 +54,12 @@ export const AdminMarketingPage: React.FC = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [codesData, subsData, bannerData] = await Promise.all([
+      const [codesData, bannerData] = await Promise.all([
         fetchDiscountCodes(),
-        fetchNewsletterSubscribers(),
         getStorefrontAnnouncement()
       ]);
       setCodes(codesData);
-      setSubscribers(subsData);
-      setBanner(bannerData);
+      if (bannerData) setBanner(bannerData);
     } catch (err) {
       console.error('Failed to load marketing assets:', err);
     } finally {
@@ -90,7 +77,7 @@ export const AdminMarketingPage: React.FC = () => {
     setFormError(null);
 
     if (!newCodeName.trim()) {
-      setFormError('Please enter a valid coupon code string.');
+      setFormError('يرجى إدخال كود الخصم (مثال: VB10).');
       return;
     }
 
@@ -98,50 +85,40 @@ export const AdminMarketingPage: React.FC = () => {
       code: newCodeName.trim().toUpperCase(),
       discount_type: newCodeType,
       discount_value: Number(newCodeValue),
-      min_spend: Number(newCodeMinSpend) || 0,
-      max_uses: newCodeMaxUses ? parseInt(newCodeMaxUses, 10) : null,
+      min_spend: Number(newCodeMinSpend),
+      max_uses: null,
+      expires_at: null,
       starts_at: new Date().toISOString(),
-      expires_at: newCodeExpiry ? new Date(newCodeExpiry).toISOString() : null,
       is_active: true
     });
 
-    if (!success) {
-      setFormError(error || 'Failed to create discount code.');
+    if (!success || !data) {
+      setFormError(error || 'فشل إنشاء الكود، قد يكون الاسم مستخدماً بالفعل.');
       return;
     }
 
-    if (data) {
-      setCodes((prev) => [data, ...prev]);
-    }
+    setCodes([data, ...codes]);
     setModalOpen(false);
     setNewCodeName('');
-    setNewCodeValue(10);
+    setNewCodeValue(15);
     setNewCodeMinSpend(0);
-    setNewCodeMaxUses('');
-    setNewCodeExpiry('');
   };
 
-  // Handle Toggle Active
-  const handleToggleCode = async (id: string, current: boolean) => {
-    setCodes((prev) => prev.map((c) => (c.id === id ? { ...c, is_active: !current } : c)));
-    await toggleDiscountCodeActive(id, !current);
+  // Toggle active status
+  const handleToggleActive = async (id: string, current: boolean) => {
+    const nextVal = !current;
+    setCodes(codes.map((c) => (c.id === id ? { ...c, is_active: nextVal } : c)));
+    await toggleDiscountCodeActive(id, nextVal);
   };
 
-  // Handle Delete Code
+  // Delete code
   const handleDeleteCode = async (id: string) => {
-    if (!confirm('Are you sure you want to deactivate and remove this promo code?')) return;
-    setCodes((prev) => prev.filter((c) => c.id !== id));
+    if (!window.confirm('هل أنت متأكد من حذف هذا الكود نهائياً؟')) return;
+    setCodes(codes.filter((c) => c.id !== id));
     await deleteDiscountCode(id);
   };
 
-  // Handle Copy Code
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
-  };
-
-  // Handle Save Announcement Banner
+  // Save Announcement
   const handleSaveBanner = async (e: React.FormEvent) => {
     e.preventDefault();
     await updateStorefrontAnnouncement(banner);
@@ -149,482 +126,385 @@ export const AdminMarketingPage: React.FC = () => {
     setTimeout(() => setBannerSaved(false), 2500);
   };
 
-  // Filtered Codes
-  const filteredCodes = codes.filter((c) =>
-    c.code.toLowerCase().includes(searchQuery.toLowerCase().trim())
-  );
+  // Copy code to clipboard
+  const handleCopy = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 1500);
+  };
 
-  // Filtered Subscribers
-  const filteredSubscribers = subscribers.filter((s) =>
-    s.email.toLowerCase().includes(subSearch.toLowerCase().trim())
+  const filteredCodes = codes.filter((c) =>
+    c.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <div className="space-y-6 animate-fade-in text-white pb-12">
-      {/* ── HEADER ── */}
+    <div className="space-y-6 animate-fade-in pb-16 select-none text-white">
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 1. رأس الصفحة والملخص                                         */}
+      {/* ───────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-light uppercase tracking-wider text-white">
-            Marketing & Conversions Engine
-          </h1>
-          <p className="text-xs text-white/50 tracking-wide mt-1">
-            Manage dynamic discount codes, newsletter subscriber export, and storefront announcement broadcasts.
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+              العروض وكوبونات الخصم
+            </h1>
+            <AdminInfoTooltip
+              title="الخصومات وإعلانات المتجر"
+              description="هنا يمكنك إنشاء بروموكود للعملاء والإنفلونسرز (مثال: خصم 15% أو خصم 100 جنيه)، وتعديل الشريط الإعلاني الأسود الذي يظهر أعلى صفحة المتجر لجذب الزوار."
+              tip="كوبونات الخصم ترفع معدل الشراء بنسبة تصل إلى 35% خصوصاً عند إطلاق كولكشن جديد."
+            />
+          </div>
+          <p className="text-xs sm:text-sm text-white/60 mt-1">
+            أنشئ أكواد الخصم للإنفلونسرز والزبائن، وعدّل الشريط الإعلاني أعلى الموقع في ثوانٍ.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {activeTab === 'discounts' && (
-            <button
-              type="button"
-              onClick={() => setModalOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white text-black text-xs font-medium uppercase tracking-wider hover:bg-white/90 transition-colors shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Privilege Code</span>
-            </button>
-          )}
-
-          {activeTab === 'newsletter' && (
-            <button
-              type="button"
-              onClick={() => exportSubscribersCSV(filteredSubscribers)}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white text-black text-xs font-medium uppercase tracking-wider hover:bg-white/90 transition-colors shadow-sm"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export CSV ({filteredSubscribers.length})</span>
-            </button>
-          )}
-        </div>
+        {activeTab === 'discounts' && (
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 bg-white text-black hover:bg-white/90 px-4 py-2.5 text-xs font-bold rounded-sm transition-all shadow-md self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4 text-black" />
+            <span>إنشاء كود خصم جديد</span>
+          </button>
+        )}
       </div>
 
-      {/* ── TAB SELECTOR ── */}
-      <div className="flex border-b border-white/10 bg-[#121215] text-xs font-mono uppercase tracking-wider">
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 2. التبويبات الأساسية                                          */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
         <button
           type="button"
           onClick={() => setActiveTab('discounts')}
-          className={`py-3 px-6 border-b-2 transition-all flex items-center gap-2 ${
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-sm transition-all ${
             activeTab === 'discounts'
-              ? 'border-white text-white font-semibold bg-white/5'
-              : 'border-transparent text-white/50 hover:text-white'
+              ? 'bg-amber-400 text-black shadow-md'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
         >
           <Tag className="w-3.5 h-3.5" />
-          <span>Discount Codes ({codes.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('newsletter')}
-          className={`py-3 px-6 border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'newsletter'
-              ? 'border-white text-white font-semibold bg-white/5'
-              : 'border-transparent text-white/50 hover:text-white'
-          }`}
-        >
-          <Mail className="w-3.5 h-3.5" />
-          <span>Newsletter Subscribers ({subscribers.length})</span>
+          <span>كوبونات وأكواد الخصم ({codes.length})</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('banner')}
-          className={`py-3 px-6 border-b-2 transition-all flex items-center gap-2 ${
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-sm transition-all ${
             activeTab === 'banner'
-              ? 'border-white text-white font-semibold bg-white/5'
-              : 'border-transparent text-white/50 hover:text-white'
+              ? 'bg-amber-400 text-black shadow-md'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Storefront Announcement Banner</span>
+          <Megaphone className="w-3.5 h-3.5" />
+          <span>الشريط الإعلاني أعلى المتجر (Banner)</span>
         </button>
       </div>
 
-      {/* ── TAB 1: DISCOUNT CODES ── */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 3. تبويب كوبونات الخصم                                        */}
+      {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'discounts' && (
-        <div className="space-y-4 animate-fade-in">
-          {/* Search toolbar */}
-          <div className="flex items-center gap-3 bg-[#121215] border border-white/10 px-3 py-2.5">
-            <Search className="w-4 h-4 text-white/40" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search active privilege codes (e.g. WELCOME10, VIP20)..."
-              className="bg-transparent text-xs text-white placeholder-white/30 focus:outline-none w-full font-mono"
-            />
+        <div className="space-y-4">
+          <div className="bg-[#141418] p-3 sm:p-4 border border-white/10 rounded-sm flex items-center justify-between">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-white/40 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ابحث باسم كود الخصم (مثال: VB10)..."
+                className="w-full bg-[#18181E] border border-white/10 rounded-sm pr-10 pl-4 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-amber-400"
+              />
+            </div>
+            <span className="text-xs text-white/50 hidden sm:inline">
+              الأكواد المفعلة تعمل مباشرة في صفحة الدفع للزبائن
+            </span>
           </div>
 
-          {/* Table */}
-          <div className="border border-white/10 bg-[#121215] overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-white/10 text-white/40 uppercase tracking-widest font-mono text-[10px]">
-                  <th className="py-3 px-4">Coupon Code</th>
-                  <th className="py-3 px-4">Benefit</th>
-                  <th className="py-3 px-4">Min Spend</th>
-                  <th className="py-3 px-4">Redemptions</th>
-                  <th className="py-3 px-4">Expiration</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 font-mono">
-                {loading ? (
-                  <tr><td colSpan={7} className="py-12 text-center text-white/40">Loading discount codes...</td></tr>
-                ) : filteredCodes.length === 0 ? (
-                  <tr><td colSpan={7} className="py-12 text-center text-white/40 font-sans">No discount codes match query.</td></tr>
-                ) : (
-                  filteredCodes.map((c) => {
-                    const isExpired = c.expires_at && new Date(c.expires_at).getTime() < Date.now();
-                    return (
-                      <tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-white">
+          <div className="bg-[#141418] border border-white/10 rounded-sm overflow-hidden">
+            {filteredCodes.length === 0 ? (
+              <div className="p-12 text-center text-white/50">
+                <Tag className="w-10 h-10 mx-auto text-white/20 mb-3" />
+                <p className="text-sm font-semibold text-white/80">لا توجد أكواد خصم حالياً</p>
+                <p className="text-xs text-white/40 mt-1">اضغط على زر (إنشاء كود خصم جديد) لإضافة كود مثل VB15 لزبائنك.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-white/5 text-white/60 font-mono text-[11px] uppercase border-b border-white/10">
+                    <tr>
+                      <th className="py-3.5 px-4 font-semibold">كود الخصم</th>
+                      <th className="py-3.5 px-4 font-semibold">قيمة الخصم</th>
+                      <th className="py-3.5 px-4 font-semibold">الحد الأدنى للشراء</th>
+                      <th className="py-3.5 px-4 font-semibold">مرات الاستخدام</th>
+                      <th className="py-3.5 px-4 font-semibold">الحالة بالموقع</th>
+                      <th className="py-3.5 px-4 font-semibold text-center">إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {filteredCodes.map((c) => (
+                      <tr key={c.id} className="hover:bg-white/5 transition-colors">
+                        <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
-                            <span className="bg-white/10 px-2 py-0.5 border border-white/15 tracking-wider">
+                            <span className="font-mono font-bold text-amber-300 text-sm tracking-wider bg-amber-400/10 px-2.5 py-1 rounded border border-amber-400/20">
                               {c.code}
                             </span>
                             <button
                               type="button"
-                              onClick={() => handleCopyCode(c.code)}
-                              className="text-white/40 hover:text-white"
-                              title="Copy code"
+                              onClick={() => handleCopy(c.code)}
+                              title="نسخ الكود"
+                              className="text-white/40 hover:text-white p-1"
                             >
                               {copiedCode === c.code ? (
-                                <Check className="w-3 h-3 text-emerald-400" />
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
                               ) : (
-                                <Copy className="w-3 h-3" />
+                                <Copy className="w-3.5 h-3.5" />
                               )}
                             </button>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4 text-emerald-300 font-semibold">
-                          {c.discount_type === 'percentage' ? `${c.discount_value}% OFF` : `$${c.discount_value.toFixed(2)} OFF`}
-                        </td>
-
-                        <td className="py-3.5 px-4 text-white/70">
-                          {c.min_spend > 0 ? `$${c.min_spend.toFixed(2)}` : 'None'}
-                        </td>
-
-                        <td className="py-3.5 px-4 text-white/60">
-                          <span>{c.times_used}</span>
-                          {c.max_uses ? <span className="text-white/40"> / {c.max_uses}</span> : <span className="text-white/30"> (∞)</span>}
-                        </td>
-
-                        <td className="py-3.5 px-4 text-[11px] text-white/50">
-                          {c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'Perpetual'}
-                        </td>
-
-                        <td className="py-3.5 px-4">
-                          {isExpired ? (
-                            <span className="px-2 py-0.5 text-[9px] uppercase bg-red-950/40 text-red-400 border border-red-500/30">
-                              Expired
-                            </span>
-                          ) : c.is_active ? (
-                            <span className="px-2 py-0.5 text-[9px] uppercase bg-emerald-950/40 text-emerald-300 border border-emerald-500/30">
-                              Active
-                            </span>
+                        <td className="py-3.5 px-4 font-bold text-white">
+                          {c.discount_type === 'percentage' ? (
+                            <span className="text-emerald-400 font-mono text-sm">{c.discount_value}% خصم</span>
                           ) : (
-                            <span className="px-2 py-0.5 text-[9px] uppercase bg-white/5 text-white/40 border border-white/10">
-                              Disabled
-                            </span>
+                            <span className="text-emerald-400 font-mono text-sm">{c.discount_value} ج.م خصم ثابت</span>
                           )}
                         </td>
 
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-3">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleCode(c.id, c.is_active)}
-                              className={`text-[10px] uppercase font-mono px-2 py-1 border transition-colors ${
-                                c.is_active
-                                  ? 'border-white/20 text-white/60 hover:text-white'
-                                  : 'border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10'
-                              }`}
-                            >
-                              {c.is_active ? 'Disable' : 'Enable'}
-                            </button>
+                        <td className="py-3.5 px-4 text-white/70 font-mono">
+                          {c.min_spend > 0 ? `${c.min_spend.toLocaleString()} ج.م` : 'بدون حد أدنى'}
+                        </td>
 
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCode(c.id)}
-                              className="text-white/30 hover:text-red-400 p-1 transition-colors"
-                              title="Delete code"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                        <td className="py-3.5 px-4 font-mono text-white/80">
+                          {c.times_used || 0} مرة
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleActive(c.id, c.is_active)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                              c.is_active
+                                ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-white/5 text-white/50 border border-white/10'
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                c.is_active ? 'bg-emerald-400' : 'bg-white/40'
+                              }`}
+                            />
+                            <span>{c.is_active ? 'مفعل ويعمل للزبائن' : 'معطل وموقوف'}</span>
+                          </button>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCode(c.id)}
+                            title="حذف الكود"
+                            className="p-1.5 bg-white/5 hover:bg-red-500/20 text-white/60 hover:text-red-400 rounded transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </td>
                       </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* ── TAB 2: NEWSLETTER SUBSCRIBERS ── */}
-      {activeTab === 'newsletter' && (
-        <div className="space-y-4 animate-fade-in">
-          <div className="flex items-center justify-between bg-[#121215] border border-white/10 px-3 py-2.5">
-            <div className="flex items-center gap-2.5 w-full">
-              <Search className="w-4 h-4 text-white/40" />
-              <input
-                type="text"
-                value={subSearch}
-                onChange={(e) => setSubSearch(e.target.value)}
-                placeholder="Filter by email address..."
-                className="bg-transparent text-xs text-white placeholder-white/30 focus:outline-none w-full font-mono"
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 4. تبويب الشريط الإعلاني (Announcement Bar)                    */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {activeTab === 'banner' && (
+        <div className="bg-[#141418] border border-white/10 rounded-sm p-6 max-w-3xl space-y-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold text-white">
+                الشريط الإعلاني أعلى صفحات المتجر (Announcement Bar)
+              </h3>
+              <AdminInfoTooltip
+                title="الشريط الإعلاني"
+                description="الشريط الرفيع الذي يظهر في قمة الموقع لجميع الزوار على الهاتف والكمبيوتر. ممتاز لعرض عروض الشحن المجاني أو الإعلان عن كولكشن جديد."
+                impact="النص المكتوب هنا يظهر مباشرة لكل زائر يدخل موقعك الآن."
               />
             </div>
-            <span className="text-[10px] font-mono uppercase text-white/40 whitespace-nowrap pl-4">
-              {filteredSubscribers.length} Leads
-            </span>
-          </div>
-
-          <div className="border border-white/10 bg-[#121215] overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead>
-                <tr className="border-b border-white/10 text-white/40 uppercase tracking-widest text-[10px]">
-                  <th className="py-3 px-4">Subscriber Email</th>
-                  <th className="py-3 px-4">Acquisition Channel</th>
-                  <th className="py-3 px-4">Opt-In Timestamp</th>
-                  <th className="py-3 px-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filteredSubscribers.length === 0 ? (
-                  <tr><td colSpan={4} className="py-12 text-center text-white/40">No subscribers match query.</td></tr>
-                ) : (
-                  filteredSubscribers.map((s) => (
-                    <tr key={s.id} className="hover:bg-white/[0.02]">
-                      <td className="py-3 px-4 font-bold text-white">{s.email}</td>
-                      <td className="py-3 px-4 text-white/60 uppercase text-[10px]">
-                        <span className="px-2 py-0.5 bg-white/5 border border-white/10">{s.source}</span>
-                      </td>
-                      <td className="py-3 px-4 text-white/40 text-[11px]">
-                        {new Date(s.created_at).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-emerald-400 text-[10px]">✓ Subscribed</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── TAB 3: STOREFRONT ANNOUNCEMENT BANNER ── */}
-      {activeTab === 'banner' && (
-        <div className="max-w-2xl bg-[#121215] border border-white/10 p-6 space-y-6 animate-fade-in">
-          <div>
-            <h2 className="text-sm font-light uppercase tracking-wider text-white">
-              Announcement Top Ribbon Settings
-            </h2>
-            <p className="text-xs text-white/50 mt-1">
-              Broadcast urgent delivery deadlines, promotional codes, or atelier notices directly atop every page.
+            <p className="text-xs text-white/60 mt-1">
+              يظهر هذا الشريط في أعلى المتجر للإعلان عن الشحن المجاني أو إطلاق كولكشن جديد أو كود خصم عام.
             </p>
           </div>
 
-          {/* Live Preview */}
-          <div className="space-y-2">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-white/40 block">
-              Storefront Preview
-            </span>
-            <div className={`p-3 text-center text-xs font-mono uppercase tracking-widest transition-all ${
-              banner.enabled ? 'bg-white text-black font-semibold' : 'bg-white/5 text-white/30 border border-dashed border-white/10'
-            }`}>
-              {banner.enabled ? banner.text : '(Banner is currently disabled)'}
+          {/* المعاينة الحية */}
+          <div>
+            <span className="text-[11px] font-mono text-white/50 block mb-1.5">معاينة مباشرة كيف سيظهر للزبون:</span>
+            <div className="bg-black border border-white/20 p-2.5 text-center text-xs font-mono text-amber-300 tracking-wider rounded">
+              {banner.enabled ? banner.text : <span className="text-white/40">الشريط الإعلاني مغلق حالياً ولا يظهر للزبائن</span>}
             </div>
           </div>
 
-          <form onSubmit={handleSaveBanner} className="space-y-5">
-            {/* Enabled Toggle */}
-            <div className="flex items-center justify-between p-4 bg-[#18181D] border border-white/10">
+          <form onSubmit={handleSaveBanner} className="space-y-4 text-xs">
+            <div className="p-3 bg-[#18181E] border border-white/10 rounded flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium uppercase text-white">Display Ribbon</p>
-                <p className="text-[10px] text-white/40 font-mono mt-0.5">Toggle banner visibility live on storefront</p>
+                <span className="font-bold text-white block">إظهار الشريط الإعلاني بالموقع</span>
+                <span className="text-[11px] text-white/50 block">قم بتفعيله أثناء فترات العروض والحملات</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setBanner({ ...banner, enabled: !banner.enabled })}
-                className={`w-12 h-6 flex items-center transition-colors p-1 ${
-                  banner.enabled ? 'bg-emerald-500 justify-end' : 'bg-white/10 justify-start'
-                }`}
-              >
-                <span className="w-4 h-4 bg-white shadow block" />
-              </button>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={banner.enabled}
+                  onChange={(e) => setBanner({ ...banner, enabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-400"></div>
+              </label>
             </div>
 
-            {/* Banner Text */}
-            <div className="space-y-1.5 font-mono">
-              <label className="text-[10px] uppercase tracking-widest text-white/50 block">
-                Announcement Message
-              </label>
-              <textarea
-                rows={2}
-                value={banner.text}
-                onChange={(e) => setBanner({ ...banner, text: e.target.value })}
-                required
-                className="w-full bg-[#18181D] border border-white/15 p-3 text-xs text-white focus:outline-none focus:border-white uppercase"
-              />
-            </div>
-
-            {/* Banner Link */}
-            <div className="space-y-1.5 font-mono">
-              <label className="text-[10px] uppercase tracking-widest text-white/50 block">
-                Target URL Link (Optional)
-              </label>
+            <div>
+              <label className="block text-white/70 font-semibold mb-1">النص الإعلاني المعروض للزبائن *</label>
               <input
                 type="text"
-                value={banner.link || ''}
-                onChange={(e) => setBanner({ ...banner, link: e.target.value })}
-                placeholder="/shop or /collections"
-                className="w-full bg-[#18181D] border border-white/15 p-3 text-xs text-white focus:outline-none focus:border-white"
+                value={banner.text}
+                onChange={(e) => setBanner({ ...banner, text: e.target.value })}
+                placeholder="مثال: شحن مجاني لجميع المحافظات بمناسبة الصيف"
+                className="w-full bg-[#18181E] border border-white/15 p-2.5 rounded text-white text-xs focus:outline-none focus:border-amber-400 font-sans"
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              {bannerSaved && (
-                <span className="text-xs font-mono text-emerald-400 flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Banner updated successfully</span>
-                </span>
-              )}
+            <div>
+              <label className="block text-white/70 font-semibold mb-1">الرابط عند الضغط على الإعلان</label>
+              <input
+                type="text"
+                value={banner.link || '/shop'}
+                onChange={(e) => setBanner({ ...banner, link: e.target.value })}
+                placeholder="/shop"
+                className="w-full bg-[#18181E] border border-white/15 p-2.5 rounded text-white text-xs font-mono focus:outline-none focus:border-amber-400"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center gap-3">
               <button
                 type="submit"
-                className="ml-auto px-6 py-2.5 bg-white text-black text-xs font-medium uppercase tracking-wider hover:bg-white/90 transition-colors shadow"
+                className="flex items-center gap-2 px-5 py-2.5 bg-white text-black font-bold text-xs rounded hover:bg-white/90 transition-all shadow-md"
               >
-                Save Ribbon Settings
+                <Save className="w-4 h-4 text-black" />
+                <span>حفظ ونشر الإعلان لايف على المتجر</span>
               </button>
+
+              {bannerSaved && (
+                <span className="text-emerald-400 text-xs font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4" />
+                  تم الحفظ بنجاح وتحديث المتجر المباشر!
+                </span>
+              )}
             </div>
           </form>
         </div>
       )}
 
-      {/* ── CREATE PROMO CODE MODAL ── */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 5. نافذة منبثقة لإنشاء كود خصم جديد                           */}
+      {/* ───────────────────────────────────────────────────────────── */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="w-full max-w-lg bg-[#151519] border border-white/15 p-6 space-y-5 shadow-2xl text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h3 className="text-sm font-light uppercase tracking-wider text-white">
-                Issue New Privilege Voucher
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div
+            dir="rtl"
+            className="w-full max-w-md bg-[#141418] border border-white/15 rounded-sm p-6 shadow-2xl text-xs space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <h3 className="text-sm font-bold text-white">إنشاء كود خصم جديد للبراند</h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="text-white/40 hover:text-white"
+                className="text-white/50 hover:text-white p-1"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {formError && (
-              <div className="p-3 bg-red-950/40 border border-red-500/30 text-red-300 text-xs font-mono">
+              <div className="p-2.5 bg-red-950/60 border border-red-500/30 text-red-300 rounded text-[11px] font-semibold">
                 {formError}
               </div>
             )}
 
-            <form onSubmit={handleCreatePromo} className="space-y-4 font-mono text-xs">
-              {/* Code Name */}
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase text-white/50 block">Coupon Code</label>
+            <form onSubmit={handleCreatePromo} className="space-y-3.5">
+              <div>
+                <label className="block text-white/70 font-semibold mb-1">اسم الكود (البروموكود) *</label>
                 <input
                   type="text"
                   value={newCodeName}
                   onChange={(e) => setNewCodeName(e.target.value.toUpperCase())}
-                  placeholder="E.G. ATELIER25"
-                  required
-                  className="w-full bg-[#101014] border border-white/15 p-2.5 text-white tracking-wider uppercase focus:outline-none focus:border-white"
+                  placeholder="مثال: VB15 أو VIP2026 أو SUMMER10"
+                  className="w-full bg-[#18181E] border border-white/15 p-2 rounded text-white font-mono font-bold tracking-wider focus:outline-none focus:border-amber-400 uppercase"
                 />
               </div>
 
-              {/* Discount Type & Value */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-white/50 block">Discount Type</label>
+                <div>
+                  <label className="block text-white/70 font-semibold mb-1">نوع الخصم</label>
                   <select
                     value={newCodeType}
                     onChange={(e) => setNewCodeType(e.target.value as any)}
-                    className="w-full bg-[#101014] border border-white/15 p-2.5 text-white focus:outline-none uppercase"
+                    className="w-full bg-[#18181E] border border-white/15 p-2 rounded text-white focus:outline-none focus:border-amber-400"
                   >
-                    <option value="percentage">Percentage (%)</option>
-                    <option value="fixed">Fixed Currency ($)</option>
+                    <option value="percentage">نسبة مئوية (%)</option>
+                    <option value="fixed">مبلغ ثابت (ج.م)</option>
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-white/50 block">
-                    {newCodeType === 'percentage' ? 'Percentage Off (%)' : 'Amount Off ($)'}
+                <div>
+                  <label className="block text-white/70 font-semibold mb-1">
+                    {newCodeType === 'percentage' ? 'نسبة الخصم (%)' : 'قيمة الخصم (ج.م)'} *
                   </label>
                   <input
                     type="number"
                     min="1"
-                    step="0.01"
                     value={newCodeValue}
-                    onChange={(e) => setNewCodeValue(parseFloat(e.target.value) || 0)}
-                    required
-                    className="w-full bg-[#101014] border border-white/15 p-2.5 text-white focus:outline-none"
+                    onChange={(e) => setNewCodeValue(Number(e.target.value))}
+                    className="w-full bg-[#18181E] border border-white/15 p-2 rounded text-white font-mono font-bold focus:outline-none focus:border-amber-400"
                   />
                 </div>
               </div>
 
-              {/* Min Spend & Max Uses */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-white/50 block">Min Cart Spend ($)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={newCodeMinSpend}
-                    onChange={(e) => setNewCodeMinSpend(parseFloat(e.target.value) || 0)}
-                    placeholder="0 = No limit"
-                    className="w-full bg-[#101014] border border-white/15 p-2.5 text-white focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-white/50 block">Max Redemptions</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={newCodeMaxUses}
-                    onChange={(e) => setNewCodeMaxUses(e.target.value)}
-                    placeholder="Leave blank for unlimited"
-                    className="w-full bg-[#101014] border border-white/15 p-2.5 text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Expiration Date */}
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase text-white/50 block">Expiration Date (Optional)</label>
+              <div>
+                <label className="block text-white/70 font-semibold mb-1">الحد الأدنى للشراء بالجنيه (اختياري)</label>
                 <input
-                  type="date"
-                  value={newCodeExpiry}
-                  onChange={(e) => setNewCodeExpiry(e.target.value)}
-                  className="w-full bg-[#101014] border border-white/15 p-2.5 text-white focus:outline-none"
+                  type="number"
+                  min="0"
+                  value={newCodeMinSpend}
+                  onChange={(e) => setNewCodeMinSpend(Number(e.target.value))}
+                  placeholder="0 (بدون حد أدنى)"
+                  className="w-full bg-[#18181E] border border-white/15 p-2 rounded text-white font-mono focus:outline-none focus:border-amber-400"
                 />
+                <span className="text-[10px] text-white/40 block mt-0.5">
+                  مثال: اتركه 0 إذا كان الخصم يعمل على أي طلب مهما كانت قيمته.
+                </span>
               </div>
 
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-white/10">
+              <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-amber-400 hover:bg-amber-300 text-black font-bold rounded transition-colors shadow-md text-xs"
+                >
+                  تفعيل وحفظ الكود
+                </button>
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 border border-white/15 text-white/60 hover:text-white uppercase"
+                  className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors text-xs"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-white text-black font-medium uppercase tracking-wider hover:bg-white/90 shadow"
-                >
-                  Activate Code
+                  إلغاء
                 </button>
               </div>
             </form>

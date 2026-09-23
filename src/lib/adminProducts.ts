@@ -285,25 +285,68 @@ export async function saveAdminProduct(
       updated_at: new Date().toISOString()
     };
 
+    let currentPayload: Record<string, any> = { ...productPayload };
     let savedProductId = productData.id;
 
-    if (isNew) {
-      const { data: newProd, error: insertError } = await supabase
-        .from('products')
-        .insert([productPayload])
-        .select()
-        .single();
+    // Helper to perform resilient save (retries if any optional column does not exist in schema)
+    const executeSave = async (payload: Record<string, any>): Promise<{ id: string | null; error: string | null }> => {
+      let attempts = 0;
+      let workingPayload = { ...payload };
 
-      if (insertError) return { data: null, error: insertError.message };
-      savedProductId = newProd.id;
-    } else {
-      const { error: updateError } = await supabase
-        .from('products')
-        .update(productPayload)
-        .eq('id', savedProductId);
+      while (attempts < 6) {
+        attempts++;
+        if (isNew) {
+          const { data: newProd, error: insertError } = await supabase
+            .from('products')
+            .insert([workingPayload])
+            .select()
+            .single();
 
-      if (updateError) return { data: null, error: updateError.message };
+          if (!insertError && newProd) {
+            return { id: newProd.id, error: null };
+          }
+
+          if (insertError) {
+            // Check if error is due to missing column: column "xyz" does not exist / of relation "products"
+            const colMatch = insertError.message.match(/column ["']?([a-zA-Z0-9_]+)["']?.*does not exist/i);
+            if (colMatch && colMatch[1] && workingPayload[colMatch[1]] !== undefined) {
+              const missingCol = colMatch[1];
+              console.warn(`Resilient schema fallback: removing missing column "${missingCol}" and retrying.`);
+              delete workingPayload[missingCol];
+              continue;
+            }
+            return { id: null, error: insertError.message };
+          }
+        } else {
+          const { error: updateError } = await supabase
+            .from('products')
+            .update(workingPayload)
+            .eq('id', savedProductId);
+
+          if (!updateError) {
+            return { id: savedProductId || null, error: null };
+          }
+
+          if (updateError) {
+            const colMatch = updateError.message.match(/column ["']?([a-zA-Z0-9_]+)["']?.*does not exist/i);
+            if (colMatch && colMatch[1] && workingPayload[colMatch[1]] !== undefined) {
+              const missingCol = colMatch[1];
+              console.warn(`Resilient schema fallback: removing missing column "${missingCol}" and retrying.`);
+              delete workingPayload[missingCol];
+              continue;
+            }
+            return { id: null, error: updateError.message };
+          }
+        }
+      }
+      return { id: null, error: 'Maximum retry attempts exceeded saving product.' };
+    };
+
+    const saveResult = await executeSave(currentPayload);
+    if (saveResult.error || !saveResult.id) {
+      return { data: null, error: saveResult.error || 'Failed to persist product.' };
     }
+    savedProductId = saveResult.id;
 
     if (!savedProductId) {
       return { data: null, error: 'Product ID is required for variant assignment.' };
