@@ -417,12 +417,37 @@ ON CONFLICT (code) DO NOTHING;
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.shipping_zones (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  rate NUMERIC(10, 2) NOT NULL DEFAULT 0,
-  estimated_days TEXT NOT NULL DEFAULT '2-4 business days',
+  governorate TEXT,
+  governorate_ar TEXT,
+  min_days INT NOT NULL DEFAULT 2,
+  max_days INT NOT NULL DEFAULT 4,
+  cod_available BOOLEAN NOT NULL DEFAULT true,
+  shipping_rate NUMERIC(10, 2) NOT NULL DEFAULT 65.00,
+  name TEXT,
+  rate NUMERIC(10, 2) DEFAULT 65.00,
+  estimated_days TEXT DEFAULT '2-4 business days',
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Ensure all required columns exist regardless of previous migrations
+ALTER TABLE public.shipping_zones
+  ADD COLUMN IF NOT EXISTS governorate TEXT,
+  ADD COLUMN IF NOT EXISTS governorate_ar TEXT,
+  ADD COLUMN IF NOT EXISTS min_days INT DEFAULT 2,
+  ADD COLUMN IF NOT EXISTS max_days INT DEFAULT 4,
+  ADD COLUMN IF NOT EXISTS cod_available BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS shipping_rate NUMERIC(10, 2) DEFAULT 65.00,
+  ADD COLUMN IF NOT EXISTS name TEXT,
+  ADD COLUMN IF NOT EXISTS rate NUMERIC(10, 2) DEFAULT 65.00,
+  ADD COLUMN IF NOT EXISTS estimated_days TEXT DEFAULT '2-4 business days',
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+-- Reconcile name and rate values from existing records
+UPDATE public.shipping_zones
+SET name = COALESCE(name, governorate_ar || ' (' || governorate || ')', governorate, 'منطقة شحن'),
+    rate = COALESCE(rate, shipping_rate, 65.00)
+WHERE name IS NULL OR rate IS NULL;
 
 ALTER TABLE public.shipping_zones ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public can view shipping zones" ON public.shipping_zones;
@@ -430,21 +455,22 @@ CREATE POLICY "Public can view shipping zones" ON public.shipping_zones FOR SELE
 DROP POLICY IF EXISTS "Staff can manage shipping zones" ON public.shipping_zones;
 CREATE POLICY "Staff can manage shipping zones" ON public.shipping_zones FOR ALL USING (true);
 
-INSERT INTO public.shipping_zones (name, rate, estimated_days, is_active)
-SELECT 'القاهرة والجيزة (Cairo & Giza)', 65.00, '1-2 أيام عمل', true
-WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Cairo%' OR name LIKE '%القاهرة%');
+-- Seed Egyptian governorate rates safely
+INSERT INTO public.shipping_zones (governorate, governorate_ar, min_days, max_days, cod_available, shipping_rate, name, rate, estimated_days, is_active)
+SELECT 'Cairo', 'القاهرة', 1, 2, true, 65.00, 'القاهرة والجيزة (Cairo & Giza)', 65.00, '1-2 أيام عمل', true
+WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Cairo%' OR name LIKE '%القاهرة%' OR governorate = 'Cairo');
 
-INSERT INTO public.shipping_zones (name, rate, estimated_days, is_active)
-SELECT 'الإسكندرية والبحيرة (Alexandria)', 75.00, '2-3 أيام عمل', true
-WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Alexandria%' OR name LIKE '%الإسكندرية%');
+INSERT INTO public.shipping_zones (governorate, governorate_ar, min_days, max_days, cod_available, shipping_rate, name, rate, estimated_days, is_active)
+SELECT 'Alexandria', 'الإسكندرية', 2, 3, true, 75.00, 'الإسكندرية والبحيرة (Alexandria)', 75.00, '2-3 أيام عمل', true
+WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Alexandria%' OR name LIKE '%الإسكندرية%' OR governorate = 'Alexandria');
 
-INSERT INTO public.shipping_zones (name, rate, estimated_days, is_active)
-SELECT 'مدن الدلتا والقناة (Delta & Canal)', 85.00, '2-4 أيام عمل', true
-WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Delta%' OR name LIKE '%الدلتا%');
+INSERT INTO public.shipping_zones (governorate, governorate_ar, min_days, max_days, cod_available, shipping_rate, name, rate, estimated_days, is_active)
+SELECT 'Delta', 'الدلتا والقناة', 2, 4, true, 85.00, 'مدن الدلتا والقناة (Delta & Canal)', 85.00, '2-4 أيام عمل', true
+WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Delta%' OR name LIKE '%الدلتا%' OR governorate = 'Delta');
 
-INSERT INTO public.shipping_zones (name, rate, estimated_days, is_active)
-SELECT 'الصعيد وشمال/جنوب سيناء (Upper Egypt)', 110.00, '3-5 أيام عمل', true
-WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Upper Egypt%' OR name LIKE '%الصعيد%');
+INSERT INTO public.shipping_zones (governorate, governorate_ar, min_days, max_days, cod_available, shipping_rate, name, rate, estimated_days, is_active)
+SELECT 'Upper Egypt', 'الصعيد وسيناء', 3, 5, true, 110.00, 'الصعيد وشمال/جنوب سيناء (Upper Egypt)', 110.00, '3-5 أيام عمل', true
+WHERE NOT EXISTS (SELECT 1 FROM public.shipping_zones WHERE name LIKE '%Upper Egypt%' OR name LIKE '%الصعيد%' OR governorate = 'Upper Egypt');
 
 
 -- 11. CATEGORIES TABLE
