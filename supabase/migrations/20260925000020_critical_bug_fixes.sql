@@ -9,10 +9,37 @@
 --   6. Products price/archive updates via anon when admin is logged in
 -- =============================================================================
 
--- ─── 1. FIX ORDERS RLS: Allow admin/staff to update orders (was blocked to all) ─
--- The previous policy "orders_no_client_update" blocked ALL updates including admin.
--- Fix: allow update when customer_id matches auth.uid() OR the user is admin/support.
+-- ─── 0. HELPER FUNCTIONS WITH SECURITY DEFINER (Prevents RLS infinite recursion) ──
+CREATE OR REPLACE FUNCTION public.is_admin_or_support()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.customers
+    WHERE id = auth.uid() AND role IN ('admin', 'support')
+  );
+$$;
 
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.customers
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_admin_or_support() TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, anon;
+
+-- ─── 1. FIX ORDERS RLS: Allow admin/staff to update orders (was blocked to all) ─
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "orders_no_client_update" ON public.orders;
@@ -22,10 +49,8 @@ CREATE POLICY "orders_update_admin_or_own"
   FOR UPDATE
   USING (
     customer_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM public.customers c
-      WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-    )
+    OR customer_id IS NULL
+    OR public.is_admin_or_support()
   );
 
 -- Also allow admin to delete orders (for test data purge)
@@ -33,14 +58,9 @@ DROP POLICY IF EXISTS "orders_delete_admin" ON public.orders;
 CREATE POLICY "orders_delete_admin"
   ON public.orders
   FOR DELETE
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.customers c
-      WHERE c.id = auth.uid() AND c.role = 'admin'
-    )
-  );
+  USING (public.is_admin());
 
--- Fix SELECT: admin can see ALL orders (not just own or guest)
+-- Fix SELECT: admin can see ALL orders, user sees own or guest orders
 DROP POLICY IF EXISTS "orders_select_own" ON public.orders;
 DROP POLICY IF EXISTS "orders_select_admin_or_own" ON public.orders;
 CREATE POLICY "orders_select_admin_or_own"
@@ -49,10 +69,18 @@ CREATE POLICY "orders_select_admin_or_own"
   USING (
     customer_id = auth.uid()
     OR customer_id IS NULL
-    OR EXISTS (
-      SELECT 1 FROM public.customers c
-      WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-    )
+    OR public.is_admin_or_support()
+  );
+
+-- Allow order creation from checkout (guest or authenticated)
+DROP POLICY IF EXISTS "orders_insert_checkout" ON public.orders;
+CREATE POLICY "orders_insert_checkout"
+  ON public.orders
+  FOR INSERT
+  WITH CHECK (
+    customer_id = auth.uid()
+    OR customer_id IS NULL
+    OR public.is_admin_or_support()
   );
 
 -- ─── 2. FIX ORDER_ITEMS RLS: Admin can see all order items ────────────────────
@@ -70,85 +98,60 @@ CREATE POLICY "order_items_select_admin_or_own"
         AND (
           o.customer_id = auth.uid()
           OR o.customer_id IS NULL
-          OR EXISTS (
-            SELECT 1 FROM public.customers c
-            WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-          )
+          OR public.is_admin_or_support()
         )
     )
   );
+
+DROP POLICY IF EXISTS "order_items_insert_checkout" ON public.order_items;
+CREATE POLICY "order_items_insert_checkout"
+  ON public.order_items
+  FOR INSERT
+  WITH CHECK (true);
 
 -- Admin can update/delete order_items too
 DROP POLICY IF EXISTS "order_items_update_admin" ON public.order_items;
 CREATE POLICY "order_items_update_admin"
   ON public.order_items
   FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.customers c
-      WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-    )
-  );
+  USING (public.is_admin_or_support());
 
 DROP POLICY IF EXISTS "order_items_delete_admin" ON public.order_items;
 CREATE POLICY "order_items_delete_admin"
   ON public.order_items
   FOR DELETE
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.customers c
-      WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-    )
-  );
+  USING (public.is_admin_or_support());
 
 -- ─── 3. FIX CUSTOMERS TABLE RLS ───────────────────────────────────────────────
 -- The previous policy used auth_id = auth.uid() but the column is named 'id'.
 -- This caused customers to not be able to read/update their own profile.
+
 
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'customers' AND table_schema = 'public') THEN
     ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 
-    -- Allow customers to read their own row (using id not auth_id)
+    -- Allow customers to read their own row (using id not auth_id) or admin
     DROP POLICY IF EXISTS "customers_select_own" ON public.customers;
-    CREATE POLICY "customers_select_own"
+    DROP POLICY IF EXISTS "customers_select_admin" ON public.customers;
+    DROP POLICY IF EXISTS "customers_select_own_or_admin" ON public.customers;
+    CREATE POLICY "customers_select_own_or_admin"
       ON public.customers FOR SELECT
-      USING (id = auth.uid());
+      USING (id = auth.uid() OR public.is_admin_or_support());
 
-    -- Allow customers to update their own row
+    -- Allow customers to update their own row or admin
     DROP POLICY IF EXISTS "customers_update_own" ON public.customers;
+    DROP POLICY IF EXISTS "customers_update_admin" ON public.customers;
     CREATE POLICY "customers_update_own"
       ON public.customers FOR UPDATE
-      USING (id = auth.uid());
+      USING (id = auth.uid() OR public.is_admin());
 
     -- Allow new authenticated user to insert their own customer row
     DROP POLICY IF EXISTS "customers_insert_own" ON public.customers;
     CREATE POLICY "customers_insert_own"
       ON public.customers FOR INSERT
-      WITH CHECK (id = auth.uid());
-
-    -- Admin can read all customers
-    DROP POLICY IF EXISTS "customers_select_admin" ON public.customers;
-    CREATE POLICY "customers_select_admin"
-      ON public.customers FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM public.customers c
-          WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-        )
-      );
-
-    -- Admin can update all customers (for role assignment)
-    DROP POLICY IF EXISTS "customers_update_admin" ON public.customers;
-    CREATE POLICY "customers_update_admin"
-      ON public.customers FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM public.customers c
-          WHERE c.id = auth.uid() AND c.role = 'admin'
-        )
-      );
+      WITH CHECK (id = auth.uid() OR public.is_admin());
   END IF;
 END $$;
 
@@ -164,33 +167,20 @@ CREATE POLICY "products_select_all_or_admin"
   ON public.products FOR SELECT
   USING (
     (is_published = true AND is_archived = false)
-    OR EXISTS (
-      SELECT 1 FROM public.customers c
-      WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-    )
+    OR public.is_admin_or_support()
   );
 
 -- Allow admin INSERT (create new products)
 DROP POLICY IF EXISTS "Staff can insert products" ON public.products;
 CREATE POLICY "Staff can insert products"
   ON public.products FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.customers c
-      WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-    )
-  );
+  WITH CHECK (public.is_admin_or_support());
 
 -- Allow admin UPDATE
 DROP POLICY IF EXISTS "Staff can update products" ON public.products;
 CREATE POLICY "Staff can update products"
   ON public.products FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.customers c
-      WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-    )
-  );
+  USING (public.is_admin_or_support());
 
 -- ─── 5. FIX PRODUCT_VARIANTS RLS ─────────────────────────────────────────────
 DO $$
@@ -206,12 +196,7 @@ BEGIN
     DROP POLICY IF EXISTS "Staff can manage product variants" ON public.product_variants;
     CREATE POLICY "Staff can manage product variants"
       ON public.product_variants FOR ALL
-      USING (
-        EXISTS (
-          SELECT 1 FROM public.customers c
-          WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-        )
-      );
+      USING (public.is_admin_or_support());
   END IF;
 END $$;
 
@@ -229,12 +214,7 @@ BEGIN
     DROP POLICY IF EXISTS "Staff can manage product images" ON public.product_images;
     CREATE POLICY "Staff can manage product images"
       ON public.product_images FOR ALL
-      USING (
-        EXISTS (
-          SELECT 1 FROM public.customers c
-          WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
-        )
-      );
+      USING (public.is_admin_or_support());
   END IF;
 END $$;
 

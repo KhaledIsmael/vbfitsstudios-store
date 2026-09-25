@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import {
@@ -8,6 +8,7 @@ import {
   type WishlistProduct
 } from '../lib/wishlist';
 import { linkPastOrdersToCustomer } from '../lib/orders';
+import { PRODUCTS } from '../config/assets';
 
 export interface OrderItem {
   id: string;
@@ -186,6 +187,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
+const GUEST_WISHLIST_KEY = 'vbfits_guest_wishlist';
+
+function getLocalGuestWishlist(): WishlistProduct[] {
+  try {
+    const raw = localStorage.getItem(GUEST_WISHLIST_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setLocalGuestWishlist(items: WishlistProduct[]) {
+  try {
+    localStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(items));
+  } catch {}
+}
+
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -194,24 +212,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [wishlistProducts, setWishlistProducts] = useState<WishlistProduct[]>([]);
   const [wishlistLoading, setWishlistLoading] = useState(false);
 
-  // Derived set of saved product IDs for O(1) isItemSaved lookups
-  const savedIdSet = new Set(wishlistProducts.map((w) => w.productId));
+  // Derived set of saved product IDs and slugs for O(1) isItemSaved lookups
+  const savedIdSet = useMemo(() => {
+    const set = new Set<string>();
+    wishlistProducts.forEach((w) => {
+      if (w.productId) set.add(w.productId);
+      if (w.slug) set.add(w.slug);
+    });
+    return set;
+  }, [wishlistProducts]);
 
-  // ── Load wishlist from Supabase whenever the user changes ──────────────────
+  // ── Load wishlist from Supabase or guest localStorage whenever user changes ──
   useEffect(() => {
     if (!supabaseUser?.id) {
-      setWishlistProducts([]);
+      const guestItems = getLocalGuestWishlist();
+      setWishlistProducts(guestItems);
       return;
     }
 
     setWishlistLoading(true);
-    getWishlist(supabaseUser.id)
+
+    // If there were guest items saved before logging in, sync them to Supabase
+    const guestItems = getLocalGuestWishlist();
+    const syncGuestItems = async () => {
+      if (guestItems.length > 0) {
+        for (const item of guestItems) {
+          await addToWishlist(supabaseUser.id, item.productId || item.slug);
+        }
+        localStorage.removeItem(GUEST_WISHLIST_KEY);
+      }
+      return getWishlist(supabaseUser.id);
+    };
+
+    syncGuestItems()
       .then((items) => {
         setWishlistProducts(items);
-        // Keep user.savedItems in sync for components that read it directly
         setUser((prev) =>
           prev ? { ...prev, savedItems: items.map((i) => i.productId) } : null
         );
+      })
+      .catch((err) => {
+        console.warn('Error loading wishlist:', err);
       })
       .finally(() => setWishlistLoading(false));
   }, [supabaseUser?.id]);
@@ -358,50 +399,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setWishlistProducts([]);
   };
 
-  // ── Wishlist toggle (optimistic) ───────────────────────────────────────────
+  // ── Wishlist toggle (optimistic & guest-supported) ────────────────────────
   const toggleSaveItem = (productId: string) => {
-    if (!supabaseUser?.id) return; // guests can't wishlist
+    if (!productId) return;
 
     const alreadySaved = savedIdSet.has(productId);
 
     if (alreadySaved) {
       // Optimistic remove
-      setWishlistProducts((prev) => prev.filter((w) => w.productId !== productId));
+      const updated = wishlistProducts.filter(
+        (w) => w.productId !== productId && w.slug !== productId
+      );
+      setWishlistProducts(updated);
       setUser((prev) =>
         prev
           ? { ...prev, savedItems: prev.savedItems.filter((id) => id !== productId) }
           : null
       );
-      // Persist to Supabase (fire-and-forget; log on failure)
+
+      if (!supabaseUser?.id) {
+        setLocalGuestWishlist(updated);
+        return;
+      }
+
       removeFromWishlist(supabaseUser.id, productId).then(({ error }) => {
         if (error) {
           console.warn('removeFromWishlist failed — rolling back:', error);
-          // Roll-back: re-fetch wishlist
           getWishlist(supabaseUser.id).then(setWishlistProducts);
         }
       });
     } else {
-      // Optimistic add — placeholder until the full join comes back
-      const placeholder: WishlistProduct = {
-        wishlistId: `optimistic-${productId}`,
+      // Find product data from catalog for instant rich display
+      const found = PRODUCTS.find((p) => p.id === productId || p.slug === productId);
+      const newEntry: WishlistProduct = {
+        wishlistId: `item-${Date.now()}-${productId}`,
         productId,
-        name: '',
-        price: 0,
-        currency: 'USD',
-        image: '',
-        slug: ''
+        name: found?.name || 'Saved Silhouette',
+        price: found?.price || 0,
+        currency: found?.currency || 'EGP',
+        image: found?.images?.[0] || '/assets/products/placeholder.jpeg',
+        slug: found?.slug || productId
       };
-      setWishlistProducts((prev) => [placeholder, ...prev]);
+
+      const updated = [newEntry, ...wishlistProducts];
+      setWishlistProducts(updated);
       setUser((prev) =>
         prev ? { ...prev, savedItems: [productId, ...(prev.savedItems ?? [])] } : null
       );
-      // Persist then replace placeholder with real join data
+
+      if (!supabaseUser?.id) {
+        setLocalGuestWishlist(updated);
+        return;
+      }
+
       addToWishlist(supabaseUser.id, productId).then(({ error }) => {
         if (error) {
           console.warn('addToWishlist failed — rolling back:', error);
-          setWishlistProducts((prev) => prev.filter((w) => w.productId !== productId));
+          setWishlistProducts((prev) =>
+            prev.filter((w) => w.productId !== productId && w.slug !== productId)
+          );
         } else {
-          // Refresh to get the joined product data
           getWishlist(supabaseUser.id).then(setWishlistProducts);
         }
       });

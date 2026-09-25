@@ -188,12 +188,12 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
           id="filter-price-slider"
           type="range"
           min="100"
-          max="500"
-          step="10"
+          max="5000"
+          step="50"
           value={maxPrice}
           aria-label="Maximum price filter"
           aria-valuemin={100}
-          aria-valuemax={500}
+          aria-valuemax={5000}
           aria-valuenow={maxPrice}
           aria-valuetext={`${maxPrice} EGP`}
           onChange={(e) => onMaxPriceChange(Number(e.target.value))}
@@ -201,8 +201,8 @@ export const FilterSortBar: React.FC<FilterSortBarProps> = ({
         />
         <div className="flex justify-between text-[10px] text-[#888888] font-mono" aria-hidden="true">
           <span>100 EGP</span>
-          <span>300 EGP</span>
-          <span>500 EGP</span>
+          <span>2,500 EGP</span>
+          <span>5,000 EGP</span>
         </div>
       </div>
 

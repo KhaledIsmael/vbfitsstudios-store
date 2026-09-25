@@ -620,7 +620,7 @@ export const ProfilePage: React.FC = () => {
                 {savedProducts.map((item) => (
                   <Link
                     key={item.productId}
-                    to={`/product/${item.productId}`}
+                    to={`/product/${item.slug || item.productId}`}
                     className="group block border border-[#EAEAEA] hover:border-black transition-colors bg-white"
                   >
                     {/* Thumbnail */}

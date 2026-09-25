@@ -21,6 +21,7 @@ export interface MediaItem {
 
 export interface Product {
   id: string;
+  slug?: string;
   name: string;
   subtitle?: string;
   price: number;

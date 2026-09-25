@@ -43,6 +43,8 @@ function serializeList(arr: string[]): string {
   return arr.join(',');
 }
 
+const DEFAULT_MAX_PRICE = 5000;
+
 // ─── Shop Page ────────────────────────────────────────────────────────────────
 export const ShopPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -55,7 +57,7 @@ export const ShopPage: React.FC = () => {
     searchParams.get('category') || 'all'
   );
   const [maxPrice, setMaxPriceRaw] = useState<number>(
-    Number(searchParams.get('maxPrice') || 500)
+    Number(searchParams.get('maxPrice') || DEFAULT_MAX_PRICE)
   );
   const [selectedSizes, setSelectedSizesRaw] = useState<string[]>(
     parseList(searchParams.get('sizes'))
@@ -79,12 +81,14 @@ export const ShopPage: React.FC = () => {
     { id: 'all', name: 'All Categories', slug: 'all' }
   ]);
 
+  const isPriceFiltered = searchParams.has('maxPrice') || maxPrice < DEFAULT_MAX_PRICE;
+
   // ── Sync filter state → URL (replaces history so back button works cleanly) ──
   const syncUrl = useCallback((updates: Record<string, string | null>) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       Object.entries(updates).forEach(([k, v]) => {
-        if (!v || v === 'all' || v === '500' || v === '' || v === '0') {
+        if (!v || v === 'all' || v === String(DEFAULT_MAX_PRICE) || v === '' || v === '0') {
           next.delete(k);
         } else {
           next.set(k, v);
@@ -105,7 +109,7 @@ export const ShopPage: React.FC = () => {
   };
   const setMaxPrice = (v: number) => {
     setMaxPriceRaw(v);
-    syncUrl({ maxPrice: String(v) });
+    syncUrl({ maxPrice: v >= DEFAULT_MAX_PRICE ? null : String(v) });
   };
   const setSelectedSizes = (v: string[] | ((prev: string[]) => string[])) => {
     setSelectedSizesRaw((prev) => {
@@ -145,7 +149,7 @@ export const ShopPage: React.FC = () => {
     getFilteredProducts({
       collectionFilter,
       category: selectedCategory,
-      maxPrice,
+      maxPrice: isPriceFiltered ? maxPrice : undefined,
       sizes: selectedSizes,
       colors: selectedColors,
       inStockOnly,
@@ -159,7 +163,7 @@ export const ShopPage: React.FC = () => {
     });
 
     return () => { isCurrent = false; };
-  }, [collectionFilter, selectedCategory, maxPrice, selectedSizes, selectedColors, inStockOnly, sortBy]);
+  }, [collectionFilter, selectedCategory, maxPrice, isPriceFiltered, selectedSizes, selectedColors, inStockOnly, sortBy]);
 
   const handleToggleSize = (size: string) =>
     setSelectedSizes((prev) => prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]);
@@ -169,7 +173,7 @@ export const ShopPage: React.FC = () => {
 
   const handleResetFilters = () => {
     setSelectedCategoryRaw('all');
-    setMaxPriceRaw(500);
+    setMaxPriceRaw(DEFAULT_MAX_PRICE);
     setSelectedSizesRaw([]);
     setSelectedColorsRaw([]);
     setInStockOnlyRaw(false);
@@ -185,12 +189,12 @@ export const ShopPage: React.FC = () => {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (selectedCategory !== 'all') count += 1;
-    if (maxPrice < 500) count += 1;
+    if (isPriceFiltered) count += 1;
     count += selectedSizes.length;
     count += selectedColors.length;
     if (inStockOnly) count += 1;
     return count;
-  }, [selectedCategory, maxPrice, selectedSizes, selectedColors, inStockOnly]);
+  }, [selectedCategory, isPriceFiltered, selectedSizes, selectedColors, inStockOnly]);
 
   return (
     <div className="pt-24 sm:pt-32 min-h-screen bg-white">
@@ -324,8 +328,8 @@ export const ShopPage: React.FC = () => {
                       <span>Category: {selectedCategory}</span><span className="text-xs">×</span>
                     </button>
                   )}
-                  {maxPrice < 500 && (
-                    <button type="button" onClick={() => setMaxPrice(500)}
+                  {isPriceFiltered && (
+                    <button type="button" onClick={() => setMaxPrice(DEFAULT_MAX_PRICE)}
                       className="text-[11px] font-mono px-3 py-1 bg-white border border-[#CCCCCC] hover:border-black text-black flex items-center gap-1.5 transition-colors">
                       <span>Under {maxPrice} EGP</span><span className="text-xs">×</span>
                     </button>

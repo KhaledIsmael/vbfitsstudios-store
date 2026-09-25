@@ -115,7 +115,8 @@ function mapSupabaseToProduct(row: SupabaseProductRow): Product {
   });
 
   return {
-    id: row.slug || row.id,
+    id: row.id || row.slug,
+    slug: row.slug || row.id,
     name: row.name,
     subtitle: row.subtitle || undefined,
     price: Number(row.price),
@@ -179,8 +180,14 @@ function applyCatalogOverrides(baseProducts: Product[], overrides: Record<string
   }
 
   const map = new Map<string, Product>();
+  const productList: Product[] = [];
+
   baseProducts.forEach((p) => {
-    map.set(p.id, { ...p });
+    const clone = { ...p };
+    productList.push(clone);
+    map.set(clone.id, clone);
+    if (clone.slug) map.set(clone.slug, clone);
+    if (clone.name) map.set(clone.name.trim().toLowerCase(), clone);
   });
 
   // Track which IDs are archived or updated
@@ -193,13 +200,18 @@ function applyCatalogOverrides(baseProducts: Product[], overrides: Record<string
       archivedIds.add(key);
       if (override.id) archivedIds.add(override.id);
       if (override.slug) archivedIds.add(override.slug);
+      if (override.name) archivedIds.add(override.name.trim().toLowerCase());
       map.delete(key);
       if (override.id) map.delete(override.id);
       if (override.slug) map.delete(override.slug);
       return;
     }
 
-    const target = map.get(key) || (override.id && map.get(override.id)) || (override.slug && map.get(override.slug));
+    const target =
+      map.get(key) ||
+      (override.id && map.get(override.id)) ||
+      (override.slug && map.get(override.slug)) ||
+      (override.name && map.get(override.name.trim().toLowerCase()));
 
     if (target) {
       if (override.price !== undefined) target.price = Number(override.price);
@@ -232,7 +244,8 @@ function applyCatalogOverrides(baseProducts: Product[], overrides: Record<string
       const overrideImages = (override.images || []).map((img: any) => img.url || img);
       const prodColor = override.variants?.[0]?.color || 'Black';
       const newProduct: Product = {
-        id: override.slug || override.id || key,
+        id: override.id || override.slug || key,
+        slug: override.slug || override.id || key,
         name: override.name,
         subtitle: override.subtitle || undefined,
         price: Number(override.price),
@@ -260,11 +273,13 @@ function applyCatalogOverrides(baseProducts: Product[], overrides: Record<string
         fabricCare: Array.isArray(override.fabric_care) ? override.fabric_care : [],
         shippingInfo: override.shipping_info || 'Complimentary express shipping across Egypt.'
       };
+      productList.push(newProduct);
       map.set(newProduct.id, newProduct);
+      if (newProduct.slug) map.set(newProduct.slug, newProduct);
     }
   });
 
-  return Array.from(map.values()).filter((p) => !archivedIds.has(p.id));
+  return Array.from(new Set(productList)).filter((p) => !archivedIds.has(p.id) && (!p.slug || !archivedIds.has(p.slug)));
 }
 
 /**
@@ -471,7 +486,7 @@ export async function getFilteredProducts(params: ProductFilterParams = {}): Pro
     if (params.minPrice !== undefined && params.minPrice > 0) {
       query = query.gte('price', params.minPrice);
     }
-    if (params.maxPrice !== undefined && params.maxPrice < 1000) {
+    if (params.maxPrice !== undefined && params.maxPrice < 10000) {
       query = query.lte('price', params.maxPrice);
     }
 
@@ -540,8 +555,8 @@ export async function getFilteredProducts(params: ProductFilterParams = {}): Pro
     if (params.minPrice !== undefined && params.minPrice > 0) {
       results = results.filter((p) => p.price >= (params.minPrice || 0));
     }
-    if (params.maxPrice !== undefined && params.maxPrice < 1000) {
-      results = results.filter((p) => p.price <= (params.maxPrice || 1000));
+    if (params.maxPrice !== undefined && params.maxPrice < 10000) {
+      results = results.filter((p) => p.price <= (params.maxPrice || 10000));
     }
 
     // Size filter

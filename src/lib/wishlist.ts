@@ -10,6 +10,9 @@ export interface WishlistProduct {
   slug: string;
 }
 
+const isUuid = (str: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
 /**
  * Fetches all wishlist entries for a user, joined with product data.
  * Returns an empty array on any error so callers can handle gracefully.
@@ -71,20 +74,42 @@ export async function getWishlist(userId: string): Promise<WishlistProduct[]> {
 }
 
 /**
- * Adds a product to the user's wishlist. Silently ignores duplicate-key conflicts.
+ * Adds a product to the user's wishlist.
+ * Resolves slug to UUID if needed. Silently ignores duplicate-key conflicts.
  */
 export async function addToWishlist(
   userId: string,
   productId: string
 ): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from('wishlists')
-    .insert({ customer_id: userId, product_id: productId });
+  try {
+    let resolvedUuid = productId;
 
-  if (error && !error.message.includes('duplicate') && !error.code?.includes('23505')) {
-    return { error: error.message };
+    if (!isUuid(productId)) {
+      const { data } = await supabase
+        .from('products')
+        .select('id')
+        .eq('slug', productId)
+        .maybeSingle();
+
+      if (data?.id) {
+        resolvedUuid = data.id;
+      } else {
+        console.warn('Could not resolve product UUID for slug:', productId);
+        return { error: null };
+      }
+    }
+
+    const { error } = await supabase
+      .from('wishlists')
+      .insert({ customer_id: userId, product_id: resolvedUuid });
+
+    if (error && !error.message.includes('duplicate') && !error.code?.includes('23505')) {
+      return { error: error.message };
+    }
+    return { error: null };
+  } catch (err: any) {
+    return { error: err?.message || 'Failed to add to wishlist' };
   }
-  return { error: null };
 }
 
 /**
@@ -94,12 +119,30 @@ export async function removeFromWishlist(
   userId: string,
   productId: string
 ): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from('wishlists')
-    .delete()
-    .eq('customer_id', userId)
-    .eq('product_id', productId);
+  try {
+    let resolvedUuid = productId;
 
-  if (error) return { error: error.message };
-  return { error: null };
+    if (!isUuid(productId)) {
+      const { data } = await supabase
+        .from('products')
+        .select('id')
+        .eq('slug', productId)
+        .maybeSingle();
+
+      if (data?.id) {
+        resolvedUuid = data.id;
+      }
+    }
+
+    const { error } = await supabase
+      .from('wishlists')
+      .delete()
+      .eq('customer_id', userId)
+      .eq('product_id', resolvedUuid);
+
+    if (error) return { error: error.message };
+    return { error: null };
+  } catch (err: any) {
+    return { error: err?.message || 'Failed to remove from wishlist' };
+  }
 }
