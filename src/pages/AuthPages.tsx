@@ -9,6 +9,9 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const navigate = useNavigate();
 
   // Active countdown timer for security lockout / exponential backoff
@@ -19,6 +22,45 @@ export const LoginPage: React.FC = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, [lockoutSeconds]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handleResendEmail = async () => {
+    if (!email.trim()) {
+      setError('Please enter your email address first.');
+      return;
+    }
+    if (resendCooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setResendSuccess(false);
+    setError(null);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      if (resendError) {
+        setError(resendError.message);
+      } else {
+        setResendSuccess(true);
+        setResendCooldown(60);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to resend verification email.');
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +92,8 @@ export const LoginPage: React.FC = () => {
           const lockTime = 60;
           setLockoutSeconds(lockTime);
           setError(`Supabase Auth security rate limit engaged. Too many authentication attempts. Please wait ${lockTime} seconds before retrying.`);
+        } else if (errMsg.includes('email not confirmed') || errMsg.includes('unconfirmed')) {
+          setError('Email not confirmed yet. Please check your inbox or resend the verification email.');
         } else if (nextAttempts >= 3) {
           // Exponential backoff: 3rd fail = 5s, 4th fail = 10s, 5th fail = 20s, 6th fail = 40s, 7+ fail = 60s
           const exponent = nextAttempts - 3;
@@ -118,20 +162,51 @@ export const LoginPage: React.FC = () => {
           </div>
         )}
 
-        {/* Error Alert */}
-        {error && (
-          <div
-            className="p-4 bg-[#FFF5F5] border border-[#FEB2B2] text-xs text-[#C53030] flex items-center justify-between animate-fade-in"
-            role="alert"
-          >
-            <span>{error}</span>
+        {/* Resend Success Alert */}
+        {resendSuccess && (
+          <div className="p-4 bg-[#F0FDF4] border border-[#BBF7D0] text-xs text-[#166534] flex items-center justify-between animate-fade-in font-medium">
+            <span>Verification email resent successfully! Please check your inbox.</span>
             <button
-              onClick={() => setError(null)}
-              className="text-[#C53030] hover:text-black font-semibold ml-3"
-              aria-label="Dismiss error"
+              onClick={() => setResendSuccess(false)}
+              className="text-[#166534] hover:text-black font-semibold ml-3"
             >
               ×
             </button>
+          </div>
+        )}
+
+        {/* Error Alert */}
+        {error && (
+          <div
+            className="p-4 bg-[#FFF5F5] border border-[#FEB2B2] text-xs text-[#C53030] space-y-2 animate-fade-in"
+            role="alert"
+          >
+            <div className="flex items-center justify-between">
+              <span>{error}</span>
+              <button
+                onClick={() => setError(null)}
+                className="text-[#C53030] hover:text-black font-semibold ml-3"
+                aria-label="Dismiss error"
+              >
+                ×
+              </button>
+            </div>
+            {(error.toLowerCase().includes('not confirmed') || error.toLowerCase().includes('unconfirmed')) && (
+              <div className="pt-2 border-t border-[#FEB2B2]/40 text-right">
+                <button
+                  type="button"
+                  onClick={handleResendEmail}
+                  disabled={resendCooldown > 0 || resendLoading}
+                  className="text-[11px] uppercase tracking-luxury text-[#9B2C2C] underline font-semibold hover:text-black disabled:opacity-50"
+                >
+                  {resendLoading
+                    ? 'Sending…'
+                    : resendCooldown > 0
+                    ? `Resend in ${resendCooldown}s`
+                    : 'Resend Verification Email Now'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
