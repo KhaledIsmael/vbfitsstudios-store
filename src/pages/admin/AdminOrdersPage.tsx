@@ -3,6 +3,7 @@ import {
   fetchAdminOrders,
   updateOrderStatus,
   updateOrderInternalNotes,
+  getOrderCarrierTrackingUrl,
   type AdminOrder,
   type AdminOrderItem
 } from '../../lib/adminOrders';
@@ -31,7 +32,8 @@ import {
   Eye,
   AlertCircle,
   Download,
-  Trash2
+  Trash2,
+  ExternalLink
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -55,6 +57,12 @@ export const AdminOrdersPage: React.FC = () => {
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesSavedSuccess, setNotesSavedSuccess] = useState(false);
 
+  // Carrier tracking form state in detail drawer
+  const [drawerCarrier, setDrawerCarrier] = useState<string>('Bosta');
+  const [drawerTracking, setDrawerTracking] = useState<string>('');
+  const [trackingSaving, setTrackingSaving] = useState(false);
+  const [trackingSavedSuccess, setTrackingSavedSuccess] = useState(false);
+
   const loadOrders = async () => {
     setLoading(true);
     try {
@@ -71,26 +79,83 @@ export const AdminOrdersPage: React.FC = () => {
     loadOrders();
   }, []);
 
-  // Update notes input whenever a new order is selected
+  // Update drawer state whenever a new order is selected
   useEffect(() => {
     if (selectedOrder) {
       setInternalNotesInput(selectedOrder.internal_notes || '');
       setNotesSavedSuccess(false);
+      setDrawerCarrier(selectedOrder.shipping_company || 'Bosta');
+      setDrawerTracking(selectedOrder.tracking_number || '');
+      setTrackingSavedSuccess(false);
     }
   }, [selectedOrder]);
 
   // Handle changing status
   const handleStatusChange = async (orderId: string, newStatus: string) => {
-    const res = await updateOrderStatus(orderId, newStatus);
+    const cur = orders.find((o) => o.id === orderId) || selectedOrder;
+    const res = await updateOrderStatus(orderId, newStatus, cur ? {
+      email: cur.customer_email || '',
+      name: cur.customer_name || '',
+      orderNumber: cur.order_number,
+      trackingNumber: drawerTracking || cur.tracking_number,
+      shippingCompany: drawerCarrier || cur.shipping_company,
+      currency: cur.currency,
+      total: cur.total
+    } : undefined);
+
     if (!res.error) {
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+        prev.map((o) => (o.id === orderId ? {
+          ...o,
+          status: newStatus,
+          tracking_number: drawerTracking || o.tracking_number,
+          shipping_company: drawerCarrier || o.shipping_company
+        } : o))
       );
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
+        setSelectedOrder((prev) => (prev ? {
+          ...prev,
+          status: newStatus,
+          tracking_number: drawerTracking || prev.tracking_number,
+          shipping_company: drawerCarrier || prev.shipping_company
+        } : null));
       }
     } else {
       alert(`عذراً، لم نتمكن من تحديث الحالة: ${res.error || 'خطأ غير معروف'}`);
+    }
+  };
+
+  const handleSaveTracking = async () => {
+    if (!selectedOrder) return;
+    setTrackingSaving(true);
+    setTrackingSavedSuccess(false);
+    const res = await updateOrderStatus(selectedOrder.id, selectedOrder.status, {
+      email: selectedOrder.customer_email || '',
+      name: selectedOrder.customer_name || '',
+      orderNumber: selectedOrder.order_number,
+      trackingNumber: drawerTracking,
+      shippingCompany: drawerCarrier,
+      currency: selectedOrder.currency,
+      total: selectedOrder.total
+    });
+    setTrackingSaving(false);
+    if (!res.error) {
+      setTrackingSavedSuccess(true);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === selectedOrder.id ? {
+          ...o,
+          tracking_number: drawerTracking,
+          shipping_company: drawerCarrier
+        } : o))
+      );
+      setSelectedOrder((prev) => (prev ? {
+        ...prev,
+        tracking_number: drawerTracking,
+        shipping_company: drawerCarrier
+      } : null));
+      setTimeout(() => setTrackingSavedSuccess(false), 2500);
+    } else {
+      alert(`تعذر حفظ التتبع: ${res.error || 'خطأ غير معروف'}`);
     }
   };
 
@@ -519,7 +584,7 @@ export const AdminOrdersPage: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4">
-                        {order.payment_method === 'COD' ? (
+                        {(order.payment_method === 'COD' || order.payment_method === 'Cash on Delivery' || (order as any).payment_status === 'pending_collection' || (order as any).notes?.toLowerCase().includes('cash on delivery') || (order as any).notes?.toLowerCase().includes('cod')) ? (
                           <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-zinc-100 text-zinc-800 border border-zinc-200">
                             كاش عند الاستلام
                           </span>
@@ -611,8 +676,8 @@ export const AdminOrdersPage: React.FC = () => {
               </div>
 
               {/* تحديث حالة الطلب السريع */}
-              <div className="my-5 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <div className="flex items-center justify-between mb-2.5">
+              <div className="my-5 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold text-slate-800">تحديث حالة الشحن:</span>
                     <AdminInfoTooltip
@@ -642,6 +707,85 @@ export const AdminOrdersPage: React.FC = () => {
                       {st.label}
                     </button>
                   ))}
+                </div>
+
+                {/* ربط شركة الشحن ورقم التتبع */}
+                <div className="pt-3 border-t border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-zinc-600" />
+                      <span>بيانات شركة الشحن والتتبع:</span>
+                    </span>
+                    {getOrderCarrierTrackingUrl(selectedOrder.tracking_number, selectedOrder.shipping_company) && (
+                      <a
+                        href={getOrderCarrierTrackingUrl(selectedOrder.tracking_number, selectedOrder.shipping_company)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-bold"
+                      >
+                        <span>تتبع الشحنة لايف</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <label className="text-[10px] text-slate-500 font-bold block mb-1">شركة الشحن (Carrier)</label>
+                      <select
+                        value={drawerCarrier}
+                        onChange={(e) => setDrawerCarrier(e.target.value)}
+                        className="w-full bg-white border border-slate-200 p-2 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-zinc-900"
+                      >
+                        <option value="Bosta">Bosta (بوسطة)</option>
+                        <option value="Aramex">Aramex (أرامكس)</option>
+                        <option value="DHL">DHL Express</option>
+                        <option value="Egypt Post">البريد المصري</option>
+                        <option value="Courier">مندوب شحن خاص</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-500 font-bold block mb-1">رقم البوليصة / التتبع (AWB)</label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={drawerTracking}
+                          onChange={(e) => setDrawerTracking(e.target.value)}
+                          placeholder="مثال: 45892100"
+                          className="w-full bg-white border border-slate-200 p-2 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-zinc-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveTracking}
+                          disabled={trackingSaving}
+                          className="px-3 py-2 bg-zinc-900 text-white rounded-lg text-xs font-bold hover:bg-black transition-colors whitespace-nowrap cursor-pointer"
+                        >
+                          {trackingSaving ? '...' : trackingSavedSuccess ? '✓' : 'حفظ'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* طريقة الدفع وموقف التحصيل */}
+                <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">طريقة الدفع وموقف التحصيل:</span>
+                    <span className="font-bold text-slate-900">
+                      {(selectedOrder.payment_method === 'COD' || (selectedOrder as any).payment_status === 'pending_collection' || (selectedOrder as any).notes?.toLowerCase().includes('cash on delivery') || (selectedOrder as any).notes?.toLowerCase().includes('cod'))
+                        ? 'الدفع عند الاستلام (COD)'
+                        : 'دفع إلكتروني (بطاقة بنكية / محفظة)'}
+                    </span>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded text-[10px] font-bold ${
+                    (selectedOrder.payment_method === 'COD' || (selectedOrder as any).payment_status === 'pending_collection' || (selectedOrder as any).notes?.toLowerCase().includes('cash on delivery') || (selectedOrder as any).notes?.toLowerCase().includes('cod'))
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  }`}>
+                    {(selectedOrder.payment_method === 'COD' || (selectedOrder as any).payment_status === 'pending_collection' || (selectedOrder as any).notes?.toLowerCase().includes('cash on delivery') || (selectedOrder as any).notes?.toLowerCase().includes('cod'))
+                      ? 'مطلوب تحصيل المبلغ نقداً عند التسليم'
+                      : 'مدفوع إلكترونياً بالكامل'}
+                  </span>
                 </div>
               </div>
 

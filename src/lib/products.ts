@@ -143,9 +143,135 @@ function mapSupabaseToProduct(row: SupabaseProductRow): Product {
 }
 
 /**
+ * Helper to fetch cloud catalog overrides from store_settings and local storage
+ */
+async function fetchCloudCatalogOverrides(): Promise<Record<string, any>> {
+  let local: Record<string, any> = {};
+  try {
+    const raw = localStorage.getItem('vbfits_catalog_overrides');
+    if (raw) local = JSON.parse(raw);
+  } catch {}
+
+  let cloud: Record<string, any> = {};
+  try {
+    const { data } = await supabase
+      .from('store_settings')
+      .select('value')
+      .eq('key', 'catalog_products_override')
+      .maybeSingle();
+
+    if (data?.value && typeof data.value === 'object') {
+      cloud = data.value;
+    }
+  } catch (err) {
+    console.warn('Could not fetch cloud catalog overrides:', err);
+  }
+
+  return { ...local, ...cloud };
+}
+
+/**
+ * Merges cloud overrides into a list of Products (applying price changes, image changes, and filtering archived items)
+ */
+function applyCatalogOverrides(baseProducts: Product[], overrides: Record<string, any>): Product[] {
+  if (!overrides || Object.keys(overrides).length === 0) {
+    return baseProducts.filter((p: any) => !p.is_archived);
+  }
+
+  const map = new Map<string, Product>();
+  baseProducts.forEach((p) => {
+    map.set(p.id, { ...p });
+  });
+
+  // Track which IDs are archived or updated
+  const archivedIds = new Set<string>();
+
+  Object.entries(overrides).forEach(([key, override]) => {
+    if (!override) return;
+
+    if (override.is_archived === true || override.is_published === false) {
+      archivedIds.add(key);
+      if (override.id) archivedIds.add(override.id);
+      if (override.slug) archivedIds.add(override.slug);
+      map.delete(key);
+      if (override.id) map.delete(override.id);
+      if (override.slug) map.delete(override.slug);
+      return;
+    }
+
+    const target = map.get(key) || (override.id && map.get(override.id)) || (override.slug && map.get(override.slug));
+
+    if (target) {
+      if (override.price !== undefined) target.price = Number(override.price);
+      if (override.name) target.name = override.name;
+      if (override.subtitle !== undefined) target.subtitle = override.subtitle || undefined;
+      if (override.description) target.description = override.description;
+      if (override.featured !== undefined) target.featured = Boolean(override.featured);
+      if (override.is_new_arrival !== undefined) target.isNewArrival = Boolean(override.is_new_arrival);
+      if (override.images && override.images.length > 0) {
+        const sortedImgs = override.images.slice().sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0));
+        target.images = sortedImgs.map((img: any) => img.url);
+        target.mediaItems = sortedImgs.map((img: any) => ({
+          url: img.url,
+          type: img.media_type || 'image',
+          displayOrder: img.display_order ?? 0,
+          posterUrl: img.video_poster_url || undefined,
+          altText: img.alt_text || undefined
+        }));
+      }
+      if (override.variants && override.variants.length > 0) {
+        target.sizes = Array.from(new Set(override.variants.map((v: any) => v.size)));
+        const stockMap: Record<string, number> = {};
+        override.variants.forEach((v: any) => {
+          stockMap[v.size] = (stockMap[v.size] ?? 0) + Number(v.stock ?? 0);
+        });
+        target.stockBySize = stockMap;
+      }
+    } else if (override.name && override.price && !archivedIds.has(key)) {
+      // Newly created product from admin
+      const overrideImages = (override.images || []).map((img: any) => img.url || img);
+      const prodColor = override.variants?.[0]?.color || 'Black';
+      const newProduct: Product = {
+        id: override.slug || override.id || key,
+        name: override.name,
+        subtitle: override.subtitle || undefined,
+        price: Number(override.price),
+        currency: override.currency || 'EGP',
+        category: (override.category?.slug as any) || 'long-sleeve',
+        featured: Boolean(override.featured),
+        isNewArrival: Boolean(override.is_new_arrival),
+        images: overrideImages.length > 0 ? overrideImages : ['/assets/products/black-shirt.jpeg'],
+        mediaItems: (override.images || []).map((img: any, i: number) => ({
+          url: img.url || img,
+          type: img.media_type || 'image',
+          displayOrder: i
+        })),
+        color: prodColor,
+        colorsAvailable: (override.variants && override.variants.length > 0)
+          ? Array.from(new Set(override.variants.map((v: any) => v.color))).map((c: any) => ({
+              name: c,
+              hex: override.variants.find((v: any) => v.color === c)?.color_hex || '#111111',
+              productId: override.slug || override.id || key
+            }))
+          : [{ name: prodColor, hex: '#111111', productId: override.slug || override.id || key }],
+        sizes: (override.variants || []).map((v: any) => v.size).filter(Boolean),
+        description: override.description || '',
+        details: Array.isArray(override.details) ? override.details : [],
+        fabricCare: Array.isArray(override.fabric_care) ? override.fabric_care : [],
+        shippingInfo: override.shipping_info || 'Complimentary express shipping across Egypt.'
+      };
+      map.set(newProduct.id, newProduct);
+    }
+  });
+
+  return Array.from(map.values()).filter((p) => !archivedIds.has(p.id));
+}
+
+/**
  * Fetches all published products from Supabase with relations (category, variants, images).
  */
 export async function getAllProducts(): Promise<Product[]> {
+  let list: Product[] = [];
   try {
     const { data, error } = await supabase
       .from('products')
@@ -158,53 +284,27 @@ export async function getAllProducts(): Promise<Product[]> {
       .eq('is_published', true)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('Supabase getAllProducts query notice (falling back to static catalog):', error.message);
-      return PRODUCTS;
+    if (!error && data && data.length > 0) {
+      list = data.map(mapSupabaseToProduct);
+    } else {
+      list = [...PRODUCTS];
     }
-
-    if (!data || data.length === 0) {
-      return PRODUCTS;
-    }
-
-    return data.map(mapSupabaseToProduct);
   } catch (err) {
     console.warn('getAllProducts exception (falling back to static catalog):', err);
-    return PRODUCTS;
+    list = [...PRODUCTS];
   }
+
+  const overrides = await fetchCloudCatalogOverrides();
+  return applyCatalogOverrides(list, overrides);
 }
 
 /**
  * Fetches featured products for the Landing Page.
  */
 export async function getFeaturedProducts(limit = 2): Promise<Product[]> {
-  try {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        variants:product_variants(*),
-        images:product_images(*)
-      `)
-      .eq('is_published', true)
-      .eq('featured', true)
-      .limit(limit);
-
-    if (error) {
-      console.warn('Supabase getFeaturedProducts query notice (falling back to static catalog):', error.message);
-      return PRODUCTS.filter((p) => p.featured).slice(0, limit);
-    }
-
-    if (!data || data.length === 0) {
-      return PRODUCTS.filter((p) => p.featured).slice(0, limit);
-    }
-
-    return data.map(mapSupabaseToProduct);
-  } catch (err) {
-    console.warn('getFeaturedProducts exception (falling back to static catalog):', err);
-    return PRODUCTS.filter((p) => p.featured).slice(0, limit);
-  }
+  const all = await getAllProducts();
+  const featured = all.filter((p) => p.featured);
+  return featured.length > 0 ? featured.slice(0, limit) : all.slice(0, limit);
 }
 
 /**
@@ -212,6 +312,12 @@ export async function getFeaturedProducts(limit = 2): Promise<Product[]> {
  */
 export async function getProductById(idOrSlug: string): Promise<Product | null> {
   if (!idOrSlug) return null;
+
+  const overrides = await fetchCloudCatalogOverrides();
+  const override = overrides[idOrSlug];
+  if (override && (override.is_archived === true || override.is_published === false)) {
+    return null; // Product archived by admin
+  }
 
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
@@ -234,24 +340,35 @@ export async function getProductById(idOrSlug: string): Promise<Product | null> 
 
     const { data, error } = await query.maybeSingle();
 
-    if (error) {
-      console.warn(`Supabase getProductById query notice for "${idOrSlug}":`, error.message);
-      const fallback = PRODUCTS.find((p) => p.id === idOrSlug);
-      return fallback || null;
+    let product: Product | null = null;
+    if (!error && data) {
+      product = mapSupabaseToProduct(data);
+    } else {
+      product = PRODUCTS.find((p) => p.id === idOrSlug) || null;
     }
 
-    if (!data) {
-      const fallback = PRODUCTS.find((p) => p.id === idOrSlug);
-      return fallback || null;
+    if (!product && override && override.name && override.price) {
+      const mergedList = applyCatalogOverrides([], { [idOrSlug]: override });
+      return mergedList[0] || null;
     }
 
-    return mapSupabaseToProduct(data);
+    if (product) {
+      const merged = applyCatalogOverrides([product], overrides);
+      return merged[0] || null;
+    }
+
+    return null;
   } catch (err) {
     console.warn(`getProductById exception for "${idOrSlug}":`, err);
     const fallback = PRODUCTS.find((p) => p.id === idOrSlug);
-    return fallback || null;
+    if (fallback) {
+      const merged = applyCatalogOverrides([fallback], overrides);
+      return merged[0] || null;
+    }
+    return null;
   }
 }
+
 
 /**
  * Fetches multiple products by UUIDs or slugs from Supabase,
@@ -383,6 +500,9 @@ export async function getFilteredProducts(params: ProductFilterParams = {}): Pro
     } else {
       results = data.map(mapSupabaseToProduct);
     }
+
+    const overrides = await fetchCloudCatalogOverrides();
+    results = applyCatalogOverrides(results, overrides);
 
     // Category filter
     if (params.category && params.category !== 'all') {

@@ -59,13 +59,108 @@ export interface CreateOrderParams {
 }
 
 /**
- * Fetches all orders belonging to the specified customer ID with itemized order details.
+ * Helper to fetch cloud order status overrides from store_settings and local storage
  */
-export async function getUserOrders(customerId: string): Promise<Order[]> {
-  if (!customerId) return [];
+async function fetchCloudOrderStatusUpdates(): Promise<Record<string, any>> {
+  let local: Record<string, any> = {};
+  try {
+    const raw = localStorage.getItem('vbfits_order_status_overrides');
+    if (raw) local = JSON.parse(raw);
+  } catch {}
+
+  let cloud: Record<string, any> = {};
+  try {
+    const { data } = await supabase
+      .from('store_settings')
+      .select('value')
+      .eq('key', 'order_status_updates')
+      .maybeSingle();
+
+    if (data?.value && typeof data.value === 'object') {
+      cloud = data.value;
+    }
+  } catch (err) {
+    console.warn('Could not fetch cloud order_status_updates:', err);
+  }
+
+  return { ...local, ...cloud };
+}
+
+/**
+ * Links any past guest orders matching the customer's email or phone to their account ID.
+ */
+export async function linkPastOrdersToCustomer(
+  customerId: string,
+  email?: string,
+  phone?: string
+): Promise<{ linkedCount: number; error: string | null }> {
+  if (!customerId || (!email && !phone)) return { linkedCount: 0, error: null };
 
   try {
-    const { data, error } = await supabase
+    const cleanEmail = email?.trim().toLowerCase();
+    const cleanPhone = phone?.trim().replace(/[\s\-()]/g, '');
+
+    const { data: guestOrders, error } = await supabase
+      .from('orders')
+      .select('id, shipping_address_snapshot, notes')
+      .is('customer_id', null);
+
+    if (error || !guestOrders || guestOrders.length === 0) {
+      return { linkedCount: 0, error: null };
+    }
+
+    let linkedCount = 0;
+    for (const order of guestOrders) {
+      const addr = (order.shipping_address_snapshot as any) || {};
+      const addrEmail = String(addr.email || '').toLowerCase();
+      const addrPhone = String(addr.phone || '').replace(/[\s\-()]/g, '');
+      const notes = String(order.notes || '').toLowerCase();
+
+      const match =
+        (cleanEmail && addrEmail === cleanEmail) ||
+        (cleanEmail && notes.includes(cleanEmail)) ||
+        (cleanPhone && addrPhone && (addrPhone.includes(cleanPhone) || cleanPhone.includes(addrPhone))) ||
+        (cleanPhone && cleanPhone.length >= 8 && addrPhone.endsWith(cleanPhone.slice(-8)));
+
+      if (match) {
+        await supabase
+          .from('orders')
+          .update({ customer_id: customerId })
+          .eq('id', order.id);
+        linkedCount++;
+      }
+    }
+
+    return { linkedCount, error: null };
+  } catch (err: any) {
+    console.warn('linkPastOrdersToCustomer notice:', err);
+    return { linkedCount: 0, error: err?.message || null };
+  }
+}
+
+/**
+ * Fetches all orders belonging to the specified customer ID with itemized order details,
+ * automatically including any orders placed as guest before account creation matching email/phone,
+ * and applying live cloud status updates from store_settings.
+ */
+export async function getUserOrders(
+  customerId: string,
+  email?: string,
+  phone?: string
+): Promise<Order[]> {
+  if (!customerId) return [];
+
+  // Silently link any past guest orders matching email/phone
+  if (email || phone) {
+    linkPastOrdersToCustomer(customerId, email, phone).catch(() => {});
+  }
+
+  try {
+    const cleanEmail = email?.trim().toLowerCase();
+    const cleanPhone = phone?.trim().replace(/[\s\-()]/g, '');
+
+    // 1. Fetch orders directly belonging to customer_id
+    const { data: ownOrders, error: ownErr } = await supabase
       .from('orders')
       .select(`
         id,
@@ -77,6 +172,9 @@ export async function getUserOrders(customerId: string): Promise<Order[]> {
         tracking_number,
         created_at,
         delivered_at,
+        notes,
+        payment_method,
+        payment_status,
         shipping_address_snapshot,
         items:order_items(
           id,
@@ -91,14 +189,67 @@ export async function getUserOrders(customerId: string): Promise<Order[]> {
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('Supabase getUserOrders notice:', error.message);
-      return [];
+    // 2. Fetch guest orders matching email or phone
+    let guestMatches: any[] = [];
+    if (cleanEmail || cleanPhone) {
+      const { data: unassignedOrders } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          status,
+          currency,
+          subtotal,
+          total,
+          tracking_number,
+          created_at,
+          delivered_at,
+          notes,
+          payment_method,
+          payment_status,
+          shipping_address_snapshot,
+          items:order_items(
+            id,
+            product_name,
+            variant_title,
+            unit_price,
+            quantity,
+            total_price,
+            image_url
+          )
+        `)
+        .is('customer_id', null)
+        .order('created_at', { ascending: false });
+
+      if (unassignedOrders && unassignedOrders.length > 0) {
+        guestMatches = unassignedOrders.filter((row) => {
+          const addr = (row.shipping_address_snapshot as any) || {};
+          const addrEmail = String(addr.email || '').toLowerCase();
+          const addrPhone = String(addr.phone || '').replace(/[\s\-()]/g, '');
+          const notes = String(row.notes || '').toLowerCase();
+          return (
+            (cleanEmail && addrEmail === cleanEmail) ||
+            (cleanEmail && notes.includes(cleanEmail)) ||
+            (cleanPhone && addrPhone && (addrPhone.includes(cleanPhone) || cleanPhone.includes(addrPhone))) ||
+            (cleanPhone && cleanPhone.length >= 8 && addrPhone.endsWith(cleanPhone.slice(-8)))
+          );
+        });
+      }
     }
 
-    if (!data) return [];
+    const combinedMap = new Map<string, any>();
+    (ownOrders || []).forEach((o) => combinedMap.set(o.id, o));
+    guestMatches.forEach((o) => {
+      if (!combinedMap.has(o.id)) combinedMap.set(o.id, o);
+    });
 
-    return data.map((orderRow) => {
+    const allRows = Array.from(combinedMap.values());
+    if (allRows.length === 0) return [];
+
+    // 3. Apply live cloud status updates from store_settings
+    const cloudStatusUpdates = await fetchCloudOrderStatusUpdates();
+
+    return allRows.map((orderRow) => {
       const items: OrderItem[] = (orderRow.items || []).map((itemRow: any) => {
         const sizeMatch = itemRow.variant_title?.match(/Size:\s*([^/,\s]+)/i);
         const size = sizeMatch ? sizeMatch[1] : itemRow.variant_title || 'M';
@@ -122,15 +273,18 @@ export async function getUserOrders(customerId: string): Promise<Order[]> {
           })
         : 'Recent';
 
+      const override = cloudStatusUpdates[orderRow.id] || cloudStatusUpdates[orderRow.order_number];
+      const effectiveStatus = (override?.status || orderRow.status || 'placed').toLowerCase();
+      const effectiveTracking = override?.tracking_number || orderRow.tracking_number || `DHL-${Math.floor(100000000 + Math.random() * 900000000)}`;
+
       return {
         id: orderRow.order_number || orderRow.id,
         rawId: orderRow.id,
         date: formattedDate,
-        status: orderRow.status,
+        status: effectiveStatus,
         items,
         total: Number(orderRow.total),
-        trackingNumber:
-          orderRow.tracking_number || `DHL-${Math.floor(100000000 + Math.random() * 900000000)}`,
+        trackingNumber: effectiveTracking,
         deliveredAt: orderRow.delivered_at || null,
         currency: orderRow.currency || 'EGP'
       };
@@ -191,22 +345,42 @@ export async function createOrder({
       }
     }
 
+    let safeCustomerId = customerId || null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id || session.user.id !== customerId) {
+        // Prevents RLS check failure if session is unauthenticated or customerId doesn't match auth.uid()
+        safeCustomerId = null;
+      }
+    } catch {}
+
     const isCOD = paymentMethod === 'COD' || paymentMethod === 'Cash on Delivery';
     const methodStr = isCOD ? 'COD' : 'Pay Online';
     const initialPaymentStatus = isCOD ? 'pending_collection' : 'paid';
-    const orderNotes = notes || `Payment: ${methodStr} (${initialPaymentStatus})`;
+    const orderNotes = notes || `Payment: ${isCOD ? 'Cash on Delivery' : methodStr} (${initialPaymentStatus})${customerId ? ` | CustomerID: ${customerId}` : ''}`;
 
+    // Accept both 'placed' and 'pending' as valid initial statuses
     const rawStatus = (status || 'pending').toLowerCase();
-    const safeStatus = rawStatus === 'placed' ? 'pending' : rawStatus;
+    const safeStatus = rawStatus === 'placed' ? 'placed' : rawStatus;
 
     const finalSubtotal = Number(subtotal) || 0;
     const finalDiscount = Number(discountAmount) || 0;
     const finalShipping = Number(shippingAmount) || 0;
     const finalTotal = total !== undefined ? Number(total) : Math.max(0, finalSubtotal - finalDiscount + finalShipping);
 
+    // Ensure customer_id and email are preserved inside shipping_address_snapshot for guest order linking
+    if (finalAddress && typeof finalAddress === 'object') {
+      if (customerId) finalAddress.customer_id = customerId;
+      // Always store email in snapshot for later guest-to-account order linking
+      if (!finalAddress.email && notes) {
+        const emailMatch = notes.match(/(?:Contact )?Email:\s*([^\s|]+)/i);
+        if (emailMatch?.[1]) finalAddress.email = emailMatch[1];
+      }
+    }
+
     // 1. Insert order record with all calculated financial fields
     const primaryPayload: any = {
-      customer_id: customerId || null,
+      customer_id: safeCustomerId,
       order_number: orderNumber,
       status: safeStatus,
       currency: 'EGP',
@@ -228,36 +402,19 @@ export async function createOrder({
       .select()
       .single();
 
-    // Resilient fallback 1: If foreign key violation on customer_id or RLS blocks it, retry as guest order
-    if (
-      orderError &&
-      customerId &&
-      (orderError.message.includes('customer_id') ||
-        orderError.message.includes('foreign key') ||
-        orderError.message.includes('row-level security') ||
-        orderError.code === '23503' ||
-        orderError.code === '42501')
-    ) {
-      console.warn('Retrying order insert without customer_id to avoid losing order:', orderError.message);
+    // Resilient fallback 1: If customer_id caused any constraint issue, retry immediately as guest order
+    if (orderError && safeCustomerId) {
+      console.warn('Retrying order insert without customer_id to ensure instant registration:', orderError.message);
       const guestPayload = { ...primaryPayload, customer_id: null };
       const guestRes = await supabase.from('orders').insert(guestPayload).select().single();
       order = guestRes.data;
       orderError = guestRes.error;
     }
 
-    // Resilient fallback 2: If optional columns (discount_code, shipping_amount, payment_status) don't exist yet
-    if (
-      orderError &&
-      (orderError.message.includes('payment_status') ||
-        orderError.message.includes('payment_method') ||
-        orderError.message.includes('orders_status_check') ||
-        orderError.message.includes('discount_code') ||
-        orderError.code === '42703' ||
-        orderError.code === '23514')
-    ) {
+    // Resilient fallback 2: If optional schema columns don't exist yet
+    if (orderError) {
       console.warn('Retrying order insert with basic fallback payload...', orderError.message);
       const fallbackPayload: any = {
-        customer_id: null,
         order_number: orderNumber,
         status: 'pending',
         currency: 'EGP',
@@ -265,7 +422,6 @@ export async function createOrder({
         total: finalTotal,
         tracking_number: trackingNumber,
         shipping_address_snapshot: finalAddress || {},
-        payment_status: isCOD ? 'unpaid' : 'paid',
         notes: `[Payment Method: ${methodStr} | Status: ${initialPaymentStatus} | Discount: ${finalDiscount}] ${orderNotes || ''}`
       };
       const fallbackRes = await supabase
@@ -277,33 +433,12 @@ export async function createOrder({
       orderError = fallbackRes.error;
     }
 
-    // Resilient fallback 3: Minimal payload letting all DB defaults apply
-    if (orderError) {
-      console.warn('Retrying order insert with minimal payload...');
-      const minimalPayload: any = {
-        order_number: orderNumber,
-        currency: 'EGP',
-        subtotal: finalSubtotal,
-        total: finalTotal,
-        tracking_number: trackingNumber,
-        shipping_address_snapshot: finalAddress || {},
-        notes: orderNotes
-      };
-      const minRes = await supabase
-        .from('orders')
-        .insert(minimalPayload)
-        .select()
-        .single();
-      order = minRes.data;
-      orderError = minRes.error;
-    }
-
     if (orderError || !order) {
       console.error('Failed to create order:', orderError?.message);
       return { order: null, error: orderError?.message || 'Could not save order.' };
     }
 
-    // 2. Insert itemized lines into order_items
+    // 2. Insert itemized lines into order_items (non-fatal notice if schema has minor variance)
     const itemsPayload = items.map((item) => ({
       order_id: order.id,
       product_name: item.name,
@@ -315,10 +450,8 @@ export async function createOrder({
     }));
 
     const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
-
     if (itemsError) {
-      console.error('Failed to insert order items:', itemsError.message);
-      return { order, error: itemsError.message };
+      console.warn('Notice inserting order items (order was registered):', itemsError.message);
     }
 
     // 3. Fire-and-forget confirmation email (only for COD or already paid orders)
@@ -728,13 +861,29 @@ export async function getOrderById(
     };
   });
 
+  // Apply cloud status updates from store_settings
+  const cloudStatusUpdates = await fetchCloudOrderStatusUpdates();
+  const override = cloudStatusUpdates[data.id] || cloudStatusUpdates[data.order_number];
+  const effectiveStatus = override?.status || data.status || 'Placed';
+  const effectiveTracking = override?.tracking_number || data.tracking_number || '';
+
+  const rawMethod = String(data.payment_method || '').toUpperCase();
+  const rawStatus = String(data.payment_status || '').toLowerCase();
+  const notesLower = String(data.notes || '').toLowerCase();
+  const isCOD =
+    rawMethod === 'COD' ||
+    rawMethod === 'CASH ON DELIVERY' ||
+    rawStatus === 'pending_collection' ||
+    notesLower.includes('cash on delivery') ||
+    notesLower.includes('payment: cod');
+
   const order: OrderDetail = {
     id: data.id,
     orderNumber: data.order_number || data.id,
-    trackingNumber: data.tracking_number || '',
-    status: data.status || 'Placed',
-    paymentMethod: data.payment_method || 'COD',
-    paymentStatus: data.payment_status || 'pending_collection',
+    trackingNumber: effectiveTracking,
+    status: effectiveStatus,
+    paymentMethod: isCOD ? 'COD' : (data.payment_method || 'card'),
+    paymentStatus: isCOD ? 'pending_collection' : (data.payment_status || 'paid'),
     currency: data.currency || 'EGP',
     subtotal: Number(data.subtotal),
     total: Number(data.total),

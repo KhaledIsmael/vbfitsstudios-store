@@ -124,7 +124,7 @@ export const ProfilePage: React.FC = () => {
     setOrdersLoading(true);
     setOrdersError(null);
 
-      getUserOrders(user.id)
+    getUserOrders(user.id, user.email, user.phone)
       .then((data) => {
         setOrders(data);
         // Check each delivered order for an existing return request
@@ -139,7 +139,7 @@ export const ProfilePage: React.FC = () => {
       })
       .catch(() => setOrdersError('Unable to load orders. Please try again.'))
       .finally(() => setOrdersLoading(false));
-  }, [user?.id]);
+  }, [user?.id, user?.email, user?.phone]);
 
   // Fetch addresses
   const loadAddresses = async () => {

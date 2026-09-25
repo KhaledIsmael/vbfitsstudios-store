@@ -65,89 +65,172 @@ export interface ShippingZone {
   max_days: number;
   /** Whether Cash on Delivery is available for this zone */
   cod_available: boolean;
+  /** Custom shipping fee in EGP */
+  shipping_rate: number;
+  /** Order subtotal in EGP required for free shipping */
+  free_shipping_threshold?: number;
 }
 
 // ─── Static seed — mirrors the shipping_zones DB table ───────────────────────
-// Sorted: Greater Cairo first, then by delivery speed ascending.
+// Default rates: Greater Cairo = 60 EGP, Delta/Canal = 65 EGP, Upper Egypt = 80 EGP, Remote = 90 EGP
+const DEFAULT_FREE_SHIPPING_THRESHOLD = 1500;
+
 export const SHIPPING_ZONES: ShippingZone[] = [
   // Greater Cairo (fastest)
-  { governorate: 'Cairo',         governorate_ar: 'القاهرة',       min_days: 2, max_days: 4, cod_available: true  },
-  { governorate: 'Giza',          governorate_ar: 'الجيزة',        min_days: 2, max_days: 4, cod_available: true  },
-  { governorate: 'Qalyubia',      governorate_ar: 'القليوبية',     min_days: 2, max_days: 4, cod_available: true  },
+  { governorate: 'Cairo',         governorate_ar: 'القاهرة',       min_days: 2, max_days: 4, cod_available: true,  shipping_rate: 60, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Giza',          governorate_ar: 'الجيزة',        min_days: 2, max_days: 4, cod_available: true,  shipping_rate: 60, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Qalyubia',      governorate_ar: 'القليوبية',     min_days: 2, max_days: 4, cod_available: true,  shipping_rate: 60, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
   // Delta & Canal — 3–5 days
-  { governorate: 'Alexandria',    governorate_ar: 'الإسكندرية',    min_days: 3, max_days: 5, cod_available: true  },
-  { governorate: 'Sharqia',       governorate_ar: 'الشرقية',       min_days: 3, max_days: 5, cod_available: true  },
-  { governorate: 'Dakahlia',      governorate_ar: 'الدقهلية',      min_days: 3, max_days: 5, cod_available: true  },
-  { governorate: 'Gharbia',       governorate_ar: 'الغربية',       min_days: 3, max_days: 5, cod_available: true  },
-  { governorate: 'Monufia',       governorate_ar: 'المنوفية',      min_days: 3, max_days: 5, cod_available: true  },
-  { governorate: 'Ismailia',      governorate_ar: 'الإسماعيلية',   min_days: 3, max_days: 5, cod_available: true  },
-  { governorate: 'Suez',          governorate_ar: 'السويس',        min_days: 3, max_days: 5, cod_available: true  },
-  { governorate: 'Port Said',     governorate_ar: 'بورسعيد',       min_days: 3, max_days: 5, cod_available: true  },
-  { governorate: 'Faiyum',        governorate_ar: 'الفيوم',        min_days: 3, max_days: 5, cod_available: true  },
+  { governorate: 'Alexandria',    governorate_ar: 'الإسكندرية',    min_days: 3, max_days: 5, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Sharqia',       governorate_ar: 'الشرقية',       min_days: 3, max_days: 5, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Dakahlia',      governorate_ar: 'الدقهلية',      min_days: 3, max_days: 5, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Gharbia',       governorate_ar: 'الغربية',       min_days: 3, max_days: 5, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Monufia',       governorate_ar: 'المنوفية',      min_days: 3, max_days: 5, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Ismailia',      governorate_ar: 'الإسماعيلية',   min_days: 3, max_days: 5, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Suez',          governorate_ar: 'السويس',        min_days: 3, max_days: 5, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Port Said',     governorate_ar: 'بورسعيد',       min_days: 3, max_days: 5, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Faiyum',        governorate_ar: 'الفيوم',        min_days: 3, max_days: 5, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
   // Northern Delta — 4–6 days
-  { governorate: 'Kafr El Sheikh', governorate_ar: 'كفر الشيخ',   min_days: 4, max_days: 6, cod_available: true  },
-  { governorate: 'Beheira',       governorate_ar: 'البحيرة',       min_days: 4, max_days: 6, cod_available: true  },
-  { governorate: 'Damietta',      governorate_ar: 'دمياط',         min_days: 4, max_days: 6, cod_available: true  },
+  { governorate: 'Kafr El Sheikh', governorate_ar: 'كفر الشيخ',   min_days: 4, max_days: 6, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Beheira',       governorate_ar: 'البحيرة',       min_days: 4, max_days: 6, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Damietta',      governorate_ar: 'دمياط',         min_days: 4, max_days: 6, cod_available: true,  shipping_rate: 65, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
   // Upper Egypt — 4–7 days
-  { governorate: 'Beni Suef',     governorate_ar: 'بني سويف',      min_days: 4, max_days: 7, cod_available: true  },
-  { governorate: 'Minya',         governorate_ar: 'المنيا',        min_days: 4, max_days: 7, cod_available: true  },
-  { governorate: 'Asyut',         governorate_ar: 'أسيوط',         min_days: 4, max_days: 7, cod_available: true  },
-  { governorate: 'Sohag',         governorate_ar: 'سوهاج',         min_days: 4, max_days: 7, cod_available: false },
-  { governorate: 'Qena',          governorate_ar: 'قنا',           min_days: 4, max_days: 7, cod_available: false },
+  { governorate: 'Beni Suef',     governorate_ar: 'بني سويف',      min_days: 4, max_days: 7, cod_available: true,  shipping_rate: 75, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Minya',         governorate_ar: 'المنيا',        min_days: 4, max_days: 7, cod_available: true,  shipping_rate: 75, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Asyut',         governorate_ar: 'أسيوط',         min_days: 4, max_days: 7, cod_available: true,  shipping_rate: 75, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Sohag',         governorate_ar: 'سوهاج',         min_days: 4, max_days: 7, cod_available: false, shipping_rate: 80, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Qena',          governorate_ar: 'قنا',           min_days: 4, max_days: 7, cod_available: false, shipping_rate: 80, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
   // Far Upper Egypt & remote — 5–8 days
-  { governorate: 'Luxor',         governorate_ar: 'الأقصر',        min_days: 5, max_days: 7, cod_available: false },
-  { governorate: 'Aswan',         governorate_ar: 'أسوان',         min_days: 5, max_days: 7, cod_available: false },
-  { governorate: 'Red Sea',       governorate_ar: 'البحر الأحمر',  min_days: 5, max_days: 8, cod_available: false },
-  { governorate: 'Matruh',        governorate_ar: 'مطروح',         min_days: 5, max_days: 8, cod_available: false },
-  { governorate: 'North Sinai',   governorate_ar: 'شمال سيناء',    min_days: 5, max_days: 8, cod_available: false },
-  { governorate: 'South Sinai',   governorate_ar: 'جنوب سيناء',    min_days: 5, max_days: 8, cod_available: false },
-  { governorate: 'New Valley',    governorate_ar: 'الوادي الجديد', min_days: 6, max_days: 9, cod_available: false },
+  { governorate: 'Luxor',         governorate_ar: 'الأقصر',        min_days: 5, max_days: 7, cod_available: false, shipping_rate: 85, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Aswan',         governorate_ar: 'أسوان',         min_days: 5, max_days: 7, cod_available: false, shipping_rate: 85, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Red Sea',       governorate_ar: 'البحر الأحمر',  min_days: 5, max_days: 8, cod_available: false, shipping_rate: 85, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'Matruh',        governorate_ar: 'مطروح',         min_days: 5, max_days: 8, cod_available: false, shipping_rate: 85, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'North Sinai',   governorate_ar: 'شمال سيناء',    min_days: 5, max_days: 8, cod_available: false, shipping_rate: 90, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'South Sinai',   governorate_ar: 'جنوب سيناء',    min_days: 5, max_days: 8, cod_available: false, shipping_rate: 90, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
+  { governorate: 'New Valley',    governorate_ar: 'الوادي الجديد', min_days: 6, max_days: 9, cod_available: false, shipping_rate: 90, free_shipping_threshold: DEFAULT_FREE_SHIPPING_THRESHOLD },
 ];
 
 // ─── Supabase fetch with static fallback ─────────────────────────────────────
 
 let _cachedZones: ShippingZone[] | null = null;
+let _cacheTimestamp: number = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Returns all shipping zones, fetched from Supabase and cached for the
- * session. Falls back to SHIPPING_ZONES if the DB is unreachable or the
- * table doesn't exist yet.
+ * Returns all shipping zones, fetched from Supabase and cached for 5 minutes.
+ * Falls back to SHIPPING_ZONES if the DB is unreachable.
+ * Also checks store_settings for admin-edited overrides.
  */
 export async function getShippingZones(): Promise<ShippingZone[]> {
-  if (_cachedZones) return _cachedZones;
+  const now = Date.now();
+  if (_cachedZones && (now - _cacheTimestamp) < CACHE_TTL_MS) return _cachedZones;
 
   try {
     const { data, error } = await supabase
       .from('shipping_zones')
-      .select('id, governorate, governorate_ar, min_days, max_days, cod_available')
+      .select('*')
       .order('min_days', { ascending: true });
 
-    if (error || !data || data.length === 0) {
-      // Table not seeded yet or Supabase unavailable — use static seed
-      _cachedZones = SHIPPING_ZONES;
+    if (!error && data && data.length > 0) {
+      _cachedZones = data.map((z: any) => ({
+        id: z.id,
+        governorate: z.governorate,
+        governorate_ar: z.governorate_ar,
+        min_days: Number(z.min_days || 2),
+        max_days: Number(z.max_days || 5),
+        cod_available: Boolean(z.cod_available),
+        shipping_rate: Number(z.shipping_rate ?? z.shipping_fee ?? z.rate ?? 65),
+        free_shipping_threshold: z.free_shipping_threshold ? Number(z.free_shipping_threshold) : DEFAULT_FREE_SHIPPING_THRESHOLD
+      }));
+      _cacheTimestamp = now;
       return _cachedZones;
     }
-
-    _cachedZones = data as ShippingZone[];
-    return _cachedZones;
   } catch {
-    _cachedZones = SHIPPING_ZONES;
-    return _cachedZones;
+    // fall through to store_settings check
   }
+
+  // Fallback: check store_settings for admin-saved zone overrides
+  try {
+    const { data: settingsRow } = await supabase
+      .from('store_settings')
+      .select('value')
+      .eq('key', 'shipping_zones_overrides')
+      .maybeSingle();
+
+    if (settingsRow?.value && Array.isArray(settingsRow.value) && settingsRow.value.length > 0) {
+      _cachedZones = settingsRow.value as ShippingZone[];
+      _cacheTimestamp = now;
+      return _cachedZones;
+    }
+  } catch {
+    // ignore
+  }
+
+  _cachedZones = SHIPPING_ZONES;
+  _cacheTimestamp = now;
+  return _cachedZones;
 }
 
 /**
  * Looks up a single zone by governorate name (case-insensitive).
- * Returns null if the governorate is not in the table.
+ * Also handles common aliases (e.g., Matrouh = Matruh).
  */
 export async function getZoneByGovernorate(governorate: string): Promise<ShippingZone | null> {
   const zones = await getShippingZones();
-  return zones.find(
-    (z) => z.governorate.toLowerCase() === governorate.toLowerCase()
-  ) ?? null;
+  const clean = governorate.toLowerCase().trim();
+  // Normalize common aliases
+  const aliasMap: Record<string, string> = {
+    'matrouh': 'matruh',
+    'el matruh': 'matruh',
+    'cairo governorate': 'cairo',
+    'greater cairo': 'cairo',
+  };
+  const normalized = aliasMap[clean] || clean;
+  return (
+    zones.find(
+      (z) =>
+        z.governorate.toLowerCase() === normalized ||
+        z.governorate.toLowerCase() === clean ||
+        (z.governorate_ar && z.governorate_ar.toLowerCase() === clean)
+    ) ?? null
+  );
+}
+
+/**
+ * Calculate shipping fee for a given governorate and order subtotal.
+ */
+export async function calculateShippingFee(
+  governorate: string,
+  subtotal: number
+): Promise<{ fee: number; isFree: boolean; zone: ShippingZone | null; freeThreshold: number }> {
+  const zone = await getZoneByGovernorate(governorate);
+  const freeThreshold = zone?.free_shipping_threshold ?? DEFAULT_FREE_SHIPPING_THRESHOLD;
+
+  if (subtotal >= freeThreshold) {
+    return { fee: 0, isFree: true, zone, freeThreshold };
+  }
+
+  const fee = zone ? zone.shipping_rate : getEstimatedShippingFee(governorate, subtotal);
+  return { fee, isFree: false, zone, freeThreshold };
+}
+
+/**
+ * Synchronous fallback estimator when waiting for async load.
+ */
+export function getEstimatedShippingFee(governorate: string, subtotal: number): number {
+  if (subtotal >= DEFAULT_FREE_SHIPPING_THRESHOLD) return 0;
+  const clean = (governorate || '').toLowerCase().trim();
+  const staticZone = SHIPPING_ZONES.find(
+    (z) => z.governorate.toLowerCase() === clean || (z.governorate_ar && z.governorate_ar.toLowerCase() === clean)
+  );
+  if (staticZone) return staticZone.shipping_rate;
+  if (['cairo', 'giza', 'qalyubia', 'القاهرة', 'الجيزة', 'القليوبية'].includes(clean)) return 60;
+  if (['alexandria', 'الإسكندرية', 'الاسكندرية'].includes(clean)) return 65;
+  return 65;
 }
 
 /** Invalidate the in-memory cache (useful after admin updates the table). */
 export function invalidateShippingZoneCache(): void {
   _cachedZones = null;
+  _cacheTimestamp = 0;
 }

@@ -1,5 +1,5 @@
-import { supabase } from './supabaseClient';
-import { SHIPPING_ZONES, type ShippingZone } from './shippingZones';
+import { adminSupabase, supabase } from './supabaseClient';
+import { SHIPPING_ZONES, invalidateShippingZoneCache, type ShippingZone } from './shippingZones';
 
 export interface AdminShippingZone extends ShippingZone {
   shipping_rate: number;
@@ -7,28 +7,12 @@ export interface AdminShippingZone extends ShippingZone {
 
 const LOCAL_SHIPPING_KEY = 'vbfits_admin_shipping_zones_v1';
 
-// Seed initial default rates
-const SEED_ADMIN_SHIPPING_ZONES: AdminShippingZone[] = SHIPPING_ZONES.map((zone) => {
-  let rate = 15.0;
-  if (['Cairo', 'Giza', 'Qalyubia'].includes(zone.governorate)) {
-    rate = 10.0; // Greater Cairo special express rate
-  } else if (['Alexandria', 'Sharqia', 'Dakahlia', 'Gharbia', 'Monufia'].includes(zone.governorate)) {
-    rate = 15.0; // Delta & Coast
-  } else {
-    rate = 20.0; // Upper Egypt & remote governorates
-  }
-  return {
-    ...zone,
-    shipping_rate: rate
-  };
-});
-
 function getLocalShippingZones(): AdminShippingZone[] {
   try {
     const raw = localStorage.getItem(LOCAL_SHIPPING_KEY);
-    return raw ? JSON.parse(raw) : SEED_ADMIN_SHIPPING_ZONES;
+    return raw ? JSON.parse(raw) : (SHIPPING_ZONES as AdminShippingZone[]);
   } catch {
-    return SEED_ADMIN_SHIPPING_ZONES;
+    return SHIPPING_ZONES as AdminShippingZone[];
   }
 }
 
@@ -42,7 +26,9 @@ function saveLocalShippingZones(zones: AdminShippingZone[]) {
 
 export async function fetchAdminShippingZones(): Promise<AdminShippingZone[]> {
   try {
-    const { data, error } = await supabase
+    // 1. Fetch from shipping_zones table using adminSupabase (falls back to supabase)
+    const client = adminSupabase || supabase;
+    const { data, error } = await client
       .from('shipping_zones')
       .select('*')
       .order('min_days', { ascending: true });
@@ -55,7 +41,8 @@ export async function fetchAdminShippingZones(): Promise<AdminShippingZone[]> {
         min_days: Number(z.min_days || 2),
         max_days: Number(z.max_days || 5),
         cod_available: Boolean(z.cod_available),
-        shipping_rate: Number(z.shipping_rate || 15.0)
+        shipping_rate: Number(z.shipping_rate ?? z.shipping_fee ?? z.rate ?? 65),
+        free_shipping_threshold: z.free_shipping_threshold ? Number(z.free_shipping_threshold) : 1500
       }));
 
       saveLocalShippingZones(dbZones);
@@ -77,14 +64,48 @@ export async function updateAdminShippingZone(
   const updated = local.map((z) => (z.governorate === governorate ? { ...z, ...updates } : z));
   saveLocalShippingZones(updated);
 
-  // Sync with Supabase
+  // Invalidate public storefront cache immediately
+  invalidateShippingZoneCache();
+
+  // Prepare database payload ensuring all rate alias columns are synchronized
+  const dbPayload: any = {};
+  if (updates.min_days !== undefined) dbPayload.min_days = updates.min_days;
+  if (updates.max_days !== undefined) dbPayload.max_days = updates.max_days;
+  if (updates.cod_available !== undefined) dbPayload.cod_available = updates.cod_available;
+  if (updates.shipping_rate !== undefined) {
+    dbPayload.shipping_rate = updates.shipping_rate;
+    dbPayload.shipping_fee = updates.shipping_rate;
+    dbPayload.rate = updates.shipping_rate;
+  }
+  if (updates.free_shipping_threshold !== undefined) {
+    dbPayload.free_shipping_threshold = updates.free_shipping_threshold;
+  }
+
+  // 1. Sync directly to shipping_zones table using admin client
   try {
-    await supabase
+    const client = adminSupabase || supabase;
+    const { error: dbError } = await client
       .from('shipping_zones')
-      .update(updates)
+      .update(dbPayload)
       .eq('governorate', governorate);
+
+    if (dbError) {
+      console.warn('updateAdminShippingZone DB notice:', dbError.message);
+    }
+  } catch (err: any) {
+    console.warn('updateAdminShippingZone DB exception:', err);
+  }
+
+  // 2. Also persist to store_settings for universal cloud backup
+  try {
+    const client = adminSupabase || supabase;
+    await client.from('store_settings').upsert({
+      key: 'shipping_zones_overrides',
+      value: updated,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'key' });
   } catch (err) {
-    console.warn('updateAdminShippingZone DB notice:', err);
+    console.warn('Failed to sync shipping zone overrides to store_settings:', err);
   }
 
   return { success: true };

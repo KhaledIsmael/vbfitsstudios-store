@@ -7,6 +7,7 @@ import {
   removeFromWishlist,
   type WishlistProduct
 } from '../lib/wishlist';
+import { linkPastOrdersToCustomer } from '../lib/orders';
 
 export interface OrderItem {
   id: string;
@@ -112,12 +113,12 @@ async function fetchCustomerProfile(userIdOrUser: string | SupabaseUser): Promis
       const metadata = sbUser.user_metadata || {};
       const rawName = metadata.full_name || metadata.name || (sbUser.email ? sbUser.email.split('@')[0] : 'Client');
       
-      // Check if user already has an admin/staff role in metadata or email
+      // Strictly isolate customer accounts from admin roles.
+      // Only explicit admin metadata or official admin emails can have admin privileges.
       const isAdminIdent = 
         metadata.role === 'admin' ||
         metadata.role === 'support' ||
-        (sbUser.email && (sbUser.email.toLowerCase().includes('pvfits') || sbUser.email.toLowerCase().includes('vbfits') || sbUser.email.toLowerCase().startsWith('admin@'))) ||
-        (typeof rawName === 'string' && (rawName.toLowerCase().includes('pvfits') || rawName.toLowerCase().includes('vbfits')));
+        (sbUser.email && (sbUser.email.toLowerCase() === 'admin@vbfitsstudios.com' || sbUser.email.toLowerCase() === 'owner@vbfitsstudios.com'));
 
       const initialRole: CustomerRole = isAdminIdent ? 'admin' : ((metadata.role as CustomerRole) || 'customer');
 
@@ -231,6 +232,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const appUser = mapSupabaseUserToAppUser(initialSession.user, [], profile.role, profile.phone);
           if (isMounted) {
             setUser(appUser);
+            // Automatically link any guest orders placed during checkout before logging in
+            linkPastOrdersToCustomer(initialSession.user.id, initialSession.user.email, profile.phone).catch(() => {});
           }
         } else {
           setUser(null);
@@ -254,6 +257,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const appUser = mapSupabaseUserToAppUser(currentSession.user, [], profile.role, profile.phone);
         if (isMounted) {
           setUser(appUser);
+          linkPastOrdersToCustomer(currentSession.user.id, currentSession.user.email, profile.phone).catch(() => {});
         }
       } else {
         setUser(null);
@@ -281,6 +285,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const profile = await fetchCustomerProfile(data.user.id);
       if (profile.role) assignedRole = profile.role;
       setUser((prev) => (prev ? { ...prev, role: assignedRole, phone: profile.phone || prev.phone } : null));
+      // Auto-link past orders
+      linkPastOrdersToCustomer(data.user.id, data.user.email, profile.phone).catch(() => {});
     }
     return { error: null, role: assignedRole };
   };
@@ -305,6 +311,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
     if (error) return { error: error.message };
+    if (data.user?.id) {
+      linkPastOrdersToCustomer(data.user.id, email, cleanPhone).catch(() => {});
+    }
     const needsEmailConfirmation = Boolean(data.user && !data.session);
     return { error: null, needsEmailConfirmation };
   };

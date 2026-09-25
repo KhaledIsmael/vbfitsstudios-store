@@ -24,26 +24,47 @@ export function formatEgyptianPhoneForWhatsApp(phone: string): string {
 }
 
 /**
- * Generate a 1-click WhatsApp message link to confirm or update an order with a customer in Egypt
+ * Generate a 1-click WhatsApp message link to confirm or update an order directly with the customer in Egypt.
+ * Strictly verifies the number belongs to the customer (never falls back to store/admin phone).
  */
 export function generateWhatsAppOrderLink(order: AdminOrder): string {
-  const phone = formatEgyptianPhoneForWhatsApp(order.customer_phone || '');
-  if (!phone) return '';
+  const adminPhone = ((typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_WHATSAPP_NUMBER) || '201000000000').replace(/[^0-9]/g, '');
+  
+  // Resolve customer phone from order, shipping snapshot, or order notes
+  let rawPhone = order.customer_phone || (order.shipping_address as any)?.phone || '';
+  if (!rawPhone && order.notes) {
+    const match = order.notes.match(/(?:Contact )?Phone:\s*([^\s|]+)/i);
+    if (match?.[1]) rawPhone = match[1];
+  }
 
-  const customerName = order.customer_name || 'يا فندم';
+  const phone = formatEgyptianPhoneForWhatsApp(rawPhone);
+
+  // If phone is missing, too short, or matches the store's own admin number, return empty string
+  if (!phone || phone.length < 10 || phone === adminPhone || phone === '201000000000') {
+    return '';
+  }
+
+  const customerName = order.customer_name && order.customer_name !== 'Private Client' ? order.customer_name : 'يا فندم';
   const orderNum = order.order_number || order.id.slice(0, 8);
   const itemsText = (order.items || [])
     .map((item) => `• ${item.product_name} (مقاس: ${item.size || 'حر'})`)
     .join('\n');
+
+  const paymentDesc =
+    order.payment_method === 'COD' || order.payment_method === 'cash_on_delivery'
+      ? 'الدفع عند الاستلام (كاش أو بالفيزا مع المندوب)'
+      : 'دفع إلكتروني (تم الدفع)';
 
   const text = `أهلاً ${customerName}، بنأكد معاك طلبك من براند *VB FITS STUDIOS* 🖤
 رقم الأوردر: *#${orderNum}*
 القطع المطلوبة:
 ${itemsText}
 إجمالي المبلغ: *${(order.total || 0).toLocaleString()} ج.م* (شامل الشحن)
-طريقة الدفع: ${order.payment_method === 'COD' || order.payment_method === 'cash_on_delivery' ? 'الدفع عند الاستلام' : 'دفع إلكتروني'}
+طريقة الدفع: ${paymentDesc}
 
-هل العنوان والمقاسات مناسبة للتجهيز والشحن لحضرتك؟`;
+العنوان المسجل: ${((order.shipping_address as any)?.governorate || 'المحافظة')} - ${((order.shipping_address as any)?.city || '')} - ${((order.shipping_address as any)?.street_line1 || '')}
+
+هل العنوان والمقاسات جاهزة للتجهيز والشحن لحضرتك؟`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }

@@ -471,9 +471,15 @@ export const AdminOverviewPage: React.FC = () => {
                       {(o.total || 0).toLocaleString()} <span className="text-zinc-500 font-sans text-[11px] font-bold">ج.م</span>
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
-                        {o.payment_method === 'COD' ? 'الدفع عند الاستلام' : 'بطاقة / محفظة'}
-                      </span>
+                      {((o.payment_method === 'COD' || (o as any).payment_status === 'pending_collection' || (o as any).notes?.toLowerCase().includes('cash on delivery') || (o as any).notes?.toLowerCase().includes('cod'))) ? (
+                        <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-zinc-100 text-zinc-800 border border-zinc-200">
+                          الدفع عند الاستلام (COD)
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          بطاقة / محفظة
+                        </span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4">
                       {getStatusBadge(o.status)}

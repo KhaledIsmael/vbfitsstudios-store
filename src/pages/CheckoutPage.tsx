@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { createOrder } from '../lib/orders';
 import { getUserAddresses, createAddress, type Address } from '../lib/addresses';
 import { validateDiscountCode } from '../lib/adminMarketing';
+import { calculateShippingFee, getEstimatedShippingFee, type ShippingZone } from '../lib/shippingZones';
 import { BRAND_CONFIG } from '../config/assets';
 
 const GOVERNORATES = [
@@ -159,8 +160,42 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  // Grand total calculation
-  const grandTotal = Math.max(0, subtotal - appliedDiscount);
+  // Active governorate based on selected saved address or inline form
+  const effectiveGov = useMemo(() => {
+    if (isLoggedIn && user && selectedAddressId !== 'new') {
+      const chosen = savedAddresses.find((a) => a.id === selectedAddressId);
+      return chosen?.governorate || gov;
+    }
+    return gov;
+  }, [isLoggedIn, user, selectedAddressId, savedAddresses, gov]);
+
+  // Dynamic Shipping calculation state
+  const [shippingFee, setShippingFee] = useState<number>(() => getEstimatedShippingFee('Cairo', subtotal));
+  const [isFreeShipping, setIsFreeShipping] = useState<boolean>(false);
+  const [currentZone, setCurrentZone] = useState<ShippingZone | null>(null);
+
+  // Recalculate shipping fee dynamically whenever governorate or subtotal changes
+  useEffect(() => {
+    let isMounted = true;
+    calculateShippingFee(effectiveGov, subtotal).then((res) => {
+      if (isMounted) {
+        setShippingFee(res.fee);
+        setIsFreeShipping(res.isFree);
+        setCurrentZone(res.zone);
+
+        // Auto-switch away from COD if courier COD is disabled for this governorate
+        if (res.zone && res.zone.cod_available === false && paymentMethod === 'Cash on Delivery') {
+          setPaymentMethod('Bank Cards');
+        }
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [effectiveGov, subtotal, paymentMethod]);
+
+  // Grand total calculation (subtotal minus discount plus governorate shipping fee)
+  const grandTotal = Math.max(0, subtotal - appliedDiscount + shippingFee);
 
   // Place Order Handler
   const handlePlaceOrder = async (e: React.FormEvent) => {
@@ -194,6 +229,7 @@ export const CheckoutPage: React.FC = () => {
       if (chosen) {
         finalAddressSnapshot = {
           name: chosen.name,
+          email: contactEmail.trim(),
           phone: chosen.phone || contactPhone,
           governorate: chosen.governorate,
           city: chosen.city,
@@ -201,7 +237,8 @@ export const CheckoutPage: React.FC = () => {
           building: chosen.building,
           floor: chosen.floor,
           landmark: chosen.landmark,
-          country: 'Egypt'
+          country: 'Egypt',
+          customer_id: user.id
         };
       }
     }
@@ -215,6 +252,7 @@ export const CheckoutPage: React.FC = () => {
 
       finalAddressSnapshot = {
         name: contactName.trim(),
+        email: contactEmail.trim(),
         phone: contactPhone.trim(),
         governorate: gov.trim(),
         city: city.trim(),
@@ -222,7 +260,8 @@ export const CheckoutPage: React.FC = () => {
         building: building.trim() || undefined,
         floor: floor.trim() || undefined,
         landmark: landmark.trim() || undefined,
-        country: 'Egypt'
+        country: 'Egypt',
+        customer_id: isLoggedIn && user ? user.id : undefined
       };
 
       // If logged in and requested to save to profile
@@ -262,7 +301,7 @@ export const CheckoutPage: React.FC = () => {
         items: itemsPayload,
         subtotal: subtotal,
         discountAmount: appliedDiscount,
-        shippingAmount: 0,
+        shippingAmount: shippingFee,
         total: grandTotal,
         discountCode: promoCode ? promoCode.trim().toUpperCase() : undefined,
         shippingAddress: finalAddressSnapshot,
@@ -362,7 +401,7 @@ export const CheckoutPage: React.FC = () => {
       items: itemsPayload,
       subtotal: subtotal,
       discountAmount: appliedDiscount,
-      shippingAmount: 0,
+      shippingAmount: shippingFee,
       total: grandTotal,
       discountCode: promoCode ? promoCode.trim().toUpperCase() : undefined,
       shippingAddress: finalAddressSnapshot,
@@ -881,13 +920,14 @@ export const CheckoutPage: React.FC = () => {
                 {/* Option 1: Cash on Delivery */}
                 <label
                   className={`flex items-start gap-3 p-4 cursor-pointer transition-colors ${
-                    paymentMethod === 'Cash on Delivery' ? 'bg-[#F2F2F2]' : 'bg-white hover:bg-[#FAFAFA]'
+                    currentZone && !currentZone.cod_available ? 'opacity-60 cursor-not-allowed bg-zinc-50' : paymentMethod === 'Cash on Delivery' ? 'bg-[#F2F2F2]' : 'bg-white hover:bg-[#FAFAFA]'
                   }`}
                 >
                   <input
                     type="radio"
                     name="payment_choice"
                     value="Cash on Delivery"
+                    disabled={currentZone ? !currentZone.cod_available : false}
                     checked={paymentMethod === 'Cash on Delivery'}
                     onChange={() => setPaymentMethod('Cash on Delivery')}
                     className="mt-0.5 accent-black"
@@ -897,10 +937,16 @@ export const CheckoutPage: React.FC = () => {
                       <span className="text-[14px] font-medium text-[#1a1a1a]">Cash on Delivery</span>
                       <span className="text-[11px] text-[#555555] bg-[#EEEEEE] px-2 py-0.5 rounded uppercase tracking-wide font-medium">COD</span>
                     </div>
-                    {paymentMethod === 'Cash on Delivery' && (
-                      <p className="text-[12px] text-[#666666] mt-2 leading-relaxed">
-                        Pay in cash or via POS card machine directly to the courier at your door.
+                    {currentZone && !currentZone.cod_available ? (
+                      <p className="text-[11px] text-amber-700 mt-1.5 font-medium">
+                        Cash on Delivery is unavailable for {effectiveGov}. Please choose Bank Cards, Smart Wallets, or Apple Pay.
                       </p>
+                    ) : (
+                      paymentMethod === 'Cash on Delivery' && (
+                        <p className="text-[12px] text-[#666666] mt-2 leading-relaxed">
+                          Pay in cash or via POS card machine directly to the courier at your door.
+                        </p>
+                      )
                     )}
                   </div>
                 </label>
@@ -1242,8 +1288,14 @@ export const CheckoutPage: React.FC = () => {
               )}
 
               <div className="flex justify-between text-[#555555]">
-                <span>Shipping</span>
-                <span className="text-[#1a1a1a] font-medium">Free</span>
+                <span>Shipping ({effectiveGov})</span>
+                <span className="text-[#1a1a1a] font-medium">
+                  {isFreeShipping || shippingFee === 0 ? (
+                    <span className="text-emerald-700 font-semibold">Free Delivery</span>
+                  ) : (
+                    `${shippingFee.toFixed(2)} EGP`
+                  )}
+                </span>
               </div>
 
               <div className="border-t border-[#E0E0E0] pt-3 flex justify-between items-baseline">

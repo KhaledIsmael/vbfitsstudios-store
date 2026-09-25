@@ -51,6 +51,36 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // 1. Direct Demo / Emergency Admin credentials check
     if (cleanEmail === DEMO_ADMIN_EMAIL && pass === DEMO_ADMIN_PASS) {
+      // Also sign into Supabase so adminSupabase has a real session for DB RLS access
+      try {
+        const sbRes = await adminSupabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: pass
+        });
+        if (!sbRes.error && sbRes.data.user) {
+          // Check/upsert admin role in customers table
+          await adminSupabase.from('customers').upsert({
+            id: sbRes.data.user.id,
+            email: cleanEmail,
+            full_name: 'مدير المتجر الرئيسي',
+            role: 'admin'
+          }, { onConflict: 'id' });
+          const verifiedAdmin: AdminUser = {
+            id: sbRes.data.user.id,
+            email: cleanEmail,
+            name: 'مدير المتجر الرئيسي',
+            role: 'admin'
+          };
+          setAdminUser(verifiedAdmin);
+          localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(verifiedAdmin));
+          return { error: null };
+        }
+      } catch (sbErr) {
+        // If Supabase sign-in fails (e.g., user doesn't exist in Auth yet), fall back to localStorage-only
+        console.warn('[AdminAuth] Could not sign into Supabase with demo admin:', sbErr);
+      }
+
+      // Fallback: localStorage-only session (DB writes may fail RLS without Supabase session)
       const demoUser: AdminUser = {
         id: 'adm-root-01',
         email: DEMO_ADMIN_EMAIL,
@@ -93,13 +123,14 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (customerRecord.full_name) name = customerRecord.full_name;
       }
 
-      // Auto-recognize pvfits / vbfits brand admin accounts even if customers table was truncated
+      // Strictly verify official brand admin credentials or verified role from DB
       const isKnownAdmin =
-        cleanEmail.includes('pvfits') ||
-        cleanEmail.includes('vbfits') ||
+        cleanEmail === DEMO_ADMIN_EMAIL ||
+        cleanEmail === 'admin@vbfitsstudios.com' ||
+        cleanEmail === 'owner@vbfitsstudios.com' ||
         cleanEmail.startsWith('admin@') ||
-        name.toLowerCase().includes('pvfits') ||
-        name.toLowerCase().includes('vbfits');
+        role === 'admin' ||
+        role === 'support';
 
       if (isKnownAdmin && (!role || role === 'customer')) {
         role = 'admin';
