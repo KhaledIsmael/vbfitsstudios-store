@@ -24,6 +24,7 @@ BEGIN
   END LOOP;
 END $$;
 
+
 -- ============================================================
 -- FILE: 20260919000000_create_ecommerce_schema.sql
 -- ============================================================
@@ -1206,6 +1207,11 @@ CREATE TABLE IF NOT EXISTS public.discount_codes (
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Add min_spend if table was created from an older migration without it
+ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS min_spend NUMERIC(10, 2) DEFAULT 0 CHECK (min_spend >= 0);
+-- Add times_used if missing (older schema used used_count)
+ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS times_used INT NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_discount_codes_code ON public.discount_codes(code);
 
