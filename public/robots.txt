@@ -1,0 +1,24 @@
+User-agent: *
+Allow: /
+
+# Disallow admin and auth routes from search indexing
+Disallow: /admin/
+Disallow: /checkout
+Disallow: /order-confirmation/
+Disallow: /payment-callback
+Disallow: /profile
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+
+# Allow public API-less pages
+Allow: /shop
+Allow: /product/
+Allow: /collections
+Allow: /about
+Allow: /contact
+Allow: /policies/
+Allow: /track-order
+
+# Sitemap
+Sitemap: https://vbfitsstudios.com/sitemap.xml
