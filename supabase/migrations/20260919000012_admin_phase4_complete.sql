@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS public.discount_codes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code TEXT NOT NULL UNIQUE,
-  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
+  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed_amount')),
   discount_value NUMERIC(10, 2) NOT NULL CHECK (discount_value > 0),
   min_spend NUMERIC(10, 2) DEFAULT 0 CHECK (min_spend >= 0),
   max_uses INT DEFAULT NULL,
@@ -20,19 +20,24 @@ CREATE TABLE IF NOT EXISTS public.discount_codes (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- Harmonize discount_type constraint: drop old one and create unified constraint
+ALTER TABLE public.discount_codes DROP CONSTRAINT IF EXISTS discount_codes_discount_type_check;
+ALTER TABLE public.discount_codes ADD CONSTRAINT discount_codes_discount_type_check
+  CHECK (discount_type IN ('percentage', 'fixed_amount'));
+
 -- Add min_spend if table was created from an older migration without it
-ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS min_spend NUMERIC(10, 2) DEFAULT 0 CHECK (min_spend >= 0);
+ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS min_spend NUMERIC(10, 2) DEFAULT 0;
 -- Add times_used if missing (older schema used used_count)
 ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS times_used INT NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_discount_codes_code ON public.discount_codes(code);
 
--- Seed luxury launch discount codes
+-- Seed luxury launch discount codes (use 'fixed_amount' to match constraint)
 INSERT INTO public.discount_codes (code, discount_type, discount_value, min_spend, max_uses, is_active)
 VALUES
   ('WELCOME10', 'percentage', 10.00, 0, 1000, true),
   ('VIP20', 'percentage', 20.00, 250.00, 500, true),
-  ('ATELIER50', 'fixed', 50.00, 300.00, 200, true)
+  ('ATELIER50', 'fixed_amount', 50.00, 300.00, 200, true)
 ON CONFLICT (code) DO NOTHING;
 
 -- 2. NEWSLETTER SUBSCRIBERS
