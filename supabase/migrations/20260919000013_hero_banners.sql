@@ -22,11 +22,16 @@ CREATE POLICY "hero_banners_public_read" ON public.hero_banners
   FOR SELECT USING (is_active = true);
 
 CREATE POLICY "hero_banners_admin_all" ON public.hero_banners
-  FOR ALL USING (auth.role() = ''service_role'');
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.customers c
+      WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
+    )
+  );
 
 INSERT INTO public.hero_banners (image_url, season_tag, title, subtitle, cta_text, cta_link, sort_order)
 VALUES
-  (''/assets/hero/hero.jpg'',            ''AUTUMN / WINTER 2026'', ''Long Sleeve Shirt'',         ''Architectural silhouettes, heavyweight textiles, archival sleeve artwork.'',  ''Shop Now'',       ''/shop'',                       0),
-  (''/assets/products/black-shirt.jpeg'',''NEW ARRIVALS 2026'',    ''The Washed Black Edition'',  ''Custom-milled 340 GSM organic cotton. Signature ornate baroque sleeve art.'', ''Shop The Black'', ''/shop?color=black'',            1),
-  (''/assets/products/white-shirt.jpeg'',''COLLECTION ESSENTIALS'',''The Optic White Edition'',   ''Royal indigo botanical sleeve embellishments. Effortless drape and fit.'',     ''Shop The White'', ''/shop?color=white'',            2)
+  ('/assets/hero/hero.jpg',            'AUTUMN / WINTER 2026', 'Long Sleeve Shirt',         'Architectural silhouettes, heavyweight textiles, archival sleeve artwork.',  'Shop Now',       '/shop',                       0),
+  ('/assets/products/black-shirt.jpeg','NEW ARRIVALS 2026',    'The Washed Black Edition',  'Custom-milled 340 GSM organic cotton. Signature ornate baroque sleeve art.', 'Shop The Black', '/shop?color=black',            1),
+  ('/assets/products/white-shirt.jpeg','COLLECTION ESSENTIALS','The Optic White Edition',   'Royal indigo botanical sleeve embellishments. Effortless drape and fit.',     'Shop The White', '/shop?color=white',            2)
 ON CONFLICT DO NOTHING;

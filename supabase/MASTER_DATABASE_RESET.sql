@@ -5,22 +5,17 @@
 -- WARNING: This will drop ALL existing tables and recreate them
 -- ============================================================
 
--- Step 1: Drop all existing policies and tables (clean slate)
+-- Step 1: Drop all existing RLS policies, tables, and functions (clean slate)
 DO $$
 DECLARE
   r RECORD;
 BEGIN
-  -- Drop all RLS policies
   FOR r IN (SELECT schemaname, tablename, policyname FROM pg_policies WHERE schemaname = 'public') LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I', r.policyname, r.schemaname, r.tablename);
   END LOOP;
-
-  -- Drop all tables in public schema
   FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT LIKE 'pg_%') LOOP
     EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename);
   END LOOP;
-
-  -- Drop all functions that may conflict
   FOR r IN (SELECT proname, oidvectortypes(proargtypes) as args FROM pg_proc WHERE pronamespace = 'public'::regnamespace) LOOP
     BEGIN
       EXECUTE format('DROP FUNCTION IF EXISTS public.%I(%s) CASCADE', r.proname, r.args);
@@ -632,7 +627,6 @@ CREATE POLICY "Subscribers can update own subscription status"
     AND email = (SELECT email FROM auth.users WHERE id = auth.uid())
   );
 
-
 -- ============================================================
 -- FILE: 20260919000001_create_cart_items.sql
 -- ============================================================
@@ -695,7 +689,6 @@ CREATE POLICY "Users can delete own cart items"
 -- 6. Grant Permissions to authenticated role
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.cart_items TO authenticated;
 
-
 -- ============================================================
 -- FILE: 20260919000002_allow_placed_order_status.sql
 -- ============================================================
@@ -709,7 +702,6 @@ ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
 ALTER TABLE public.orders ADD CONSTRAINT orders_status_check CHECK (
   LOWER(status) IN ('placed', 'pending', 'processing', 'in_transit', 'delivered', 'cancelled', 'refunded')
 );
-
 
 -- ============================================================
 -- FILE: 20260919000003_add_address_fields.sql
@@ -732,7 +724,6 @@ ALTER TABLE public.addresses
   ALTER COLUMN street_line1 DROP NOT NULL,
   ALTER COLUMN state DROP NOT NULL,
   ALTER COLUMN postal_code DROP NOT NULL;
-
 
 -- ============================================================
 -- FILE: 20260919000004_allow_guest_orders.sql
@@ -763,7 +754,6 @@ CREATE POLICY "Customers and guests can insert order items"
     )
   );
 
-
 -- ============================================================
 -- FILE: 20260919000005_add_cod_payment_support.sql
 -- ============================================================
@@ -779,7 +769,6 @@ ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_payment_status_check;
 ALTER TABLE public.orders ADD CONSTRAINT orders_payment_status_check CHECK (
   payment_status IN ('unpaid', 'paid', 'failed', 'refunded', 'pending_collection')
 );
-
 
 -- ============================================================
 -- FILE: 20260919000006_tracking_and_returns.sql
@@ -868,7 +857,6 @@ CREATE INDEX IF NOT EXISTS idx_return_requests_customer_id
 CREATE INDEX IF NOT EXISTS idx_return_requests_order_id
   ON public.return_requests(order_id);
 
-
 -- ============================================================
 -- FILE: 20260919000007_add_customer_role.sql
 -- ============================================================
@@ -929,7 +917,6 @@ CREATE POLICY "Admins can update customers"
       WHERE c.id = auth.uid() AND c.role = 'admin'
     )
   );
-
 
 -- ============================================================
 -- FILE: 20260919000008_product_editor_and_archive.sql
@@ -1042,7 +1029,6 @@ CREATE POLICY "Staff can update/delete product-media"
   ON storage.objects FOR UPDATE
   USING (bucket_id = 'product-media');
 
-
 -- ============================================================
 -- FILE: 20260919000009_inventory_and_restock_notifications.sql
 -- ============================================================
@@ -1079,7 +1065,6 @@ DROP POLICY IF EXISTS "Public can insert waitlist signups" ON public.waitlist_si
 CREATE POLICY "Public can insert waitlist signups"
   ON public.waitlist_signups FOR INSERT
   WITH CHECK (true);
-
 
 -- ============================================================
 -- FILE: 20260919000010_admin_orders_refunds.sql
@@ -1151,7 +1136,6 @@ CREATE POLICY "Staff can update orders"
     )
   );
 
-
 -- ============================================================
 -- FILE: 20260919000011_admin_customers_loyalty.sql
 -- ============================================================
@@ -1197,7 +1181,6 @@ CREATE POLICY "Staff can read all addresses"
       WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
     )
   );
-
 
 -- ============================================================
 -- FILE: 20260919000012_admin_phase4_complete.sql
@@ -1381,7 +1364,6 @@ BEGIN
   END IF;
 END $$;
 
-
 -- ============================================================
 -- FILE: 20260919000013_hero_banners.sql
 -- ============================================================
@@ -1409,15 +1391,19 @@ CREATE POLICY "hero_banners_public_read" ON public.hero_banners
   FOR SELECT USING (is_active = true);
 
 CREATE POLICY "hero_banners_admin_all" ON public.hero_banners
-  FOR ALL USING (auth.role() = ''service_role'');
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.customers c
+      WHERE c.id = auth.uid() AND c.role IN ('admin', 'support')
+    )
+  );
 
 INSERT INTO public.hero_banners (image_url, season_tag, title, subtitle, cta_text, cta_link, sort_order)
 VALUES
-  (''/assets/hero/hero.jpg'',            ''AUTUMN / WINTER 2026'', ''Long Sleeve Shirt'',         ''Architectural silhouettes, heavyweight textiles, archival sleeve artwork.'',  ''Shop Now'',       ''/shop'',                       0),
-  (''/assets/products/black-shirt.jpeg'',''NEW ARRIVALS 2026'',    ''The Washed Black Edition'',  ''Custom-milled 340 GSM organic cotton. Signature ornate baroque sleeve art.'', ''Shop The Black'', ''/shop?color=black'',            1),
-  (''/assets/products/white-shirt.jpeg'',''COLLECTION ESSENTIALS'',''The Optic White Edition'',   ''Royal indigo botanical sleeve embellishments. Effortless drape and fit.'',     ''Shop The White'', ''/shop?color=white'',            2)
+  ('/assets/hero/hero.jpg',            'AUTUMN / WINTER 2026', 'Long Sleeve Shirt',         'Architectural silhouettes, heavyweight textiles, archival sleeve artwork.',  'Shop Now',       '/shop',                       0),
+  ('/assets/products/black-shirt.jpeg','NEW ARRIVALS 2026',    'The Washed Black Edition',  'Custom-milled 340 GSM organic cotton. Signature ornate baroque sleeve art.', 'Shop The Black', '/shop?color=black',            1),
+  ('/assets/products/white-shirt.jpeg','COLLECTION ESSENTIALS','The Optic White Edition',   'Royal indigo botanical sleeve embellishments. Effortless drape and fit.',     'Shop The White', '/shop?color=white',            2)
 ON CONFLICT DO NOTHING;
-
 
 -- ============================================================
 -- FILE: 20260919000014_abandoned_cart_recovery.sql
@@ -1469,7 +1455,6 @@ GRANT SELECT, INSERT ON public.abandoned_cart_emails TO authenticated, service_r
 -- 6. Ensure service_role has access to cart_items for cron tasks
 GRANT ALL ON public.cart_items TO service_role;
 GRANT ALL ON public.abandoned_cart_emails TO service_role;
-
 
 -- ============================================================
 -- FILE: 20260919000015_supabase_storage_setup.sql
@@ -1537,7 +1522,6 @@ DROP POLICY IF EXISTS "Staff can delete store-media" ON storage.objects;
 CREATE POLICY "Staff can delete store-media"
   ON storage.objects FOR DELETE
   USING (bucket_id IN ('store-media', 'product-media'));
-
 
 -- ============================================================
 -- FILE: 20260919000016_postgres_trigram_search.sql
@@ -1714,7 +1698,6 @@ $$;
 -- 5. Grant Execute Permissions
 GRANT EXECUTE ON FUNCTION public.search_products(TEXT, INT) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_search_suggestions(INT) TO anon, authenticated, service_role;
-
 
 -- ============================================================
 -- FILE: 20260919000017_rls_policies.sql
@@ -1949,7 +1932,6 @@ BEGIN
   END IF;
 END $$;
 
-
 -- ============================================================
 -- FILE: 20260919000018_create_restock_signups.sql
 -- ============================================================
@@ -2000,7 +1982,6 @@ CREATE POLICY "Staff can manage restock signups"
 
 -- 6. Grant permissions to anon and authenticated roles
 GRANT INSERT, SELECT, UPDATE ON public.restock_signups TO anon, authenticated;
-
 
 -- ============================================================
 -- FILE: 20260919000019_sync_phone_to_customers.sql
@@ -2065,7 +2046,6 @@ CREATE POLICY "Users can update their own phone"
   ON public.customers FOR UPDATE
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
-
 
 -- ============================================================
 -- FILE: 20260925000020_critical_bug_fixes.sql
@@ -2407,7 +2387,6 @@ CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DES
 -- Add index on shipping_address_snapshot for faster guest order lookups
 CREATE INDEX IF NOT EXISTS idx_orders_customer_null ON public.orders(customer_id) WHERE customer_id IS NULL;
 
-
 -- ============================================================
 -- FILE: 20260925000021_fix_infinite_recursion_and_wishlists.sql
 -- ============================================================
@@ -2609,7 +2588,6 @@ GRANT SELECT, INSERT, DELETE ON public.wishlists TO authenticated, anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.orders TO authenticated, anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.order_items TO authenticated, anon;
 
-
 -- ============================================================
 -- FILE: 20260929000022_site_settings_and_launch_gate.sql
 -- ============================================================
@@ -2709,7 +2687,6 @@ END $$;
 -- Performance index for source and contact_type
 CREATE INDEX IF NOT EXISTS idx_waitlist_signups_source ON public.waitlist_signups(source);
 CREATE INDEX IF NOT EXISTS idx_waitlist_signups_phone ON public.waitlist_signups(phone);
-
 
 -- ============================================================
 -- FILE: 20260929000023_branch_field_and_integrity_constraints.sql
@@ -2817,7 +2794,6 @@ CREATE TRIGGER tr_enforce_order_customer_id
 
 GRANT SELECT (branch) ON public.customers TO authenticated, anon, service_role;
 GRANT UPDATE (branch) ON public.customers TO authenticated, service_role;
-
 
 -- ============================================================
 -- FILE: 20260929000024_search_vector_trigger.sql
@@ -2957,7 +2933,6 @@ BEGIN
   LIMIT max_results;
 END;
 $$;
-
 -- ============================================================
 -- FILE: 20260929000025_hero_media_types.sql
 -- ============================================================
@@ -2979,7 +2954,6 @@ WHERE media_url IS NULL AND image_url IS NOT NULL;
 ALTER TABLE public.hero_banners 
   ALTER COLUMN media_url SET NOT NULL,
   DROP COLUMN IF EXISTS image_url;
-
 
 -- ============================================================
 -- FILE: 20260929000026_chatbot_schema.sql
@@ -3060,7 +3034,6 @@ VALUES
     (ARRAY['human', 'agent', 'support', 'contact', 'talk', 'help'], 'Talk to a Human', 'Connecting you to a client concierge advisor...', 6)
 ON CONFLICT DO NOTHING;
 
-
 -- ============================================================
 -- FILE: 20260930000027_fix_return_requests_rls.sql
 -- ============================================================
@@ -3098,7 +3071,6 @@ CREATE POLICY "Customers can view own return requests"
 
 -- Reload PostgREST schema cache
 NOTIFY pgrst, 'reload schema';
-
 
 -- ============================================================
 -- FILE: 20260930000028_seed_chatbot_faqs.sql
@@ -3308,7 +3280,6 @@ INSERT INTO public.chatbot_faqs (category, trigger_keywords, question, answer, d
 -- Reload schema cache
 NOTIFY pgrst, 'reload schema';
 
-
 -- ============================================================
 -- FILE: 20260930000029_admin_returns_rls.sql
 -- ============================================================
@@ -3362,7 +3333,6 @@ CREATE POLICY "Admins can update return_requests"
 -- Reload schema
 NOTIFY pgrst, 'reload schema';
 
-
 -- ============================================================
 -- FILE: 20261001000030_refund_payout_details.sql
 -- ============================================================
@@ -3379,7 +3349,6 @@ ADD COLUMN IF NOT EXISTS refund_completed_at TIMESTAMPTZ;
 
 -- Reload schema
 NOTIFY pgrst, 'reload schema';
-
 
 -- ============================================================
 -- FILE: 20261001000031_email_logs.sql
@@ -3407,4 +3376,3 @@ ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
 
 -- Reload schema
 NOTIFY pgrst, 'reload schema';
-
