@@ -46,6 +46,7 @@ BEGIN
     -- Drop all legacy or recursive policies
     DROP POLICY IF EXISTS "customers_select_own" ON public.customers;
     DROP POLICY IF EXISTS "customers_select_admin" ON public.customers;
+    DROP POLICY IF EXISTS "customers_select_own_or_admin" ON public.customers;
     DROP POLICY IF EXISTS "customers_update_own" ON public.customers;
     DROP POLICY IF EXISTS "customers_update_admin" ON public.customers;
     DROP POLICY IF EXISTS "customers_insert_own" ON public.customers;

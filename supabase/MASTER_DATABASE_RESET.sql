@@ -752,6 +752,7 @@ GRANT INSERT ON public.order_items TO anon;
 
 -- Orders insert policy
 DROP POLICY IF EXISTS "Customers can create own orders" ON public.orders;
+DROP POLICY IF EXISTS "Customers and guests can create orders" ON public.orders;
 CREATE POLICY "Customers and guests can create orders"
   ON public.orders FOR INSERT
   WITH CHECK (
@@ -760,6 +761,7 @@ CREATE POLICY "Customers and guests can create orders"
 
 -- Order items insert policy
 DROP POLICY IF EXISTS "Customers can insert own order items" ON public.order_items;
+DROP POLICY IF EXISTS "Customers and guests can insert order items" ON public.order_items;
 CREATE POLICY "Customers and guests can insert order items"
   ON public.order_items FOR INSERT
   WITH CHECK (
@@ -961,6 +963,7 @@ CREATE INDEX IF NOT EXISTS idx_products_status ON public.products(is_archived, i
 
 -- 2. Staff RLS policies for products (admin & support can view all, admin can write)
 DROP POLICY IF EXISTS "Published products are viewable by everyone" ON public.products;
+DROP POLICY IF EXISTS "Public can view active products, staff can view all" ON public.products;
 CREATE POLICY "Public can view active products, staff can view all"
   ON public.products FOR SELECT
   USING (
@@ -1436,9 +1439,11 @@ CREATE TABLE IF NOT EXISTS public.hero_banners (
 
 ALTER TABLE public.hero_banners ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "hero_banners_public_read" ON public.hero_banners;
 CREATE POLICY "hero_banners_public_read" ON public.hero_banners
   FOR SELECT USING (is_active = true);
 
+DROP POLICY IF EXISTS "hero_banners_admin_all" ON public.hero_banners;
 CREATE POLICY "hero_banners_admin_all" ON public.hero_banners
   FOR ALL USING (
     EXISTS (
@@ -2500,6 +2505,7 @@ BEGIN
     -- Drop all legacy or recursive policies
     DROP POLICY IF EXISTS "customers_select_own" ON public.customers;
     DROP POLICY IF EXISTS "customers_select_admin" ON public.customers;
+    DROP POLICY IF EXISTS "customers_select_own_or_admin" ON public.customers;
     DROP POLICY IF EXISTS "customers_update_own" ON public.customers;
     DROP POLICY IF EXISTS "customers_update_admin" ON public.customers;
     DROP POLICY IF EXISTS "customers_insert_own" ON public.customers;

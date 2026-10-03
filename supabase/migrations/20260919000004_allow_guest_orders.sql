@@ -6,6 +6,7 @@ GRANT INSERT ON public.order_items TO anon;
 
 -- Orders insert policy
 DROP POLICY IF EXISTS "Customers can create own orders" ON public.orders;
+DROP POLICY IF EXISTS "Customers and guests can create orders" ON public.orders;
 CREATE POLICY "Customers and guests can create orders"
   ON public.orders FOR INSERT
   WITH CHECK (
@@ -14,6 +15,7 @@ CREATE POLICY "Customers and guests can create orders"
 
 -- Order items insert policy
 DROP POLICY IF EXISTS "Customers can insert own order items" ON public.order_items;
+DROP POLICY IF EXISTS "Customers and guests can insert order items" ON public.order_items;
 CREATE POLICY "Customers and guests can insert order items"
   ON public.order_items FOR INSERT
   WITH CHECK (

@@ -18,9 +18,11 @@ CREATE TABLE IF NOT EXISTS public.hero_banners (
 
 ALTER TABLE public.hero_banners ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "hero_banners_public_read" ON public.hero_banners;
 CREATE POLICY "hero_banners_public_read" ON public.hero_banners
   FOR SELECT USING (is_active = true);
 
+DROP POLICY IF EXISTS "hero_banners_admin_all" ON public.hero_banners;
 CREATE POLICY "hero_banners_admin_all" ON public.hero_banners
   FOR ALL USING (
     EXISTS (

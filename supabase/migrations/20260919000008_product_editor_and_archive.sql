@@ -18,6 +18,7 @@ CREATE INDEX IF NOT EXISTS idx_products_status ON public.products(is_archived, i
 
 -- 2. Staff RLS policies for products (admin & support can view all, admin can write)
 DROP POLICY IF EXISTS "Published products are viewable by everyone" ON public.products;
+DROP POLICY IF EXISTS "Public can view active products, staff can view all" ON public.products;
 CREATE POLICY "Public can view active products, staff can view all"
   ON public.products FOR SELECT
   USING (
