@@ -26,6 +26,7 @@ END $$;
 
 
 
+
 -- ============================================================
 -- FILE: 20260919000000_create_ecommerce_schema.sql
 -- ============================================================
@@ -1780,6 +1781,11 @@ CREATE POLICY "order_items_insert_own"
   );
 
 -- ─── 3. CART_ITEMS TABLE ──────────────────────────────────────────────────────
+
+-- Add session_id column for guest cart support (if not present from migration 01)
+ALTER TABLE public.cart_items ADD COLUMN IF NOT EXISTS session_id TEXT;
+-- Make user_id nullable to allow guest carts
+ALTER TABLE public.cart_items ALTER COLUMN user_id DROP NOT NULL;
 
 ALTER TABLE public.cart_items ENABLE ROW LEVEL SECURITY;
 
