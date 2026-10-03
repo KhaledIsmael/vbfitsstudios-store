@@ -31,3 +31,17 @@ DROP POLICY IF EXISTS "Public can insert waitlist signups" ON public.waitlist_si
 CREATE POLICY "Public can insert waitlist signups"
   ON public.waitlist_signups FOR INSERT
   WITH CHECK (true);
+
+-- 5. Restock Notifications Table (for legacy & direct size-level alerts)
+CREATE TABLE IF NOT EXISTS public.restock_notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  customer_name TEXT,
+  product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+  size_name TEXT NOT NULL,
+  notified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_restock_notifications_lookup
+  ON public.restock_notifications(product_id, size_name, notified_at);

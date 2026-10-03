@@ -4,7 +4,7 @@
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS public.chatbot_faqs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     trigger_keywords TEXT[] NOT NULL DEFAULT '{}',
     question TEXT NOT NULL,
     answer TEXT NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.chatbot_faqs (
 ALTER TABLE public.chatbot_faqs ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
 
 CREATE TABLE IF NOT EXISTS public.chatbot_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID NOT NULL,
     user_message TEXT NOT NULL,
     matched_faq_id UUID REFERENCES public.chatbot_faqs(id) ON DELETE SET NULL,

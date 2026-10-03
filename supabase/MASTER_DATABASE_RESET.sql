@@ -1,8 +1,8 @@
-﻿-- ============================================================
+-- ============================================================
 -- VBFITS STUDIOS - MASTER DATABASE RESET
 -- Generated from: vbfitsstudios-store-mainold (original working codebase)
 -- Run this in Supabase SQL Editor to fully reset the database
--- WARNING: This will drop ALL existing tables and recreate them
+-- WARNING: This will drop ALL existing tables and recreate them cleanly
 -- ============================================================
 
 -- Step 1: Drop all existing RLS policies, tables, and functions (clean slate)
@@ -10,12 +10,17 @@ DO $$
 DECLARE
   r RECORD;
 BEGIN
+  -- Drop all RLS policies in public schema
   FOR r IN (SELECT schemaname, tablename, policyname FROM pg_policies WHERE schemaname = 'public') LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I', r.policyname, r.schemaname, r.tablename);
   END LOOP;
+
+  -- Drop all tables in public schema
   FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT LIKE 'pg_%') LOOP
     EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename);
   END LOOP;
+
+  -- Drop all custom functions in public schema
   FOR r IN (SELECT proname, oidvectortypes(proargtypes) as args FROM pg_proc WHERE pronamespace = 'public'::regnamespace) LOOP
     BEGIN
       EXECUTE format('DROP FUNCTION IF EXISTS public.%I(%s) CASCADE', r.proname, r.args);
@@ -24,12 +29,16 @@ BEGIN
   END LOOP;
 END $$;
 
-
+-- Enable core PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 
 -- ============================================================
 -- FILE: 20260919000000_create_ecommerce_schema.sql
 -- ============================================================
+
 -- ==============================================================================
 -- VB FITS STUDIOS - SUPABASE POSTGRES INITIAL E-COMMERCE SCHEMA MIGRATION
 -- Migration: 20260919000000_create_ecommerce_schema.sql
@@ -633,6 +642,7 @@ CREATE POLICY "Subscribers can update own subscription status"
 -- ============================================================
 -- FILE: 20260919000001_create_cart_items.sql
 -- ============================================================
+
 -- ==============================================================================
 -- VB FITS STUDIOS - CART ITEMS TABLE & ROW-LEVEL SECURITY
 -- Migration: 20260919000001_create_cart_items.sql
@@ -695,6 +705,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.cart_items TO authenticated;
 -- ============================================================
 -- FILE: 20260919000002_allow_placed_order_status.sql
 -- ============================================================
+
 -- ==============================================================================
 -- VB FITS STUDIOS - ALLOW 'Placed' ORDER STATUS
 -- Migration: 20260919000002_allow_placed_order_status.sql
@@ -709,6 +720,7 @@ ALTER TABLE public.orders ADD CONSTRAINT orders_status_check CHECK (
 -- ============================================================
 -- FILE: 20260919000003_add_address_fields.sql
 -- ============================================================
+
 -- Migration: Add localized / regional address columns to public.addresses
 -- Allows saving Egyptian and international delivery addresses smoothly
 
@@ -731,6 +743,7 @@ ALTER TABLE public.addresses
 -- ============================================================
 -- FILE: 20260919000004_allow_guest_orders.sql
 -- ============================================================
+
 -- Migration: Allow guest checkouts on orders and order_items
 -- Gives anon role insert rights and permits orders with customer_id IS NULL
 
@@ -760,6 +773,7 @@ CREATE POLICY "Customers and guests can insert order items"
 -- ============================================================
 -- FILE: 20260919000005_add_cod_payment_support.sql
 -- ============================================================
+
 -- Migration: Add payment_method column and allow 'pending_collection' in payment_status
 -- 20260919000005_add_cod_payment_support.sql
 
@@ -776,6 +790,7 @@ ALTER TABLE public.orders ADD CONSTRAINT orders_payment_status_check CHECK (
 -- ============================================================
 -- FILE: 20260919000006_tracking_and_returns.sql
 -- ============================================================
+
 -- ==============================================================================
 -- VB FITS STUDIOS
 -- Migration: 20260919000006_tracking_and_returns.sql
@@ -863,6 +878,7 @@ CREATE INDEX IF NOT EXISTS idx_return_requests_order_id
 -- ============================================================
 -- FILE: 20260919000007_add_customer_role.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260919000007_add_customer_role.sql
 -- Description: Add role column (customer/support/admin) to customers table.
@@ -924,6 +940,7 @@ CREATE POLICY "Admins can update customers"
 -- ============================================================
 -- FILE: 20260919000008_product_editor_and_archive.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260919000008_product_editor_and_archive.sql
 -- Description: Add product editor fields (is_archived, collection_tag, seo_title,
@@ -1035,6 +1052,7 @@ CREATE POLICY "Staff can update/delete product-media"
 -- ============================================================
 -- FILE: 20260919000009_inventory_and_restock_notifications.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260919000009_inventory_and_restock_notifications.sql
 -- Description: Add low_stock_threshold to product_variants and size to waitlist_signups.
@@ -1069,9 +1087,24 @@ CREATE POLICY "Public can insert waitlist signups"
   ON public.waitlist_signups FOR INSERT
   WITH CHECK (true);
 
+-- 5. Restock Notifications Table (for legacy & direct size-level alerts)
+CREATE TABLE IF NOT EXISTS public.restock_notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  customer_name TEXT,
+  product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+  size_name TEXT NOT NULL,
+  notified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_restock_notifications_lookup
+  ON public.restock_notifications(product_id, size_name, notified_at);
+
 -- ============================================================
 -- FILE: 20260919000010_admin_orders_refunds.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260919000010_admin_orders_refunds.sql
 -- Description: Add internal_notes to orders, create refunds table, and set RLS.
@@ -1142,6 +1175,7 @@ CREATE POLICY "Staff can update orders"
 -- ============================================================
 -- FILE: 20260919000011_admin_customers_loyalty.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260919000011_admin_customers_loyalty.sql
 -- Description: Add loyalty_points to customers and grant update permissions to support/admin.
@@ -1188,6 +1222,7 @@ CREATE POLICY "Staff can read all addresses"
 -- ============================================================
 -- FILE: 20260919000012_admin_phase4_complete.sql
 -- ============================================================
+
 -- =============================================================================
 -- Migration 20260919000012: Phase 4 Complete Back-office Suite
 -- Tables: discount_codes, newsletter_subscribers, store_settings
@@ -1380,6 +1415,7 @@ END $$;
 -- ============================================================
 -- FILE: 20260919000013_hero_banners.sql
 -- ============================================================
+
 -- ============================================================
 -- Migration: hero_banners table for rotating homepage carousel
 -- ============================================================
@@ -1421,6 +1457,7 @@ ON CONFLICT DO NOTHING;
 -- ============================================================
 -- FILE: 20260919000014_abandoned_cart_recovery.sql
 -- ============================================================
+
 -- ==============================================================================
 -- VB FITS STUDIOS - ABANDONED CART RECOVERY & TRACKING
 -- Migration: 20260919000014_abandoned_cart_recovery.sql
@@ -1472,6 +1509,7 @@ GRANT ALL ON public.abandoned_cart_emails TO service_role;
 -- ============================================================
 -- FILE: 20260919000015_supabase_storage_setup.sql
 -- ============================================================
+
 -- ==============================================================================
 -- VB FITS STUDIOS - PUBLIC STORAGE BUCKET SETUP
 -- Migration: 20260919000015_supabase_storage_setup.sql
@@ -1539,6 +1577,7 @@ CREATE POLICY "Staff can delete store-media"
 -- ============================================================
 -- FILE: 20260919000016_postgres_trigram_search.sql
 -- ============================================================
+
 -- ==============================================================================
 -- VB FITS STUDIOS - POSTGRES FULL-TEXT & TRIGRAM SEARCH (TYPO-TOLERANT)
 -- Migration: 20260919000016_postgres_trigram_search.sql
@@ -1715,6 +1754,7 @@ GRANT EXECUTE ON FUNCTION public.get_search_suggestions(INT) TO anon, authentica
 -- ============================================================
 -- FILE: 20260919000017_rls_policies.sql
 -- ============================================================
+
 -- ============================================================
 -- Migration: 20260919000017_rls_policies.sql
 -- Purpose:   Row-Level Security hardening for customer data.
@@ -1842,12 +1882,12 @@ BEGIN
     DROP POLICY IF EXISTS "customers_select_own" ON public.customers;
     CREATE POLICY "customers_select_own"
       ON public.customers FOR SELECT
-      USING (auth_id = auth.uid());
+      USING (id = auth.uid());
 
     DROP POLICY IF EXISTS "customers_update_own" ON public.customers;
     CREATE POLICY "customers_update_own"
       ON public.customers FOR UPDATE
-      USING (auth_id = auth.uid());
+      USING (id = auth.uid());
   END IF;
 END $$;
 
@@ -1953,6 +1993,7 @@ END $$;
 -- ============================================================
 -- FILE: 20260919000018_create_restock_signups.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260919000018_create_restock_signups.sql
 -- Description: Create restock_signups table for PDP "Restock Me" alerts
@@ -2004,6 +2045,7 @@ GRANT INSERT, SELECT, UPDATE ON public.restock_signups TO anon, authenticated;
 -- ============================================================
 -- FILE: 20260919000019_sync_phone_to_customers.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260919000019_sync_phone_to_customers.sql
 -- Description: Ensure phone is synced from auth user_metadata into customers
@@ -2068,6 +2110,7 @@ CREATE POLICY "Users can update their own phone"
 -- ============================================================
 -- FILE: 20260925000020_critical_bug_fixes.sql
 -- ============================================================
+
 -- =============================================================================
 -- Migration: 20260925000020_critical_bug_fixes.sql
 -- Purpose:   Fix all critical platform bugs reported by store owner:
@@ -2193,7 +2236,7 @@ CREATE POLICY "order_items_delete_admin"
   USING (public.is_admin_or_support());
 
 -- ─── 3. FIX CUSTOMERS TABLE RLS ───────────────────────────────────────────────
--- The previous policy used auth_id = auth.uid() but the column is named 'id'.
+-- The previous policy used id = auth.uid() but the column is named 'id'.
 -- This caused customers to not be able to read/update their own profile.
 
 
@@ -2408,6 +2451,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_customer_null ON public.orders(customer_id
 -- ============================================================
 -- FILE: 20260925000021_fix_infinite_recursion_and_wishlists.sql
 -- ============================================================
+
 -- =============================================================================
 -- Migration: 20260925000021_fix_infinite_recursion_and_wishlists.sql
 -- Purpose:
@@ -2609,6 +2653,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.order_items TO authenticated, ano
 -- ============================================================
 -- FILE: 20260929000022_site_settings_and_launch_gate.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260929000022_site_settings_and_launch_gate.sql
 -- Description: Create site_settings table for launch_at date/time and gate controls.
@@ -2709,6 +2754,7 @@ CREATE INDEX IF NOT EXISTS idx_waitlist_signups_phone ON public.waitlist_signups
 -- ============================================================
 -- FILE: 20260929000023_branch_field_and_integrity_constraints.sql
 -- ============================================================
+
 -- ==============================================================================
 -- VB FITS STUDIOS
 -- Migration: 20260929000023_branch_field_and_integrity_constraints.sql
@@ -2816,6 +2862,7 @@ GRANT UPDATE (branch) ON public.customers TO authenticated, service_role;
 -- ============================================================
 -- FILE: 20260929000024_search_vector_trigger.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260929000024_search_vector_trigger.sql
 -- Description: Adds a stored tsvector column to products and a trigger to auto-update
@@ -2951,9 +2998,11 @@ BEGIN
   LIMIT max_results;
 END;
 $$;
+
 -- ============================================================
 -- FILE: 20260929000025_hero_media_types.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260929000025_hero_media_types.sql
 -- Description: Extends hero_banners table to support video (mp4), image, and gif.
@@ -2976,13 +3025,14 @@ ALTER TABLE public.hero_banners
 -- ============================================================
 -- FILE: 20260929000026_chatbot_schema.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260929000026_chatbot_schema.sql
 -- Description: Adds tables for chatbot FAQs and conversation logging
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS public.chatbot_faqs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     trigger_keywords TEXT[] NOT NULL DEFAULT '{}',
     question TEXT NOT NULL,
     answer TEXT NOT NULL,
@@ -2996,7 +3046,7 @@ CREATE TABLE IF NOT EXISTS public.chatbot_faqs (
 ALTER TABLE public.chatbot_faqs ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
 
 CREATE TABLE IF NOT EXISTS public.chatbot_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID NOT NULL,
     user_message TEXT NOT NULL,
     matched_faq_id UUID REFERENCES public.chatbot_faqs(id) ON DELETE SET NULL,
@@ -3055,6 +3105,7 @@ ON CONFLICT DO NOTHING;
 -- ============================================================
 -- FILE: 20260930000027_fix_return_requests_rls.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260930000027_fix_return_requests_rls.sql
 -- Description: Fix RLS policy on return_requests to allow anon/guest inserts
@@ -3093,6 +3144,7 @@ NOTIFY pgrst, 'reload schema';
 -- ============================================================
 -- FILE: 20260930000028_seed_chatbot_faqs.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260930000028_seed_chatbot_faqs.sql
 -- Description: Seeds structured Arabic FAQ categories and Q&A pairs
@@ -3301,6 +3353,7 @@ NOTIFY pgrst, 'reload schema';
 -- ============================================================
 -- FILE: 20260930000029_admin_returns_rls.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20260930000029_admin_returns_rls.sql
 -- Description: Fix Admin RLS to view all return_requests.
@@ -3354,6 +3407,7 @@ NOTIFY pgrst, 'reload schema';
 -- ============================================================
 -- FILE: 20261001000030_refund_payout_details.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20261001000030_refund_payout_details.sql
 -- Description: Add refund method and payout details to return requests
@@ -3371,6 +3425,7 @@ NOTIFY pgrst, 'reload schema';
 -- ============================================================
 -- FILE: 20261001000031_email_logs.sql
 -- ============================================================
+
 -- ==============================================================================
 -- Migration: 20261001000031_email_logs.sql
 -- Description: Table for logging email dispatch status to prevent duplicates
@@ -3391,6 +3446,34 @@ CREATE INDEX IF NOT EXISTS email_logs_event_ref_idx ON public.email_logs (event_
 
 -- Enable RLS (Service role can bypass, users cannot read/write)
 ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
+
+-- RPC Helper: Allows 1-click clean slate purge directly from Admin Dashboard
+CREATE OR REPLACE FUNCTION public.purge_all_test_data()
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  TRUNCATE TABLE public.order_items, public.orders CASCADE;
+  TRUNCATE TABLE public.return_requests CASCADE;
+  RETURN json_build_object('success', true, 'message', 'All test orders and items purged successfully.');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.purge_all_test_data() TO authenticated, anon, service_role;
+
+-- RPC Helper: Execute raw SQL if needed by serverless admin setup
+CREATE OR REPLACE FUNCTION public.exec_sql(query text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  EXECUTE query;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.exec_sql(text) TO service_role;
 
 -- Reload schema
 NOTIFY pgrst, 'reload schema';

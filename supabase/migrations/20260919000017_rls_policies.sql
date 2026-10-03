@@ -125,12 +125,12 @@ BEGIN
     DROP POLICY IF EXISTS "customers_select_own" ON public.customers;
     CREATE POLICY "customers_select_own"
       ON public.customers FOR SELECT
-      USING (auth_id = auth.uid());
+      USING (id = auth.uid());
 
     DROP POLICY IF EXISTS "customers_update_own" ON public.customers;
     CREATE POLICY "customers_update_own"
       ON public.customers FOR UPDATE
-      USING (auth_id = auth.uid());
+      USING (id = auth.uid());
   END IF;
 END $$;
 
