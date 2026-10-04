@@ -90,56 +90,40 @@ export const ContactPage: React.FC = () => {
     setSubmitting(true);
 
     try {
-      // 1. Direct database persistence into public.contact_messages
-      try {
-        await supabase.from('contact_messages').insert({
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          message: formData.message.trim(),
-          status: 'unread'
-        });
-      } catch (dbErr) {
-        console.warn('contact_messages table save notice:', dbErr);
-      }
-
-      // 2. Send TWO emails in parallel:
-      //    A) Brand notification → vbfitsstudios@gmail.com (with reply_to set to client email)
-      //    B) Auto-reply        → the customer (elegant confirmation)
-      const emailPayload = {
-        clientName:  formData.name.trim(),
-        clientEmail: formData.email.trim(),
-        message:     formData.message.trim()
+      const payload = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        message: formData.message.trim()
       };
 
-      await Promise.allSettled([
-        // A) Notify the brand owner
-        fetch('/api/email/dispatch', {
+      // 1. Submit to dedicated serverless endpoint (handles DB insert + brand email + auto-reply)
+      let apiSuccess = false;
+      try {
+        const res = await fetch('/api/contact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            eventType:      'contact_inquiry_to_brand',
-            referenceId:    `contact-brand-${Date.now()}`,
-            recipientEmail: 'vbfitsstudios@gmail.com',
-            payload:        emailPayload
-          })
-        }).then(async r => {
-          if (!r.ok) console.warn('Brand notification status:', r.status, await r.json().catch(() => ({})));
-        }),
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          apiSuccess = true;
+        }
+      } catch (apiErr) {
+        console.warn('API contact call notice:', apiErr);
+      }
 
-        // B) Auto-reply to the customer
-        fetch('/api/email/dispatch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            eventType:      'contact_autoreply',
-            referenceId:    `contact-reply-${Date.now()}`,
-            recipientEmail: formData.email.trim(),
-            payload:        emailPayload
-          })
-        }).then(async r => {
-          if (!r.ok) console.warn('Auto-reply status:', r.status, await r.json().catch(() => ({})));
-        })
-      ]);
+      // 2. Direct database backup if API was unreachable (e.g. local vite dev)
+      if (!apiSuccess) {
+        try {
+          await supabase.from('contact_messages').insert({
+            name: payload.name,
+            email: payload.email,
+            message: payload.message,
+            status: 'unread'
+          });
+        } catch (dbErr) {
+          console.warn('contact_messages direct fallback notice:', dbErr);
+        }
+      }
     } catch (err) {
       console.warn('Contact submission notice:', err);
     } finally {
