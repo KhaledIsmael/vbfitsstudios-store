@@ -19,6 +19,8 @@ interface AdminAuthContextType {
 const ADMIN_STORAGE_KEY = 'vbfits_admin_session_v1';
 const DEMO_ADMIN_EMAIL = 'admin@vbfitsstudios.com';
 const DEMO_ADMIN_PASS = 'Admin@VB2026!';
+const PRIMARY_ADMIN_EMAIL = 'vbfitsstudios@gmail.com';
+const PRIMARY_ADMIN_PASS = 'VBAdmin@2026#Fits!';
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined);
 
@@ -49,9 +51,13 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const login = async (email: string, pass: string): Promise<{ error: string | null }> => {
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Direct Demo / Emergency Admin credentials check
-    if (cleanEmail === DEMO_ADMIN_EMAIL && pass === DEMO_ADMIN_PASS) {
-      // Also sign into Supabase so adminSupabase has a real session for DB RLS access
+    // 1. Direct Master / Emergency Admin credentials check
+    const isMasterAdmin =
+      (cleanEmail === DEMO_ADMIN_EMAIL && pass === DEMO_ADMIN_PASS) ||
+      (cleanEmail === PRIMARY_ADMIN_EMAIL && pass === PRIMARY_ADMIN_PASS);
+
+    if (isMasterAdmin) {
+      // Also sign into Supabase so adminSupabase has a real session for DB RLS access if available
       try {
         const sbRes = await adminSupabase.auth.signInWithPassword({
           email: cleanEmail,
@@ -76,19 +82,18 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           return { error: null };
         }
       } catch (sbErr) {
-        // If Supabase sign-in fails (e.g., user doesn't exist in Auth yet), fall back to localStorage-only
-        console.warn('[AdminAuth] Could not sign into Supabase with demo admin:', sbErr);
+        console.warn('[AdminAuth] Supabase Auth sign-in caught exception, using master admin fallback:', sbErr);
       }
 
-      // Fallback: localStorage-only session (DB writes may fail RLS without Supabase session)
-      const demoUser: AdminUser = {
-        id: 'adm-root-01',
-        email: DEMO_ADMIN_EMAIL,
+      // Fallback: localStorage-only session (allows entry even if Supabase Auth schema is recovering)
+      const masterUser: AdminUser = {
+        id: cleanEmail === PRIMARY_ADMIN_EMAIL ? 'adm-vbfits-root' : 'adm-root-01',
+        email: cleanEmail,
         name: 'مدير المتجر الرئيسي',
         role: 'admin'
       };
-      setAdminUser(demoUser);
-      localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(demoUser));
+      setAdminUser(masterUser);
+      localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(masterUser));
       return { error: null };
     }
 
