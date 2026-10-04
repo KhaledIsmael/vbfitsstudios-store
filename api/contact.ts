@@ -103,8 +103,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const fromAddress =
-    process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
+  // Sender MUST use the verified domain (@vbfitsstudios.com).
+  // If RESEND_FROM_EMAIL was mistakenly set to a @gmail.com address in Vercel, force the verified domain.
+  let fromAddress = process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
+  if (fromAddress.includes('@gmail.com') || !fromAddress.includes('@vbfitsstudios.com')) {
+    fromAddress = 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
+  }
 
   // If no API key configured anywhere, return graceful response
   if (!resendApiKey || resendApiKey.includes('PASTE_YOUR')) {

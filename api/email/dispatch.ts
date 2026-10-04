@@ -72,8 +72,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const fromAddress =
+  let fromAddress =
     process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
+  if (fromAddress.includes('@gmail.com') || !fromAddress.includes('@vbfitsstudios.com')) {
+    fromAddress = 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
+  }
 
   // 3. Handle events
   try {
