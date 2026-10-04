@@ -18,189 +18,197 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed. Use POST.' });
 
-  const { name, email, message } = req.body || {};
+  try {
+    const { name, email, message } = req.body || {};
 
-  if (!name || !email || !message) {
-    return res.status(400).json({ error: 'Missing required fields: name, email, message' });
-  }
-
-  const cleanName = String(name).trim();
-  const cleanEmail = String(email).trim().toLowerCase();
-  const cleanMessage = String(message).trim();
-
-  // 1. Resolve Supabase client
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    '';
-
-  const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
-
-  // 2. Persist message to Supabase contact_messages table
-  if (supabase) {
-    try {
-      await supabase.from('contact_messages').insert({
-        name: cleanName,
-        email: cleanEmail,
-        message: cleanMessage,
-        status: 'unread'
-      });
-    } catch (dbErr) {
-      console.warn('[contact] Warning saving to contact_messages:', dbErr);
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: 'Missing required fields: name, email, message' });
     }
-  }
 
-  // 3. Resolve Resend API Key (env vars -> Supabase store_settings -> site_settings)
-  let resendApiKey =
-    process.env.RESEND_API_KEY ||
-    process.env.VITE_RESEND_API_KEY ||
-    process.env.NEXT_PUBLIC_RESEND_API_KEY ||
-    '';
+    const cleanName = String(name).trim();
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanMessage = String(message).trim();
 
-  if (!resendApiKey && supabase) {
-    try {
-      const { data: storeSetting } = await supabase
-        .from('store_settings')
-        .select('value')
-        .eq('key', 'resend_api_key')
-        .maybeSingle();
+    // 1. Resolve Supabase client
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      '';
 
-      if (storeSetting?.value) {
-        resendApiKey = String(storeSetting.value).replace(/^["']|["']$/g, '').trim();
+    const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+    // 2. Persist message to Supabase contact_messages table
+    if (supabase) {
+      try {
+        await supabase.from('contact_messages').insert({
+          name: cleanName,
+          email: cleanEmail,
+          message: cleanMessage,
+          status: 'unread'
+        });
+      } catch (dbErr) {
+        console.warn('[contact] Warning saving to contact_messages:', dbErr);
       }
+    }
 
-      if (!resendApiKey) {
-        const { data: siteSetting } = await supabase
-          .from('site_settings')
+    // 3. Resolve Resend API Key (env vars -> Supabase store_settings -> site_settings)
+    let resendApiKey =
+      process.env.RESEND_API_KEY ||
+      process.env.VITE_RESEND_API_KEY ||
+      process.env.NEXT_PUBLIC_RESEND_API_KEY ||
+      '';
+
+    if (!resendApiKey && supabase) {
+      try {
+        const { data: storeSetting } = await supabase
+          .from('store_settings')
           .select('value')
           .eq('key', 'resend_api_key')
           .maybeSingle();
-        if (siteSetting?.value) {
-          resendApiKey = String(siteSetting.value).replace(/^["']|["']$/g, '').trim();
+
+        if (storeSetting?.value) {
+          resendApiKey = String(storeSetting.value).replace(/^["']|["']$/g, '').trim();
         }
+
+        if (!resendApiKey) {
+          const { data: siteSetting } = await supabase
+            .from('site_settings')
+            .select('value')
+            .eq('key', 'resend_api_key')
+            .maybeSingle();
+          if (siteSetting?.value) {
+            resendApiKey = String(siteSetting.value).replace(/^["']|["']$/g, '').trim();
+          }
+        }
+      } catch (e) {
+        console.warn('[contact] Could not query DB for resend_api_key:', e);
       }
-    } catch (e) {
-      console.warn('[contact] Could not query DB for resend_api_key:', e);
     }
-  }
 
-  // 4. Resolve Brand destination email & sender
-  let brandEmail = process.env.BRAND_NOTIFICATION_EMAIL || 'vbfitsstudios@gmail.com';
-  if (supabase) {
-    try {
-      const { data: brandSetting } = await supabase
-        .from('store_settings')
-        .select('value')
-        .eq('key', 'brand_notification_email')
-        .maybeSingle();
-      if (brandSetting?.value) {
-        brandEmail = String(brandSetting.value).replace(/^["']|["']$/g, '').trim();
+    // 4. Resolve Brand destination email & sender
+    let brandEmail = process.env.BRAND_NOTIFICATION_EMAIL || 'vbfitsstudios@gmail.com';
+    if (supabase) {
+      try {
+        const { data: brandSetting } = await supabase
+          .from('store_settings')
+          .select('value')
+          .eq('key', 'brand_notification_email')
+          .maybeSingle();
+        if (brandSetting?.value) {
+          brandEmail = String(brandSetting.value).replace(/^["']|["']$/g, '').trim();
+        }
+      } catch {
+        // Keep default brandEmail
       }
-    } catch {
-      // Keep default brandEmail
     }
-  }
 
-  // Sender MUST use the verified domain (@vbfitsstudios.com).
-  // If RESEND_FROM_EMAIL was mistakenly set to a @gmail.com address in Vercel, force the verified domain.
-  let fromAddress = process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
-  if (fromAddress.includes('@gmail.com') || !fromAddress.includes('@vbfitsstudios.com')) {
-    fromAddress = 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
-  }
+    // Sender MUST use the verified domain (@vbfitsstudios.com).
+    // If RESEND_FROM_EMAIL was mistakenly set to a @gmail.com address in Vercel, force the verified domain.
+    let fromAddress = process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
+    if (fromAddress.includes('@gmail.com') || !fromAddress.includes('@vbfitsstudios.com')) {
+      fromAddress = 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
+    }
 
-  // If no API key configured anywhere, return graceful response
-  if (!resendApiKey || resendApiKey.includes('PASTE_YOUR')) {
-    console.error('[contact] Resend API key is not configured.');
+    // If no API key configured anywhere, return graceful response
+    if (!resendApiKey || resendApiKey.includes('PASTE_YOUR')) {
+      console.error('[contact] Resend API key is not configured.');
+      return res.status(200).json({
+        success: true,
+        emailSent: false,
+        message: 'Inquiry saved to database. Email delivery requires RESEND_API_KEY in Vercel or Supabase store_settings.'
+      });
+    }
+
+    // 5. Generate luxury HTML templates
+    const brandNotificationHtml = buildBrandNotificationHtml({
+      clientName: cleanName,
+      clientEmail: cleanEmail,
+      messageText: cleanMessage,
+      submittedAt: new Date().toUTCString()
+    });
+
+    const autoReplyHtml = buildAutoReplyHtml({
+      clientName: cleanName,
+      originalMessage: cleanMessage
+    });
+
+    // 6. Send both emails in parallel via Resend REST API
+    const [brandResult, autoReplyResult] = await Promise.allSettled([
+      // Email 1: To Brand Owner
+      sendViaResend(resendApiKey, {
+        from: fromAddress,
+        to: [brandEmail],
+        reply_to: cleanEmail,
+        subject: `[VB FITS] New Client Inquiry — ${cleanName}`,
+        html: brandNotificationHtml
+      }),
+
+      // Email 2: Auto-reply to Customer
+      sendViaResend(resendApiKey, {
+        from: fromAddress,
+        to: [cleanEmail],
+        subject: 'We have received your message — VB FITS STUDIOS | تم استلام استفساركم',
+        html: autoReplyHtml
+      })
+    ]);
+
+    const brandOk = brandResult.status === 'fulfilled' && (brandResult.value as any)?.ok === true;
+    const autoReplyOk = autoReplyResult.status === 'fulfilled' && (autoReplyResult.value as any)?.ok === true;
+
+    // Log failures for telemetry
+    if (!brandOk) {
+      const err = brandResult.status === 'rejected' ? brandResult.reason : (brandResult.value as any)?.error;
+      console.error('[contact] Brand notification email failed:', err);
+    }
+    if (!autoReplyOk) {
+      const err = autoReplyResult.status === 'rejected' ? autoReplyResult.reason : (autoReplyResult.value as any)?.error;
+      console.error('[contact] Customer auto-reply email failed:', err);
+    }
+
+    // 7. Record logs in email_logs table if available
+    if (supabase) {
+      const logs = [];
+      if (brandOk) {
+        logs.push({
+          event_type: 'contact_inquiry_to_brand',
+          reference_id: `contact-brand-${Date.now()}`,
+          recipient_email: brandEmail,
+          status: 'sent',
+          provider_message_id: (brandResult as any).value?.data?.id
+        });
+      }
+      if (autoReplyOk) {
+        logs.push({
+          event_type: 'contact_autoreply',
+          reference_id: `contact-reply-${Date.now()}`,
+          recipient_email: cleanEmail,
+          status: 'sent',
+          provider_message_id: (autoReplyResult as any).value?.data?.id
+        });
+      }
+      if (logs.length > 0) {
+        await supabase.from('email_logs').insert(logs).catch(() => {});
+      }
+    }
+
     return res.status(200).json({
       success: true,
-      emailSent: false,
-      message: 'Inquiry saved to database. Email delivery requires RESEND_API_KEY in Vercel or Supabase store_settings.'
+      brandNotificationSent: brandOk,
+      autoReplySent: autoReplyOk,
+      details: {
+        brandError: brandOk ? null : (brandResult as any).value?.error || (brandResult as any).reason || 'Failed',
+        autoReplyError: autoReplyOk ? null : (autoReplyResult as any).value?.error || (autoReplyResult as any).reason || 'Failed'
+      }
+    });
+  } catch (fatalErr: any) {
+    console.error('[contact fatal]', fatalErr);
+    return res.status(500).json({
+      error: 'Internal server error in contact handler',
+      message: fatalErr?.message || String(fatalErr)
     });
   }
-
-  // 5. Generate luxury HTML templates
-  const brandNotificationHtml = buildBrandNotificationHtml({
-    clientName: cleanName,
-    clientEmail: cleanEmail,
-    messageText: cleanMessage,
-    submittedAt: new Date().toUTCString()
-  });
-
-  const autoReplyHtml = buildAutoReplyHtml({
-    clientName: cleanName,
-    originalMessage: cleanMessage
-  });
-
-  // 6. Send both emails in parallel via Resend REST API
-  const [brandResult, autoReplyResult] = await Promise.allSettled([
-    // Email 1: To Brand Owner
-    sendViaResend(resendApiKey, {
-      from: fromAddress,
-      to: [brandEmail],
-      reply_to: cleanEmail,
-      subject: `[VB FITS] New Client Inquiry — ${cleanName}`,
-      html: brandNotificationHtml
-    }),
-
-    // Email 2: Auto-reply to Customer
-    sendViaResend(resendApiKey, {
-      from: fromAddress,
-      to: [cleanEmail],
-      subject: 'We have received your message — VB FITS STUDIOS | تم استلام استفساركم',
-      html: autoReplyHtml
-    })
-  ]);
-
-  const brandOk = brandResult.status === 'fulfilled' && brandResult.value.ok;
-  const autoReplyOk = autoReplyResult.status === 'fulfilled' && autoReplyResult.value.ok;
-
-  // Log failures for telemetry
-  if (!brandOk) {
-    const err = brandResult.status === 'rejected' ? brandResult.reason : brandResult.value?.error;
-    console.error('[contact] Brand notification email failed:', err);
-  }
-  if (!autoReplyOk) {
-    const err = autoReplyResult.status === 'rejected' ? autoReplyResult.reason : autoReplyResult.value?.error;
-    console.error('[contact] Customer auto-reply email failed:', err);
-  }
-
-  // 7. Record logs in email_logs table if available
-  if (supabase) {
-    const logs = [];
-    if (brandOk) {
-      logs.push({
-        event_type: 'contact_inquiry_to_brand',
-        reference_id: `contact-brand-${Date.now()}`,
-        recipient_email: brandEmail,
-        status: 'sent',
-        provider_message_id: (brandResult as any).value?.data?.id
-      });
-    }
-    if (autoReplyOk) {
-      logs.push({
-        event_type: 'contact_autoreply',
-        reference_id: `contact-reply-${Date.now()}`,
-        recipient_email: cleanEmail,
-        status: 'sent',
-        provider_message_id: (autoReplyResult as any).value?.data?.id
-      });
-    }
-    if (logs.length > 0) {
-      await supabase.from('email_logs').insert(logs).catch(() => {});
-    }
-  }
-
-  return res.status(200).json({
-    success: true,
-    brandNotificationSent: brandOk,
-    autoReplySent: autoReplyOk,
-    details: {
-      brandError: brandOk ? null : (brandResult as any).value?.error || 'Failed',
-      autoReplyError: autoReplyOk ? null : (autoReplyResult as any).value?.error || 'Failed'
-    }
-  });
 }
 
 // ── Native Resend REST Client (No SDK Dependencies) ──────────────────────────
