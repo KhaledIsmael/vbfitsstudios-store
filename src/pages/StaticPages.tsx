@@ -76,13 +76,35 @@ export const AboutPage: React.FC = () => {
 export const ContactPage: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [formData, setFormData] = useState({ name: '', email: '', message: '' });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     getSiteSettings().then(setSettings);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.email || !formData.name || !formData.message) return;
+    setSubmitting(true);
+
+    try {
+      await fetch('/api/email/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'admin_notification',
+          referenceId: `contact-${Date.now()}`,
+          recipientEmail: 'vbfitsstudios@gmail.com',
+          payload: {
+            alertType: 'New Client Inquiry Transmitted',
+            message: `Client Name: ${formData.name}\nClient Email: ${formData.email}\n\nInquiry:\n${formData.message}`
+          }
+        })
+      }).catch(() => {});
+    } catch {}
+
+    setSubmitting(false);
     setSubmitted(true);
   };
 
@@ -104,18 +126,12 @@ export const ContactPage: React.FC = () => {
           <div className="space-y-8 text-xs text-[#555555]">
             <div>
               <h3 className="text-xs uppercase tracking-widest font-semibold text-black mb-2">
-                Atelier Concierge
+                Email for Contact
               </h3>
-              <p>For order inquiries, VIP styling assistance, and private showroom viewings:</p>
-              <p className="text-black font-medium mt-1">concierge@vbfits.com</p>
-            </div>
-
-            <div>
-              <h3 className="text-xs uppercase tracking-widest font-semibold text-black mb-2">
-                Press & Wholesale
-              </h3>
-              <p>For editorial loans and partner boutique correspondence:</p>
-              <p className="text-black font-medium mt-1">press@vbfits.com</p>
+              <p>For order inquiries, VIP client assistance, and general correspondence:</p>
+              <a href="mailto:vbfitsstudios@gmail.com" className="text-black font-semibold mt-1 inline-block hover:underline">
+                vbfitsstudios@gmail.com
+              </a>
             </div>
 
             <div>
@@ -147,11 +163,11 @@ export const ContactPage: React.FC = () => {
               >
                 <h4 className="text-xs uppercase tracking-widest font-semibold text-black">Message Transmitted</h4>
                 <p className="text-xs text-[#666666]">
-                  A client concierge advisor will review your transmission within 24 business hours.
+                  Thank you, {formData.name}. A client concierge advisor will review your transmission and reply to {formData.email} within 24 business hours.
                 </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+              <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                   <label
                     htmlFor="contact-name"
@@ -163,7 +179,8 @@ export const ContactPage: React.FC = () => {
                     id="contact-name"
                     type="text"
                     required
-                    aria-required="true"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full bg-[#FAFAFA] border border-[#EAEAEA] px-4 py-3 text-xs text-black focus:outline-none focus:border-black rounded-none"
                     placeholder="Your Full Name"
                   />
@@ -179,7 +196,8 @@ export const ContactPage: React.FC = () => {
                     id="contact-email"
                     type="email"
                     required
-                    aria-required="true"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full bg-[#FAFAFA] border border-[#EAEAEA] px-4 py-3 text-xs text-black focus:outline-none focus:border-black rounded-none"
                     placeholder="name@domain.com"
                   />
@@ -195,16 +213,18 @@ export const ContactPage: React.FC = () => {
                     id="contact-inquiry"
                     rows={5}
                     required
-                    aria-required="true"
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     className="w-full bg-[#FAFAFA] border border-[#EAEAEA] px-4 py-3 text-xs text-black focus:outline-none focus:border-black rounded-none"
                     placeholder="How may our concierge assist you?"
                   />
                 </div>
                 <button
                   type="submit"
-                  className="w-full bg-black text-white text-xs uppercase tracking-luxury py-4 font-medium hover:bg-[#333333] transition-colors"
+                  disabled={submitting}
+                  className="w-full bg-black text-white text-xs uppercase tracking-luxury py-4 font-medium hover:bg-[#333333] transition-colors disabled:opacity-50"
                 >
-                  Send Transmission
+                  {submitting ? 'Transmitting...' : 'Send Transmission'}
                 </button>
               </form>
             )}
@@ -265,7 +285,7 @@ export const PoliciesPage: React.FC = () => {
         <div className="pt-12 text-xs sm:text-sm text-[#555555] leading-relaxed space-y-6">
           <p>{policy.content}</p>
           <p>
-            For specialized inquiries regarding legal compliance or shipping tracking, please contact our concierge team at <span className="font-semibold text-black">concierge@vbfits.com</span>.
+            For specialized inquiries regarding legal compliance, policies, or order support, please contact our team at <a href="mailto:vbfitsstudios@gmail.com" className="font-semibold text-black underline">vbfitsstudios@gmail.com</a>.
           </p>
         </div>
       </div>

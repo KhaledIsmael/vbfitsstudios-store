@@ -51,9 +51,7 @@ const AVAILABLE_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
 const COLOR_SWATCHES = [
   { name: 'Black', hex: '#111111', border: false },
-  { name: 'Charcoal', hex: '#2A2A2A', border: false },
-  { name: 'White', hex: '#F9F9F9', border: true },
-  { name: 'Bone', hex: '#EBE7DF', border: true }
+  { name: 'White', hex: '#FFFFFF', border: true }
 ];
 
 export const FilterSortBar: React.FC<FilterSortBarProps> = ({

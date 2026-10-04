@@ -216,6 +216,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     if (data && !error && data.launch_at) {
       const gateEnabled = data.countdown_gate_enabled ?? data.gate_enabled ?? true;
       const merged: SiteSettings = {
+        ...DEFAULT_SITE_SETTINGS,
+        ...data,
         id: data.id || 'current',
         launch_at: data.launch_at || DEFAULT_LAUNCH_AT,
         countdown_gate_enabled: gateEnabled,
@@ -229,6 +231,17 @@ export async function getSiteSettings(): Promise<SiteSettings> {
             ? `${data.teaser_headline}. ${data.teaser_subtext || ''}`
             : DEFAULT_SITE_SETTINGS.teaser_text),
         countdown_strip_text: data.countdown_strip_text || DEFAULT_SITE_SETTINGS.countdown_strip_text,
+        social_instagram_url: data.social_instagram_url || DEFAULT_SITE_SETTINGS.social_instagram_url,
+        social_whatsapp_url: data.social_whatsapp_url || DEFAULT_SITE_SETTINGS.social_whatsapp_url,
+        social_tiktok_url: data.social_tiktok_url || DEFAULT_SITE_SETTINGS.social_tiktok_url,
+        editorial_media_url: data.editorial_media_url || DEFAULT_SITE_SETTINGS.editorial_media_url,
+        editorial_media_type: data.editorial_media_type || DEFAULT_SITE_SETTINGS.editorial_media_type,
+        social_proof_media_url: data.social_proof_media_url || DEFAULT_SITE_SETTINGS.social_proof_media_url,
+        social_proof_media_type: data.social_proof_media_type || DEFAULT_SITE_SETTINGS.social_proof_media_type,
+        credits_developer_name: data.credits_developer_name || DEFAULT_SITE_SETTINGS.credits_developer_name,
+        credits_developer_url: data.credits_developer_url || DEFAULT_SITE_SETTINGS.credits_developer_url,
+        credits_agency_name: data.credits_agency_name || DEFAULT_SITE_SETTINGS.credits_agency_name,
+        credits_agency_url: data.credits_agency_url || DEFAULT_SITE_SETTINGS.credits_agency_url,
         updated_at: data.updated_at
       };
       try {
@@ -326,6 +339,17 @@ export async function updateSiteSettings(
         teaser_subtext: updated.teaser_subtext,
         teaser_text: updated.teaser_text,
         countdown_strip_text: updated.countdown_strip_text,
+        social_instagram_url: updated.social_instagram_url,
+        social_whatsapp_url: updated.social_whatsapp_url,
+        social_tiktok_url: updated.social_tiktok_url,
+        editorial_media_url: updated.editorial_media_url,
+        editorial_media_type: updated.editorial_media_type,
+        social_proof_media_url: updated.social_proof_media_url,
+        social_proof_media_type: updated.social_proof_media_type,
+        credits_developer_name: updated.credits_developer_name,
+        credits_developer_url: updated.credits_developer_url,
+        credits_agency_name: updated.credits_agency_name,
+        credits_agency_url: updated.credits_agency_url,
         updated_at: updated.updated_at
       });
 

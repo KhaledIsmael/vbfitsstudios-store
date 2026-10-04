@@ -529,23 +529,13 @@ export async function getFilteredProducts(params: ProductFilterParams = {}): Pro
       results = results.filter(
         (p) =>
           p.color.toLowerCase().includes('black') ||
-          p.color.toLowerCase().includes('charcoal') ||
-          p.colorsAvailable?.some(
-            (c) =>
-              c.name.toLowerCase().includes('black') ||
-              c.name.toLowerCase().includes('charcoal')
-          )
+          p.name.toLowerCase().includes('black')
       );
     } else if (params.collectionFilter === 'white') {
       results = results.filter(
         (p) =>
           p.color.toLowerCase().includes('white') ||
-          p.color.toLowerCase().includes('bone') ||
-          p.colorsAvailable?.some(
-            (c) =>
-              c.name.toLowerCase().includes('white') ||
-              c.name.toLowerCase().includes('bone')
-          )
+          p.name.toLowerCase().includes('white')
       );
     } else if (params.collectionFilter === 'new') {
       results = results.filter((p) => p.isNewArrival);
@@ -566,14 +556,14 @@ export async function getFilteredProducts(params: ProductFilterParams = {}): Pro
       );
     }
 
-    // Color swatches filter
+    // Color swatches filter (strictly matches the product's own color)
     if (params.colors && params.colors.length > 0) {
       results = results.filter((p) =>
         params.colors!.some((c) => {
           const target = c.toLowerCase();
           return (
             p.color.toLowerCase().includes(target) ||
-            p.colorsAvailable?.some((ca) => ca.name.toLowerCase().includes(target))
+            p.name.toLowerCase().includes(target)
           );
         })
       );

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { BRAND_CONFIG } from '../../config/assets';
 import { subscribeNewsletter } from '../../lib/adminMarketing';
 import { getSiteSettings, type SiteSettings, DEFAULT_SITE_SETTINGS } from '../../lib/siteSettings';
+import { supabase } from '../../lib/supabaseClient';
 
 interface FooterLinkItem {
   name: string;
@@ -10,20 +11,38 @@ interface FooterLinkItem {
 }
 
 export const Footer: React.FC = () => {
-  // ── Newsletter Form Logic (Untouched per requirement) ──
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
-      await subscribeNewsletter(email.trim(), 'footer');
-      setSubscribed(true);
-      setTimeout(() => {
-        setEmail('');
-        setSubscribed(false);
-      }, 4000);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return;
+
+    setSubmitting(true);
+    // 1. Record newsletter subscription + discount voucher
+    await subscribeNewsletter(cleanEmail, 'footer');
+
+    // 2. Dispatch real signup / login magic verification email
+    try {
+      await supabase.auth.signInWithOtp({
+        email: cleanEmail,
+        options: {
+          emailRedirectTo: `${window.location.origin}/profile`,
+          shouldCreateUser: true
+        }
+      });
+    } catch (err) {
+      console.warn('Footer signup dispatch notice:', err);
     }
+
+    setSubmitting(false);
+    setSubscribed(true);
+    setTimeout(() => {
+      setEmail('');
+      setSubscribed(false);
+    }, 6000);
   };
 
   // ── Mobile Collapsible Accordion States (REFERENCE-SPEC 11.2) ──
@@ -99,9 +118,10 @@ export const Footer: React.FC = () => {
                 />
                 <button
                   type="submit"
-                  className="px-5 py-3 text-xs font-spec font-bold uppercase tracking-spec text-black hover:opacity-60 border-l border-[#CCCCCC] flex-shrink-0 transition-opacity bg-transparent"
+                  disabled={submitting}
+                  className="px-5 py-3 text-xs font-spec font-bold uppercase tracking-spec text-black hover:opacity-60 border-l border-[#CCCCCC] flex-shrink-0 transition-opacity bg-transparent disabled:opacity-50"
                 >
-                  {subscribed ? 'SUBMITTED' : 'SIGN UP'}
+                  {submitting ? 'SENDING...' : subscribed ? 'CHECK EMAIL!' : 'SIGN UP'}
                 </button>
               </div>
             </form>

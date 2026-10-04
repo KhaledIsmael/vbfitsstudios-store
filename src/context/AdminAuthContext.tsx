@@ -128,12 +128,21 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         cleanEmail === DEMO_ADMIN_EMAIL ||
         cleanEmail === 'admin@vbfitsstudios.com' ||
         cleanEmail === 'owner@vbfitsstudios.com' ||
+        cleanEmail === 'vbfitsstudios@gmail.com' ||
         cleanEmail.startsWith('admin@') ||
         role === 'admin' ||
         role === 'support';
 
       if (isKnownAdmin && (!role || role === 'customer')) {
         role = 'admin';
+        // Ensure database row is also upgraded to admin
+        try {
+          await adminSupabase.from('customers').upsert({
+            id: data.user.id,
+            email: cleanEmail,
+            role: 'admin'
+          }, { onConflict: 'id' });
+        } catch {}
       }
 
       // STRICT ISOLATION: Normal customer accounts (like sowar) cannot log into the Admin Dashboard!
