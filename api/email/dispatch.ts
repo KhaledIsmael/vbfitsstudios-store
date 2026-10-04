@@ -14,16 +14,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const resendApiKey = process.env.RESEND_API_KEY || '';
+  const resendApiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY || '';
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-  if (!resendApiKey || !supabaseUrl || !supabaseServiceKey) {
-    return res.status(500).json({ error: 'Missing environment variables.' });
+  if (!resendApiKey) {
+    console.error('RESEND_API_KEY is missing in environment variables.');
+    return res.status(500).json({ error: 'Missing RESEND_API_KEY environment variable.' });
   }
 
   const resend = new Resend(resendApiKey);
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = (supabaseUrl && supabaseServiceKey) ? createClient(supabaseUrl, supabaseServiceKey) : null;
 
   const { eventType, referenceId, recipientEmail, payload } = req.body || {};
 
@@ -31,16 +32,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  // 1. Check for duplicate email dispatch
-  const { data: existingLog } = await supabase
-    .from('email_logs')
-    .select('id, status')
-    .eq('event_type', eventType)
-    .eq('reference_id', referenceId)
-    .single();
+  // 1. Check for duplicate email dispatch if database client is available
+  if (supabase) {
+    try {
+      const { data: existingLog } = await supabase
+        .from('email_logs')
+        .select('id, status')
+        .eq('event_type', eventType)
+        .eq('reference_id', referenceId)
+        .maybeSingle();
 
-  if (existingLog && existingLog.status === 'sent') {
-    return res.status(200).json({ success: true, message: 'Email already dispatched successfully.', skipped: true });
+      if (existingLog && existingLog.status === 'sent') {
+        return res.status(200).json({ success: true, message: 'Email already dispatched successfully.', skipped: true });
+      }
+    } catch (e) {
+      console.warn('email_logs duplicate check notice:', e);
+    }
   }
 
   // 2. Build the email template based on the eventType
@@ -163,39 +170,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Unsupported eventType' });
   }
 
-  // 3. Dispatch Email via Resend
+  // 3. Dispatch Email via Resend with auto-fallback for unverified domains
   const htmlContent = buildBrandEmailHtml(emailParams);
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'VB FITS STUDIOS <noreply@vbfitsstudios.com>',
+    let fromAddress = process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
+
+    let sendResult = await resend.emails.send({
+      from: fromAddress,
       to: [recipientEmail],
       subject: emailParams.subject,
       html: htmlContent
     });
 
-    if (error) {
-      console.error('Resend Error:', error);
-      // Log failure
+    // If custom domain is not verified yet in Resend, automatically fallback to default testing sender
+    if (sendResult.error && (sendResult.error.message?.toLowerCase().includes('not verified') || sendResult.error.name === 'validation_error')) {
+      console.warn('Sender domain unverified, retrying with onboarding@resend.dev...');
+      sendResult = await resend.emails.send({
+        from: 'VB FITS STUDIOS <onboarding@resend.dev>',
+        to: [recipientEmail],
+        subject: emailParams.subject,
+        html: htmlContent
+      });
+    }
+
+    if (sendResult.error) {
+      console.error('Resend Error:', sendResult.error);
+      if (supabase) {
+        await supabase.from('email_logs').insert({
+          event_type: eventType,
+          reference_id: referenceId,
+          recipient_email: recipientEmail,
+          status: 'failed',
+          error_details: JSON.stringify(sendResult.error)
+        }).catch(() => {});
+      }
+      return res.status(502).json({ error: 'Email delivery failed', details: sendResult.error.message });
+    }
+
+    // Log success
+    if (supabase) {
       await supabase.from('email_logs').insert({
         event_type: eventType,
         reference_id: referenceId,
         recipient_email: recipientEmail,
-        status: 'failed',
-        error_details: JSON.stringify(error)
-      });
-      return res.status(502).json({ error: 'Email delivery failed' });
+        status: 'sent',
+        provider_message_id: sendResult.data?.id
+      }).catch(() => {});
     }
 
-    // Log success
-    await supabase.from('email_logs').insert({
-      event_type: eventType,
-      reference_id: referenceId,
-      recipient_email: recipientEmail,
-      status: 'sent'
-    });
-
-    return res.status(200).json({ success: true, messageId: data?.id });
+    return res.status(200).json({ success: true, messageId: sendResult.data?.id });
   } catch (err: any) {
     console.error('Dispatch error:', err);
     return res.status(500).json({ error: 'Internal server error', detail: err?.message });

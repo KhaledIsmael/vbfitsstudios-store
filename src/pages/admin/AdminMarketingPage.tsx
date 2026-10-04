@@ -56,7 +56,11 @@ import {
 import { AdminHeroEditor } from '../../components/admin/AdminHeroEditor';
 
 export const AdminMarketingPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'discounts' | 'hero' | 'banner' | 'launch' | 'integrations'>('hero');
+  const [activeTab, setActiveTab] = useState<'discounts' | 'hero' | 'banner' | 'launch' | 'integrations' | 'inquiries'>('hero');
+
+  // Contact Inquiries State
+  const [inquiries, setInquiries] = useState<any[]>([]);
+  const [loadingInquiries, setLoadingInquiries] = useState(false);
 
   // Discounts state
   const [codes, setCodes] = useState<DiscountCode[]>([]);
@@ -96,6 +100,21 @@ export const AdminMarketingPage: React.FC = () => {
   const [telegramFeedback, setTelegramFeedback] = useState<{ success: boolean; msg: string } | null>(null);
   const [broadcastingSms, setBroadcastingSms] = useState<string | null>(null);
 
+  const fetchInquiries = async () => {
+    setLoadingInquiries(true);
+    try {
+      const { data } = await supabase
+        .from('contact_messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (data) setInquiries(data);
+    } catch (e) {
+      console.warn('Could not fetch contact inquiries:', e);
+    } finally {
+      setLoadingInquiries(false);
+    }
+  };
+
   const loadAll = async () => {
     setLoading(true);
     try {
@@ -107,6 +126,7 @@ export const AdminMarketingPage: React.FC = () => {
       setCodes(codesData);
       if (bannerData) setBanner(bannerData);
       if (siteSettingsData) setSiteSettings(siteSettingsData);
+      fetchInquiries();
     } catch (err) {
       console.error('Failed to load marketing assets:', err);
     } finally {
@@ -397,7 +417,23 @@ export const AdminMarketingPage: React.FC = () => {
           }`}
         >
           <Bot className="w-3.5 h-3.5 text-emerald-500" />
-          <span>التكاملات والأتمتة المجانية (تيليجرام / Vercel)</span>
+          <span>التكاملات والأتمتة</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('inquiries');
+            fetchInquiries();
+          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all cursor-pointer ${
+            activeTab === 'inquiries'
+              ? 'bg-zinc-950 text-white shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <MessageCircle className="w-3.5 h-3.5 text-blue-500" />
+          <span>رسائل التواصل ({inquiries.length})</span>
         </button>
       </div>
 
@@ -1174,7 +1210,98 @@ export const AdminMarketingPage: React.FC = () => {
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* 6. نافذة منبثقة لإنشاء كود خصم جديد                           */}
+      {/* 6. تبويب رسائل واستفسارات التواصل Contact Inquiries            */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {activeTab === 'inquiries' && (
+        <div className="space-y-4">
+          <div className="bg-white p-4 border border-slate-200 rounded-xl flex items-center justify-between shadow-2xs">
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900">رسائل واستفسارات صفحة Contact Us</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                كل رسالة يرسلها أي عميل أو زائر من صفحة Contact Us تُحفظ هنا في قاعدة البيانات فورياً وتُرسل نسخة إلى إيميلك.
+              </p>
+            </div>
+            <button
+              onClick={fetchInquiries}
+              disabled={loadingInquiries}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingInquiries ? 'animate-spin' : ''}`} />
+              <span>تحديث الرسائل</span>
+            </button>
+          </div>
+
+          {loadingInquiries ? (
+            <div className="bg-white p-12 border border-slate-200 rounded-xl text-center text-slate-400">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-zinc-900" />
+              <span>جاري تحميل الرسائل...</span>
+            </div>
+          ) : inquiries.length === 0 ? (
+            <div className="bg-white p-12 border border-slate-200 rounded-xl text-center text-slate-400 space-y-2">
+              <MessageCircle className="w-8 h-8 mx-auto text-slate-300" />
+              <p className="font-bold text-slate-600 text-sm">لا توجد رسائل تواصل جديدة حتى الآن</p>
+              <p className="text-xs text-slate-400">أي رسالة من صفحة Contact Us ستظهر هنا فور إرسالها.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {inquiries.map((inq) => (
+                <div
+                  key={inq.id}
+                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:border-slate-300 transition-all space-y-3"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center font-bold text-xs uppercase">
+                        {(inq.name || 'G')[0]}
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-sm text-slate-900">{inq.name}</h4>
+                        <a
+                          href={`mailto:${inq.email}?subject=Re: VB FITS STUDIOS Inquiry`}
+                          className="text-xs text-indigo-600 hover:underline font-mono"
+                        >
+                          {inq.email}
+                        </a>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {inq.created_at ? new Date(inq.created_at).toLocaleString('ar-EG') : ''}
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          inq.status === 'read'
+                            ? 'bg-slate-100 text-slate-600'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}
+                      >
+                        {inq.status === 'read' ? 'تمت القراءة' : 'جديدة'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-100 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
+                    {inq.message}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <a
+                      href={`mailto:${inq.email}?subject=Re: VB FITS STUDIOS Inquiry&body=%0D%0A%0D%0A---%20Original%20Message%20---%0D%0A${encodeURIComponent(inq.message || '')}`}
+                      className="px-3 py-1.5 bg-zinc-900 hover:bg-black text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>رد على العميل عبر الإيميل</span>
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 7. نافذة منبثقة لإنشاء كود خصم جديد                           */}
       {/* ───────────────────────────────────────────────────────────── */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">

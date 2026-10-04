@@ -53,14 +53,90 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   editorial_media_type: 'image',
   social_proof_media_url: '',
   social_proof_media_type: 'image',
-  social_whatsapp_url: 'https://wa.me/201000000000',
-  social_instagram_url: 'https://instagram.com/vbfitsstudios',
-  social_tiktok_url: 'https://tiktok.com/@vbfitsstudios',
+  social_whatsapp_url: 'https://wa.me/201021368544',
+  social_instagram_url: 'https://www.instagram.com/vbfitsstudios',
+  social_tiktok_url: 'https://www.tiktok.com/@vbfitsstudios',
   credits_developer_name: 'Khaled Ismail',
   credits_developer_url: 'https://www.linkedin.com/in/khaled-ismail-27899a306',
   credits_agency_name: 'ERTH',
   credits_agency_url: 'https://www.linkedin.com/company/erth-%D8%A5%D8%B1%D8%AB/'
 };
+
+/**
+ * Normalizes and formats social media & external URLs to guarantee valid HTTPS absolute links.
+ * Prevents broken relative redirects like https://vbfitsstudios.com/@vbfitsstudios or https://vbfitsstudios.com/instagram.com/...
+ */
+export function formatSocialUrl(type: 'instagram' | 'tiktok' | 'whatsapp' | 'url', rawUrl?: string): string {
+  if (!rawUrl || typeof rawUrl !== 'string') {
+    switch (type) {
+      case 'instagram': return DEFAULT_SITE_SETTINGS.social_instagram_url!;
+      case 'tiktok': return DEFAULT_SITE_SETTINGS.social_tiktok_url!;
+      case 'whatsapp': return DEFAULT_SITE_SETTINGS.social_whatsapp_url!;
+      default: return '#';
+    }
+  }
+
+  let cleaned = rawUrl.trim();
+  if (!cleaned) {
+    switch (type) {
+      case 'instagram': return DEFAULT_SITE_SETTINGS.social_instagram_url!;
+      case 'tiktok': return DEFAULT_SITE_SETTINGS.social_tiktok_url!;
+      case 'whatsapp': return DEFAULT_SITE_SETTINGS.social_whatsapp_url!;
+      default: return '#';
+    }
+  }
+
+  // 1. WhatsApp
+  if (type === 'whatsapp') {
+    if (cleaned.startsWith('https://wa.me/') || cleaned.startsWith('http://wa.me/')) {
+      return cleaned.replace(/^http:\/\//, 'https://');
+    }
+    if (cleaned.includes('wa.me/')) {
+      const parts = cleaned.split('wa.me/');
+      const digits = (parts[1] || '').replace(/[^\d]/g, '');
+      return `https://wa.me/${digits || '201021368544'}`;
+    }
+    // Extract raw digits
+    let digits = cleaned.replace(/[^\d]/g, '');
+    // If starts with Egyptian local mobile '01...', convert to international '+201...'
+    if (digits.startsWith('01') && digits.length === 11) {
+      digits = '2' + digits; // 201xxxxxxxxx
+    } else if (digits.startsWith('1') && digits.length === 10) {
+      digits = '20' + digits;
+    }
+    return `https://wa.me/${digits || '201021368544'}`;
+  }
+
+  // 2. Instagram
+  if (type === 'instagram') {
+    cleaned = cleaned.replace(/^@/, '');
+    if (/^https?:\/\/(www\.)?instagram\.com\//i.test(cleaned)) {
+      return cleaned.replace(/^http:\/\//i, 'https://');
+    }
+    if (/^(www\.)?instagram\.com\//i.test(cleaned)) {
+      return `https://${cleaned}`;
+    }
+    return `https://www.instagram.com/${cleaned.replace(/^\/+/, '')}`;
+  }
+
+  // 3. TikTok
+  if (type === 'tiktok') {
+    if (/^https?:\/\/(www\.)?tiktok\.com\//i.test(cleaned)) {
+      return cleaned.replace(/^http:\/\//i, 'https://');
+    }
+    if (/^(www\.)?tiktok\.com\//i.test(cleaned)) {
+      return `https://${cleaned}`;
+    }
+    const handle = cleaned.startsWith('@') ? cleaned : `@${cleaned}`;
+    return `https://www.tiktok.com/${handle}`;
+  }
+
+  // 4. Generic external URL (developer credits, agency, etc.)
+  if (!/^https?:\/\//i.test(cleaned)) {
+    return `https://${cleaned}`;
+  }
+  return cleaned;
+}
 
 /**
  * Calculates the exact GMT offset for Africa/Cairo (e.g. "+03:00" or "+02:00")
@@ -231,17 +307,17 @@ export async function getSiteSettings(): Promise<SiteSettings> {
             ? `${data.teaser_headline}. ${data.teaser_subtext || ''}`
             : DEFAULT_SITE_SETTINGS.teaser_text),
         countdown_strip_text: data.countdown_strip_text || DEFAULT_SITE_SETTINGS.countdown_strip_text,
-        social_instagram_url: data.social_instagram_url || DEFAULT_SITE_SETTINGS.social_instagram_url,
-        social_whatsapp_url: data.social_whatsapp_url || DEFAULT_SITE_SETTINGS.social_whatsapp_url,
-        social_tiktok_url: data.social_tiktok_url || DEFAULT_SITE_SETTINGS.social_tiktok_url,
+        social_instagram_url: formatSocialUrl('instagram', data.social_instagram_url),
+        social_whatsapp_url: formatSocialUrl('whatsapp', data.social_whatsapp_url),
+        social_tiktok_url: formatSocialUrl('tiktok', data.social_tiktok_url),
         editorial_media_url: data.editorial_media_url || DEFAULT_SITE_SETTINGS.editorial_media_url,
         editorial_media_type: data.editorial_media_type || DEFAULT_SITE_SETTINGS.editorial_media_type,
         social_proof_media_url: data.social_proof_media_url || DEFAULT_SITE_SETTINGS.social_proof_media_url,
         social_proof_media_type: data.social_proof_media_type || DEFAULT_SITE_SETTINGS.social_proof_media_type,
         credits_developer_name: data.credits_developer_name || DEFAULT_SITE_SETTINGS.credits_developer_name,
-        credits_developer_url: data.credits_developer_url || DEFAULT_SITE_SETTINGS.credits_developer_url,
+        credits_developer_url: data.credits_developer_url ? formatSocialUrl('url', data.credits_developer_url) : DEFAULT_SITE_SETTINGS.credits_developer_url,
         credits_agency_name: data.credits_agency_name || DEFAULT_SITE_SETTINGS.credits_agency_name,
-        credits_agency_url: data.credits_agency_url || DEFAULT_SITE_SETTINGS.credits_agency_url,
+        credits_agency_url: data.credits_agency_url ? formatSocialUrl('url', data.credits_agency_url) : DEFAULT_SITE_SETTINGS.credits_agency_url,
         updated_at: data.updated_at
       };
       try {
@@ -316,6 +392,11 @@ export async function updateSiteSettings(
     teaser_headline: headline,
     teaser_subtext: subtext,
     teaser_text: teaserCombined,
+    social_whatsapp_url: formatSocialUrl('whatsapp', settings.social_whatsapp_url !== undefined ? settings.social_whatsapp_url : current.social_whatsapp_url),
+    social_instagram_url: formatSocialUrl('instagram', settings.social_instagram_url !== undefined ? settings.social_instagram_url : current.social_instagram_url),
+    social_tiktok_url: formatSocialUrl('tiktok', settings.social_tiktok_url !== undefined ? settings.social_tiktok_url : current.social_tiktok_url),
+    credits_developer_url: settings.credits_developer_url !== undefined ? (settings.credits_developer_url ? formatSocialUrl('url', settings.credits_developer_url) : '') : current.credits_developer_url,
+    credits_agency_url: settings.credits_agency_url !== undefined ? (settings.credits_agency_url ? formatSocialUrl('url', settings.credits_agency_url) : '') : current.credits_agency_url,
     updated_at: new Date().toISOString()
   };
 

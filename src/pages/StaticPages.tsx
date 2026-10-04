@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getSiteSettings, type SiteSettings, DEFAULT_SITE_SETTINGS } from '../lib/siteSettings';
+import { getSiteSettings, type SiteSettings, DEFAULT_SITE_SETTINGS, formatSocialUrl } from '../lib/siteSettings';
+import { supabase } from '../lib/supabaseClient';
 import { Plus, ShoppingBag, Check, Eye, Sparkles, ShieldCheck } from 'lucide-react';
 import { BRAND_CONFIG, PRODUCTS } from '../config/assets';
 import { useCart } from '../context/CartContext';
@@ -89,23 +90,42 @@ export const ContactPage: React.FC = () => {
     setSubmitting(true);
 
     try {
-      await fetch('/api/email/dispatch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventType: 'admin_notification',
-          referenceId: `contact-${Date.now()}`,
-          recipientEmail: 'vbfitsstudios@gmail.com',
-          payload: {
-            alertType: 'New Client Inquiry Transmitted',
-            message: `Client Name: ${formData.name}\nClient Email: ${formData.email}\n\nInquiry:\n${formData.message}`
-          }
-        })
-      }).catch(() => {});
-    } catch {}
+      // 1. Direct database persistence into public.contact_messages
+      try {
+        await supabase.from('contact_messages').insert({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          message: formData.message.trim(),
+          status: 'unread'
+        });
+      } catch (dbErr) {
+        console.warn('contact_messages table save notice:', dbErr);
+      }
 
-    setSubmitting(false);
-    setSubmitted(true);
+      // 2. Dispatch real-time email alert to brand inbox via Resend
+      try {
+        await fetch('/api/email/dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventType: 'admin_notification',
+            referenceId: `contact-${Date.now()}`,
+            recipientEmail: 'vbfitsstudios@gmail.com',
+            payload: {
+              alertType: 'New Client Inquiry Transmitted',
+              message: `Client Name: ${formData.name.trim()}\nClient Email: ${formData.email.trim()}\n\nInquiry Message:\n${formData.message.trim()}`
+            }
+          })
+        });
+      } catch (emailErr) {
+        console.warn('contact inquiry email dispatch notice:', emailErr);
+      }
+    } catch (err) {
+      console.warn('Contact submission notice:', err);
+    } finally {
+      setSubmitting(false);
+      setSubmitted(true);
+    }
   };
 
   return (
@@ -147,9 +167,9 @@ export const ContactPage: React.FC = () => {
                 Socials
               </h3>
               <div className="flex flex-col gap-2 font-medium">
-                <a href={settings.social_whatsapp_url || `https://wa.me/${BRAND_CONFIG.whatsapp.phoneNumber}`} target="_blank" rel="noopener noreferrer" className="text-black hover:opacity-60 transition-opacity">WhatsApp</a>
-                <a href={settings.social_instagram_url || 'https://instagram.com/vbfitsstudios'} target="_blank" rel="noopener noreferrer" className="text-black hover:opacity-60 transition-opacity">Instagram</a>
-                <a href={settings.social_tiktok_url || 'https://tiktok.com/@vbfitsstudios'} target="_blank" rel="noopener noreferrer" className="text-black hover:opacity-60 transition-opacity">TikTok</a>
+                <a href={formatSocialUrl('whatsapp', settings.social_whatsapp_url)} target="_blank" rel="noopener noreferrer" className="text-black hover:opacity-60 transition-opacity">WhatsApp</a>
+                <a href={formatSocialUrl('instagram', settings.social_instagram_url)} target="_blank" rel="noopener noreferrer" className="text-black hover:opacity-60 transition-opacity">Instagram</a>
+                <a href={formatSocialUrl('tiktok', settings.social_tiktok_url)} target="_blank" rel="noopener noreferrer" className="text-black hover:opacity-60 transition-opacity">TikTok</a>
               </div>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getSiteSettings, updateSiteSettings, type SiteSettings, DEFAULT_SITE_SETTINGS } from '../../lib/siteSettings';
+import { getSiteSettings, updateSiteSettings, type SiteSettings, DEFAULT_SITE_SETTINGS, formatSocialUrl } from '../../lib/siteSettings';
 import { uploadAdminMedia } from '../../lib/adminProducts';
 import { Save, Image as ImageIcon, Video, RefreshCw, Link as LinkIcon } from 'lucide-react';
 
@@ -37,7 +37,16 @@ export const AdminStaticBlocksEditor: React.FC = () => {
 
   const handleSave = async (field: 'editorial' | 'social_proof') => {
     setSaving(`save-${field}`);
-    await updateSiteSettings(settings);
+    const normalizedSettings: SiteSettings = {
+      ...settings,
+      social_whatsapp_url: formatSocialUrl('whatsapp', settings.social_whatsapp_url),
+      social_instagram_url: formatSocialUrl('instagram', settings.social_instagram_url),
+      social_tiktok_url: formatSocialUrl('tiktok', settings.social_tiktok_url),
+      credits_developer_url: settings.credits_developer_url ? formatSocialUrl('url', settings.credits_developer_url) : '',
+      credits_agency_url: settings.credits_agency_url ? formatSocialUrl('url', settings.credits_agency_url) : ''
+    };
+    setSettings(normalizedSettings);
+    await updateSiteSettings(normalizedSettings);
     setTimeout(() => setSaving(null), 1000);
   };
 
@@ -160,34 +169,52 @@ export const AdminStaticBlocksEditor: React.FC = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase flex items-center gap-1"><LinkIcon className="w-3 h-3"/> WhatsApp URL</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase flex items-center gap-1"><LinkIcon className="w-3 h-3"/> WhatsApp URL / Phone</label>
             <input 
               type="text" 
               value={settings.social_whatsapp_url || ''} 
               onChange={e => setSettings(prev => ({ ...prev, social_whatsapp_url: e.target.value }))}
-              placeholder="https://wa.me/..."
+              onBlur={() => setSettings(prev => ({ ...prev, social_whatsapp_url: formatSocialUrl('whatsapp', prev.social_whatsapp_url) }))}
+              placeholder="e.g. 01021368544 or https://wa.me/..."
               className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-xs focus:ring-zinc-900 focus:border-zinc-900" 
             />
+            {settings.social_whatsapp_url && (
+              <span className="text-[10px] text-emerald-600 block mt-1 truncate font-mono">
+                ✓ {formatSocialUrl('whatsapp', settings.social_whatsapp_url)}
+              </span>
+            )}
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase flex items-center gap-1"><LinkIcon className="w-3 h-3"/> Instagram URL</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase flex items-center gap-1"><LinkIcon className="w-3 h-3"/> Instagram URL / Username</label>
             <input 
               type="text" 
               value={settings.social_instagram_url || ''} 
               onChange={e => setSettings(prev => ({ ...prev, social_instagram_url: e.target.value }))}
-              placeholder="https://instagram.com/..."
+              onBlur={() => setSettings(prev => ({ ...prev, social_instagram_url: formatSocialUrl('instagram', prev.social_instagram_url) }))}
+              placeholder="e.g. vbfitsstudios or https://instagram.com/..."
               className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-xs focus:ring-zinc-900 focus:border-zinc-900" 
             />
+            {settings.social_instagram_url && (
+              <span className="text-[10px] text-emerald-600 block mt-1 truncate font-mono">
+                ✓ {formatSocialUrl('instagram', settings.social_instagram_url)}
+              </span>
+            )}
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase flex items-center gap-1"><LinkIcon className="w-3 h-3"/> TikTok URL</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase flex items-center gap-1"><LinkIcon className="w-3 h-3"/> TikTok URL / Handle</label>
             <input 
               type="text" 
               value={settings.social_tiktok_url || ''} 
               onChange={e => setSettings(prev => ({ ...prev, social_tiktok_url: e.target.value }))}
-              placeholder="https://tiktok.com/..."
+              onBlur={() => setSettings(prev => ({ ...prev, social_tiktok_url: formatSocialUrl('tiktok', prev.social_tiktok_url) }))}
+              placeholder="e.g. @vbfitsstudios or https://tiktok.com/..."
               className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-xs focus:ring-zinc-900 focus:border-zinc-900" 
             />
+            {settings.social_tiktok_url && (
+              <span className="text-[10px] text-emerald-600 block mt-1 truncate font-mono">
+                ✓ {formatSocialUrl('tiktok', settings.social_tiktok_url)}
+              </span>
+            )}
           </div>
         </div>
       </div>

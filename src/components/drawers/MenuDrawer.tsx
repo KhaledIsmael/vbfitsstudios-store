@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { BRAND_CONFIG, FOOTER_DATA } from '../../config/assets';
-import { getSiteSettings, type SiteSettings, DEFAULT_SITE_SETTINGS } from '../../lib/siteSettings';
+import { getSiteSettings, type SiteSettings, DEFAULT_SITE_SETTINGS, formatSocialUrl } from '../../lib/siteSettings';
 
 function useFocusTrap(ref: React.RefObject<HTMLDivElement | null>, active: boolean) {
   useEffect(() => {
@@ -77,9 +77,9 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({ isOpen, onClose }) => {
 
   // Fetch dynamic socials from siteSettings
   const allowedSocials = [
-    { name: 'WhatsApp', url: settings.social_whatsapp_url || `https://wa.me/${BRAND_CONFIG.whatsapp.phoneNumber}` },
-    { name: 'Instagram', url: settings.social_instagram_url || 'https://instagram.com/vbfitsstudios' },
-    { name: 'TikTok', url: settings.social_tiktok_url || 'https://tiktok.com/@vbfitsstudios' }
+    { name: 'WhatsApp', url: formatSocialUrl('whatsapp', settings.social_whatsapp_url) },
+    { name: 'Instagram', url: formatSocialUrl('instagram', settings.social_instagram_url) },
+    { name: 'TikTok', url: formatSocialUrl('tiktok', settings.social_tiktok_url) }
   ];
 
   return (
