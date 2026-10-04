@@ -130,28 +130,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const autoReplyHtml = buildAutoReplyHtml({
-      clientName: cleanName,
-      originalMessage: cleanMessage
+      clientName: cleanName
     });
 
-    // 6. Send both emails in parallel via Resend REST API
-    const [brandResult, autoReplyResult] = await Promise.allSettled([
-      // Email 1: To Brand Owner
-      sendViaResend(resendApiKey, {
-        from: fromAddress,
-        to: [brandEmail],
-        reply_to: cleanEmail,
-        subject: `[VB FITS] New Client Inquiry — ${cleanName}`,
-        html: brandNotificationHtml
-      }),
+    // 6. Send emails:
+    // Email 1: Brand Notification (to brand owner with the complaint and reply-to button)
+    // Email 2: Customer Auto-reply (to client only, skipped if email is brand email so admin never gets auto-reply)
+    const isBrandEmail = cleanEmail.toLowerCase() === brandEmail.toLowerCase();
 
-      // Email 2: Auto-reply to Customer
-      sendViaResend(resendApiKey, {
-        from: fromAddress,
-        to: [cleanEmail],
-        subject: 'We have received your message — VB FITS STUDIOS | تم استلام استفساركم',
-        html: autoReplyHtml
-      })
+    const brandPromise = sendViaResend(resendApiKey, {
+      from: fromAddress,
+      to: [brandEmail],
+      reply_to: cleanEmail,
+      subject: `[VB FITS] New Client Inquiry — ${cleanName}`,
+      html: brandNotificationHtml
+    });
+
+    const autoReplyPromise = !isBrandEmail
+      ? sendViaResend(resendApiKey, {
+          from: fromAddress,
+          to: [cleanEmail],
+          subject: 'We have received your message — VB FITS STUDIOS',
+          html: autoReplyHtml
+        })
+      : Promise.resolve({ ok: true, skipped: true });
+
+    const [brandResult, autoReplyResult] = await Promise.allSettled([
+      brandPromise,
+      autoReplyPromise
     ]);
 
     const brandOk = brandResult.status === 'fulfilled' && (brandResult.value as any)?.ok === true;
@@ -345,7 +351,7 @@ function buildBrandNotificationHtml(params: {
           <tr>
             <td style="padding:0 40px 28px;">
               <div style="border-left:3px solid #111111;padding:20px 24px;background:#FAFAFA;">
-                <p style="margin:0 0 10px;font-size:10px;font-weight:700;color:#999999;text-transform:uppercase;letter-spacing:0.2em;">Inquiry Content / نص الشكوى أو الرسالة</p>
+                <p style="margin:0 0 10px;font-size:10px;font-weight:700;color:#999999;text-transform:uppercase;letter-spacing:0.2em;">Inquiry Content</p>
                 <p style="margin:0;font-size:13px;color:#222222;line-height:1.8;">${safeMessage}</p>
               </div>
             </td>
@@ -356,7 +362,7 @@ function buildBrandNotificationHtml(params: {
             <td style="padding:0 40px 36px;text-align:center;">
               <a href="mailto:${clientEmail}?subject=Re%3A%20Your%20Inquiry%20%E2%80%94%20VB%20FITS%20STUDIOS"
                  style="display:inline-block;background:#111111;color:#FFFFFF;text-decoration:none;font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;padding:15px 32px;border:1px solid #111111;margin:4px;">
-                Reply to Client / الرد على العميل
+                Reply to Client
               </a>
               &nbsp;
               <a href="https://vbfitsstudios.com/admin"
@@ -386,10 +392,8 @@ function buildBrandNotificationHtml(params: {
 
 function buildAutoReplyHtml(params: {
   clientName: string;
-  originalMessage: string;
 }): string {
-  const { clientName, originalMessage } = params;
-  const safeMessage = escapeHtml(originalMessage);
+  const { clientName } = params;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -400,7 +404,7 @@ function buildAutoReplyHtml(params: {
 </head>
 <body style="margin:0;padding:0;background:#F5F4F2;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
   <div style="display:none;font-size:1px;color:#F5F4F2;line-height:1px;max-height:0;overflow:hidden;">
-    شكراً لاختياركم وتواصلكم مع VB FITS STUDIOS — تم استلام استفساركم بنجاح.
+    Thank you for contacting VB FITS STUDIOS. We have received your inquiry.
   </div>
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F2;padding:40px 0;">
     <tr>
@@ -420,61 +424,42 @@ function buildAutoReplyHtml(params: {
 
           <!-- Headline -->
           <tr>
-            <td style="padding:44px 40px 16px;text-align:center;">
+            <td style="padding:48px 40px 16px;text-align:center;">
               <h1 style="margin:0;font-size:24px;font-weight:300;color:#111111;letter-spacing:0.04em;line-height:1.4;">
-                تم استلام رسالتكم بنجاح
+                Transmission Received
               </h1>
               <p style="margin:8px 0 0;font-size:12px;color:#888888;letter-spacing:0.15em;text-transform:uppercase;">
-                Transmission Received
+                Client Inquiry Acknowledgment
               </p>
-              <div style="width:40px;height:1px;background:#C9A96E;margin:20px auto 0;"></div>
+              <div style="width:40px;height:1px;background:#C9A96E;margin:24px auto 0;"></div>
             </td>
           </tr>
 
-          <!-- Arabic Greeting & Reassurance -->
+          <!-- English Body -->
           <tr>
-            <td style="padding:16px 40px 8px;direction:rtl;text-align:right;">
-              <p style="margin:0 0 14px;font-size:15px;color:#111111;font-weight:600;line-height:1.6;">
-                عزيزنا العميل ${clientName}،
+            <td style="padding:20px 40px 8px;text-align:left;">
+              <p style="margin:0 0 16px;font-size:14px;color:#111111;font-weight:600;line-height:1.6;">
+                Dear ${clientName},
               </p>
-              <p style="margin:0 0 14px;font-size:13px;color:#444444;line-height:1.8;">
-                نشكركم لاختياركم <strong>VB FITS STUDIOS</strong> وتواصلكم معنا. نود إعلامكم بأنه تم استلام استفساركم بنجاح وتم تحويله إلى فريق خدمة العملاء للمراجعة والمتابعة.
+              <p style="margin:0 0 16px;font-size:13px;color:#444444;line-height:1.8;">
+                Thank you for choosing <strong>VB FITS STUDIOS</strong> and reaching out to our concierge team. We have successfully received your inquiry.
               </p>
-              <p style="margin:0 0 14px;font-size:13px;color:#444444;line-height:1.8;">
-                خلال <strong>24 ساعة عمل</strong>، سيتواصل معكم أحد ممثلي خدمة العملاء للرد على استفساركم ومساعدتكم بأعلى معايير الاهتمام والجودة.
+              <p style="margin:0 0 16px;font-size:13px;color:#444444;line-height:1.8;">
+                A dedicated client advisor will personally review your transmission and get in touch with you within <strong>24 business hours</strong>.
+              </p>
+              <p style="margin:0;font-size:13px;color:#666666;line-height:1.8;">
+                We appreciate your patience and look forward to assisting you.
               </p>
             </td>
           </tr>
 
           <!-- Divider -->
-          <tr><td style="padding:16px 40px 0;"><div style="height:1px;background:#EEEEEE;"></div></td></tr>
-
-          <!-- English Greeting -->
-          <tr>
-            <td style="padding:16px 40px 8px;direction:ltr;text-align:left;">
-              <p style="margin:0 0 10px;font-size:13px;color:#111111;font-weight:600;">Dear ${clientName},</p>
-              <p style="margin:0 0 10px;font-size:12px;color:#555555;line-height:1.7;">
-                Thank you for reaching out to <strong>VB FITS STUDIOS</strong>. Your inquiry has been successfully received by our concierge team. A dedicated client advisor will review your message and respond within <strong>24 business hours</strong>.
-              </p>
-            </td>
-          </tr>
-
-          <!-- Echo Original Message -->
-          <tr>
-            <td style="padding:16px 40px 24px;">
-              <p style="margin:0 0 10px;font-size:10px;font-weight:700;color:#999999;text-transform:uppercase;letter-spacing:0.2em;">
-                Your Inquiry / نص رسالتكم
-              </p>
-              <div style="border-left:3px solid #C9A96E;padding:16px 20px;background:#FAFAF8;">
-                <p style="margin:0;font-size:12px;color:#555555;line-height:1.8;font-style:italic;">${safeMessage}</p>
-              </div>
-            </td>
-          </tr>
+          <tr><td style="padding:24px 40px 0;"><div style="height:1px;background:#EEEEEE;"></div></td></tr>
 
           <!-- Brand Commitment Strip -->
           <tr>
-            <td style="padding:0 40px 24px;">
-              <div style="background:#111111;padding:20px 28px;text-align:center;">
+            <td style="padding:24px 40px;">
+              <div style="background:#111111;padding:24px 30px;text-align:center;">
                 <p style="margin:0;font-size:10px;color:#C9A96E;text-transform:uppercase;letter-spacing:0.2em;font-weight:700;">
                   Our Commitment
                 </p>
@@ -490,7 +475,7 @@ function buildAutoReplyHtml(params: {
           <tr>
             <td style="padding:0 40px 28px;text-align:center;">
               <p style="margin:0 0 6px;font-size:10px;color:#999999;text-transform:uppercase;letter-spacing:0.15em;">
-                Direct Concierge Email / للتواصل المباشر
+                Direct Concierge Email
               </p>
               <a href="mailto:vbfitsstudios@gmail.com" style="font-size:12px;color:#111111;font-weight:600;text-decoration:underline;">
                 vbfitsstudios@gmail.com
@@ -503,7 +488,7 @@ function buildAutoReplyHtml(params: {
             <td style="padding:0 40px 40px;text-align:center;">
               <a href="https://vbfitsstudios.com"
                  style="display:inline-block;background:#111111;color:#FFFFFF;text-decoration:none;font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;padding:16px 40px;border:1px solid #111111;">
-                Explore Collection / زيارة المتجر
+                Explore the Collection
               </a>
             </td>
           </tr>
@@ -516,6 +501,17 @@ function buildAutoReplyHtml(params: {
               </p>
             </td>
           </tr>
+
+          <!-- Gold Bottom Bar -->
+          <tr><td style="background:#C9A96E;height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
 
           <!-- Gold Bottom Bar -->
           <tr><td style="background:#C9A96E;height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
