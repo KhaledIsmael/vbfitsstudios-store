@@ -102,32 +102,44 @@ export const ContactPage: React.FC = () => {
         console.warn('contact_messages table save notice:', dbErr);
       }
 
-      // 2. Dispatch real-time email alert to brand inbox via Resend
-      try {
-        const emailRes = await fetch('/api/email/dispatch', {
+      // 2. Send TWO emails in parallel:
+      //    A) Brand notification → vbfitsstudios@gmail.com (with reply_to set to client email)
+      //    B) Auto-reply        → the customer (elegant confirmation)
+      const emailPayload = {
+        clientName:  formData.name.trim(),
+        clientEmail: formData.email.trim(),
+        message:     formData.message.trim()
+      };
+
+      await Promise.allSettled([
+        // A) Notify the brand owner
+        fetch('/api/email/dispatch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            eventType: 'admin_notification',
-            referenceId: `contact-${Date.now()}`,
+            eventType:      'contact_inquiry_to_brand',
+            referenceId:    `contact-brand-${Date.now()}`,
             recipientEmail: 'vbfitsstudios@gmail.com',
-            payload: {
-              alertType: 'New Client Inquiry',
-              clientName: formData.name.trim(),
-              clientEmail: formData.email.trim(),
-              message: formData.message.trim(),
-              messageText: `New client inquiry received:\n\nName: ${formData.name.trim()}\nEmail: ${formData.email.trim()}\n\nMessage:\n${formData.message.trim()}`
-            }
+            payload:        emailPayload
           })
-        });
+        }).then(async r => {
+          if (!r.ok) console.warn('Brand notification status:', r.status, await r.json().catch(() => ({})));
+        }),
 
-        if (!emailRes.ok) {
-          const errData = await emailRes.json().catch(() => ({}));
-          console.warn('Contact email dispatch status:', emailRes.status, errData);
-        }
-      } catch (emailErr) {
-        console.warn('contact inquiry email dispatch notice:', emailErr);
-      }
+        // B) Auto-reply to the customer
+        fetch('/api/email/dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventType:      'contact_autoreply',
+            referenceId:    `contact-reply-${Date.now()}`,
+            recipientEmail: formData.email.trim(),
+            payload:        emailPayload
+          })
+        }).then(async r => {
+          if (!r.ok) console.warn('Auto-reply status:', r.status, await r.json().catch(() => ({})));
+        })
+      ]);
     } catch (err) {
       console.warn('Contact submission notice:', err);
     } finally {

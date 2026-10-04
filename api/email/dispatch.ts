@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Resend } from 'resend';
 import { createClient } from '@supabase/supabase-js';
-import { buildBrandEmailHtml } from './resend-templates';
+import { buildBrandEmailHtml, buildBrandNotificationHtml, buildAutoReplyHtml } from './resend-templates';
 
 /**
  * POST /api/email/dispatch
@@ -151,22 +151,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
       break;
 
+    case 'contact_inquiry_to_brand': {
+      // Luxury brand-owner notification with telemetry + reply button
+      const html = buildBrandNotificationHtml({
+        clientName:   payload.clientName   || 'Unknown',
+        clientEmail:  payload.clientEmail  || recipientEmail,
+        messageText:  payload.message      || '',
+        submittedAt:  new Date().toUTCString()
+      });
+      return await sendEmail(res, resend, supabase, {
+        from:       process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>',
+        to:         [recipientEmail],
+        reply_to:   payload.clientEmail,
+        subject:    `[VB FITS] New inquiry from ${payload.clientName || 'a client'}`,
+        html,
+        eventType, referenceId, recipientEmail
+      });
+    }
+
+    case 'contact_autoreply': {
+      // Elegant gold-accented auto-reply to the client
+      const html = buildAutoReplyHtml({
+        clientName:      payload.clientName    || 'Valued Client',
+        clientEmail:     recipientEmail,
+        originalMessage: payload.message       || ''
+      });
+      return await sendEmail(res, resend, supabase, {
+        from:    process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>',
+        to:      [recipientEmail],
+        subject: 'Your Inquiry Has Been Received — VB FITS STUDIOS',
+        html,
+        eventType, referenceId, recipientEmail
+      });
+    }
+
     case 'admin_notification':
       emailParams = {
-        subject: payload.clientName ? `[VB FITS Inquiry] New transmission from ${payload.clientName}` : `Admin Alert: ${payload.alertType || 'Notification'}`,
-        headline: payload.alertType || 'Client Inquiry Transmitted',
-        customerName: 'Concierge Concierge Team',
-        bodyText: [
-          payload.messageText || payload.message || 'A new inquiry has been submitted via the contact form on vbfitsstudios.com.'
-        ],
-        detailsBox: payload.clientName ? {
-          title: 'Transmission Telemetry',
-          items: [
-            { label: 'Client Name', value: payload.clientName },
-            { label: 'Client Email', value: payload.clientEmail },
-            { label: 'Timestamp', value: new Date().toUTCString() }
-          ]
-        } : undefined,
+        subject: `Admin Alert: ${payload.alertType || 'Notification'}`,
+        headline: payload.alertType || 'Admin Notification',
+        customerName: 'Admin',
+        bodyText: [payload.message || payload.messageText || ''],
         callToAction: {
           text: 'Open Admin Dashboard',
           url: `${process.env.VITE_APP_URL || 'https://vbfitsstudios.com'}/admin`
@@ -178,30 +202,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Unsupported eventType' });
   }
 
-  // 3. Dispatch Email via Resend with auto-fallback for unverified domains
+  // 3. Dispatch generic transactional email via Resend
   const htmlContent = buildBrandEmailHtml(emailParams);
 
+  return await sendEmail(res, resend, supabase, {
+    from:    process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>',
+    to:      [recipientEmail],
+    reply_to: payload.clientEmail || payload.replyTo || undefined,
+    subject: emailParams.subject,
+    html:    htmlContent,
+    eventType, referenceId, recipientEmail
+  });
+}
+
+// ─── Shared send helper (handles fallback + logging) ─────────────────────────
+
+async function sendEmail(
+  res: VercelResponse,
+  resend: any,
+  supabase: any,
+  opts: {
+    from: string;
+    to: string[];
+    reply_to?: string;
+    subject: string;
+    html: string;
+    eventType: string;
+    referenceId: string;
+    recipientEmail: string;
+  }
+) {
+  const { from, to, reply_to, subject, html, eventType, referenceId, recipientEmail } = opts;
   try {
-    let fromAddress = process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
-    const replyTo = payload.clientEmail || payload.replyTo || undefined;
+    let sendResult = await resend.emails.send({ from, to, reply_to, subject, html });
 
-    let sendResult = await resend.emails.send({
-      from: fromAddress,
-      to: [recipientEmail],
-      reply_to: replyTo,
-      subject: emailParams.subject,
-      html: htmlContent
-    });
-
-    // If custom domain is not verified yet in Resend, automatically fallback to default testing sender
-    if (sendResult.error && (sendResult.error.message?.toLowerCase().includes('not verified') || sendResult.error.name === 'validation_error')) {
+    // Auto-fallback when sender domain is unverified in Resend
+    if (sendResult.error && (
+      sendResult.error.message?.toLowerCase().includes('not verified') ||
+      sendResult.error.name === 'validation_error'
+    )) {
       console.warn('Sender domain unverified in Resend, retrying with onboarding@resend.dev...');
       sendResult = await resend.emails.send({
         from: 'VB FITS STUDIOS <onboarding@resend.dev>',
-        to: [recipientEmail],
-        reply_to: replyTo,
-        subject: emailParams.subject,
-        html: htmlContent
+        to, reply_to, subject, html
       });
     }
 
@@ -216,17 +259,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           error_details: JSON.stringify(sendResult.error)
         }).catch(() => {});
       }
-      return res.status(502).json({ 
-        error: 'Email delivery failed', 
+      return res.status(502).json({
+        error: 'Email delivery failed',
         details: sendResult.error.message,
         name: sendResult.error.name,
-        resendHelp: sendResult.error.message?.toLowerCase().includes('not verified') || sendResult.error.message?.toLowerCase().includes('testing email')
+        resendHelp: sendResult.error.message?.toLowerCase().includes('not verified') ||
+          sendResult.error.message?.toLowerCase().includes('testing email')
           ? 'Resend requires verifying the domain vbfitsstudios.com with DNS records before sending to external addresses.'
           : undefined
       });
     }
 
-    // Log success
     if (supabase) {
       await supabase.from('email_logs').insert({
         event_type: eventType,
