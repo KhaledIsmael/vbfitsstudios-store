@@ -115,10 +115,29 @@ export async function fetchAdminOrders(): Promise<AdminOrder[]> {
       console.warn('Could not fetch cloud order_status_updates:', e);
     }
 
-    if (!ordersErr && ordersData && ordersData.length > 0) {
+    let finalOrdersData = ordersData;
+
+    // Resilient fallback: If join with customers table failed (e.g. infinite recursion on customers policy),
+    // immediately query orders and items directly without joining customers table!
+    if (ordersErr || !finalOrdersData) {
+      console.warn('[AdminOrders] Primary join query notice:', ordersErr?.message);
+      const { data: fallbackOrders, error: fallbackErr } = await client
+        .from('orders')
+        .select(`
+          *,
+          items:order_items(*)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (!fallbackErr && fallbackOrders) {
+        finalOrdersData = fallbackOrders;
+      }
+    }
+
+    if (finalOrdersData && finalOrdersData.length > 0) {
       const localOverrides = getLocalOverrides();
 
-      return ordersData.map((row: any) => {
+      return finalOrdersData.map((row: any) => {
         const address = row.shipping_address_snapshot || {};
         
         // 1. Resolve true Customer Name (prioritizing snapshot name over fallback)
