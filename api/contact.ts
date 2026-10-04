@@ -512,14 +512,3 @@ function buildAutoReplyHtml(params: {
 </body>
 </html>`;
 }
-
-          <!-- Gold Bottom Bar -->
-          <tr><td style="background:#C9A96E;height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-}
