@@ -153,15 +153,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     case 'admin_notification':
       emailParams = {
-        subject: `Admin Alert: ${payload.alertType}`,
-        headline: payload.alertType,
-        customerName: 'Admin',
+        subject: payload.clientName ? `[VB FITS Inquiry] New transmission from ${payload.clientName}` : `Admin Alert: ${payload.alertType || 'Notification'}`,
+        headline: payload.alertType || 'Client Inquiry Transmitted',
+        customerName: 'Concierge Concierge Team',
         bodyText: [
-          payload.message
+          payload.messageText || payload.message || 'A new inquiry has been submitted via the contact form on vbfitsstudios.com.'
         ],
+        detailsBox: payload.clientName ? {
+          title: 'Transmission Telemetry',
+          items: [
+            { label: 'Client Name', value: payload.clientName },
+            { label: 'Client Email', value: payload.clientEmail },
+            { label: 'Timestamp', value: new Date().toUTCString() }
+          ]
+        } : undefined,
         callToAction: {
-          text: 'View Dashboard',
-          url: `${process.env.VITE_APP_URL}/admin`
+          text: 'Open Admin Dashboard',
+          url: `${process.env.VITE_APP_URL || 'https://vbfitsstudios.com'}/admin`
         }
       };
       break;
@@ -175,20 +183,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     let fromAddress = process.env.RESEND_FROM_EMAIL || 'VB FITS STUDIOS <noreply@vbfitsstudios.com>';
+    const replyTo = payload.clientEmail || payload.replyTo || undefined;
 
     let sendResult = await resend.emails.send({
       from: fromAddress,
       to: [recipientEmail],
+      reply_to: replyTo,
       subject: emailParams.subject,
       html: htmlContent
     });
 
     // If custom domain is not verified yet in Resend, automatically fallback to default testing sender
     if (sendResult.error && (sendResult.error.message?.toLowerCase().includes('not verified') || sendResult.error.name === 'validation_error')) {
-      console.warn('Sender domain unverified, retrying with onboarding@resend.dev...');
+      console.warn('Sender domain unverified in Resend, retrying with onboarding@resend.dev...');
       sendResult = await resend.emails.send({
         from: 'VB FITS STUDIOS <onboarding@resend.dev>',
         to: [recipientEmail],
+        reply_to: replyTo,
         subject: emailParams.subject,
         html: htmlContent
       });
@@ -205,7 +216,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           error_details: JSON.stringify(sendResult.error)
         }).catch(() => {});
       }
-      return res.status(502).json({ error: 'Email delivery failed', details: sendResult.error.message });
+      return res.status(502).json({ 
+        error: 'Email delivery failed', 
+        details: sendResult.error.message,
+        name: sendResult.error.name,
+        resendHelp: sendResult.error.message?.toLowerCase().includes('not verified') || sendResult.error.message?.toLowerCase().includes('testing email')
+          ? 'Resend requires verifying the domain vbfitsstudios.com with DNS records before sending to external addresses.'
+          : undefined
+      });
     }
 
     // Log success

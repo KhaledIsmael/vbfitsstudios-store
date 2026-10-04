@@ -104,7 +104,7 @@ export const ContactPage: React.FC = () => {
 
       // 2. Dispatch real-time email alert to brand inbox via Resend
       try {
-        await fetch('/api/email/dispatch', {
+        const emailRes = await fetch('/api/email/dispatch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -112,11 +112,19 @@ export const ContactPage: React.FC = () => {
             referenceId: `contact-${Date.now()}`,
             recipientEmail: 'vbfitsstudios@gmail.com',
             payload: {
-              alertType: 'New Client Inquiry Transmitted',
-              message: `Client Name: ${formData.name.trim()}\nClient Email: ${formData.email.trim()}\n\nInquiry Message:\n${formData.message.trim()}`
+              alertType: 'New Client Inquiry',
+              clientName: formData.name.trim(),
+              clientEmail: formData.email.trim(),
+              message: formData.message.trim(),
+              messageText: `New client inquiry received:\n\nName: ${formData.name.trim()}\nEmail: ${formData.email.trim()}\n\nMessage:\n${formData.message.trim()}`
             }
           })
         });
+
+        if (!emailRes.ok) {
+          const errData = await emailRes.json().catch(() => ({}));
+          console.warn('Contact email dispatch status:', emailRes.status, errData);
+        }
       } catch (emailErr) {
         console.warn('contact inquiry email dispatch notice:', emailErr);
       }
