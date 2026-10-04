@@ -170,25 +170,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!response.ok) {
       console.error('[dispatch] Resend error:', response.status, data);
       if (supabase) {
-        await supabase.from('email_logs').insert({
-          event_type: eventType,
-          reference_id: referenceId,
-          recipient_email: recipientEmail,
-          status: 'failed',
-          error_details: JSON.stringify(data)
-        }).catch(() => {});
+        try {
+          await supabase.from('email_logs').insert({
+            event_type: eventType,
+            reference_id: referenceId,
+            recipient_email: recipientEmail,
+            status: 'failed',
+            error_details: JSON.stringify(data)
+          });
+        } catch {
+          // ignore
+        }
       }
       return res.status(502).json({ error: 'Email delivery failed', details: data });
     }
 
     if (supabase) {
-      await supabase.from('email_logs').insert({
-        event_type: eventType,
-        reference_id: referenceId,
-        recipient_email: recipientEmail,
-        status: 'sent',
-        provider_message_id: data?.id
-      }).catch(() => {});
+      try {
+        await supabase.from('email_logs').insert({
+          event_type: eventType,
+          reference_id: referenceId,
+          recipient_email: recipientEmail,
+          status: 'sent',
+          provider_message_id: data?.id
+        });
+      } catch {
+        // ignore
+      }
     }
 
     return res.status(200).json({ success: true, messageId: data?.id });

@@ -189,7 +189,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
       if (logs.length > 0) {
-        await supabase.from('email_logs').insert(logs).catch(() => {});
+        try {
+          await supabase.from('email_logs').insert(logs);
+        } catch {
+          // ignore log insert errors
+        }
       }
     }
 
