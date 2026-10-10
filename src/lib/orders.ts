@@ -511,17 +511,26 @@ export async function createOrder({
     // 2. Insert itemized lines into order_items (non-fatal notice if schema has minor variance)
     const itemsPayload = items.map((item) => ({
       order_id: order.id,
-      product_name: item.name,
+      product_name: item.name || 'منتج',
       variant_title: `Size: ${item.size}`,
-      unit_price: item.price,
-      quantity: item.quantity,
-      total_price: item.price * item.quantity,
+      unit_price: Number(item.price) || 0,
+      quantity: Number(item.quantity) || 1,
+      total_price: (Number(item.price) || 0) * (Number(item.quantity) || 1),
       image_url: item.image
     }));
 
-    const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
+    let { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
     if (itemsError) {
-      console.warn('Notice inserting order items (order was registered):', itemsError.message);
+      console.error('[createOrder] order_items insert failed, retrying minimal:', itemsError.message);
+      // Retry with only the guaranteed core columns (in case optional columns are missing)
+      const minimalPayload = itemsPayload.map(({ order_id, product_name, unit_price, quantity, total_price }) => ({
+        order_id, product_name, unit_price, quantity, total_price
+      }));
+      const retry = await supabase.from('order_items').insert(minimalPayload);
+      itemsError = retry.error;
+      if (itemsError) {
+        console.error('[createOrder] order_items minimal insert failed:', itemsError.message);
+      }
     }
 
     // 3. Fire-and-forget confirmation email (only for COD or already paid orders)
