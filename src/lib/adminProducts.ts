@@ -40,6 +40,8 @@ export interface AdminProduct {
   is_new_arrival: boolean;
   is_published: boolean;
   is_archived: boolean;
+  /** Tombstone flag: product was permanently deleted by an admin (hidden everywhere). */
+  is_deleted?: boolean;
   seo_title?: string | null;
   seo_description?: string | null;
   related_product_ids: string[];
@@ -271,7 +273,62 @@ export async function fetchAdminProducts(): Promise<AdminProduct[]> {
     }
   });
 
-  return Array.from(new Set(dbProducts));
+  return Array.from(new Set(dbProducts)).filter((p) => !p.is_deleted);
+}
+
+/**
+ * PERMANENT hard delete of a product (and its variants/images).
+ * - Real DB rows are removed via the admin-only RPC `admin_delete_product` (falls back to direct deletes).
+ * - Order history is preserved (order_items keep name/size/price; product_id becomes NULL).
+ * - A tombstone is written to the catalog overrides so static/override-only products never reappear.
+ */
+export async function deleteAdminProduct(prod: { id: string; slug?: string; name?: string }): Promise<{ error: string | null }> {
+  const client = adminSupabase || supabase;
+  const id = prod.id;
+
+  // 1. Delete the real database rows (only possible for UUID ids)
+  if (isValidUUID(id)) {
+    const { error: rpcError } = await client.rpc('admin_delete_product', { p_product_id: id });
+    if (rpcError) {
+      // Fallback: direct deletes (works if RLS delete policies are installed)
+      const v = await client.from('product_variants').delete().eq('product_id', id);
+      const i = await client.from('product_images').delete().eq('product_id', id);
+      const p = await client.from('products').delete().eq('id', id);
+      const fallbackError = p.error || v.error || i.error;
+      if (fallbackError) {
+        return {
+          error:
+            rpcError.message.includes('Could not find the function')
+              ? 'دالة الحذف غير مثبتة بقاعدة البيانات. نفّذ ملف الـ migration الجديد أولاً.'
+              : rpcError.message
+        };
+      }
+    }
+  }
+
+  // 2. Tombstone in cloud overrides (hides static catalog / override-only products everywhere)
+  const tombstone: Partial<AdminProduct> = {
+    id,
+    slug: prod.slug,
+    name: prod.name,
+    is_deleted: true,
+    is_archived: true,
+    is_published: false
+  };
+  const tombstoneSlug = !isValidUUID(id) && prod.slug && prod.slug !== id ? prod.slug : null;
+  setLocalCatalogOverride(id, tombstone);
+  if (tombstoneSlug) setLocalCatalogOverride(tombstoneSlug, tombstone);
+
+  try {
+    await _syncProductToStoreSettings(client, id, tombstone);
+    if (tombstoneSlug) {
+      await _syncProductToStoreSettings(client, tombstoneSlug, tombstone);
+    }
+  } catch (err) {
+    console.warn('Failed to write product tombstone:', err);
+  }
+
+  return { error: null };
 }
 
 /**

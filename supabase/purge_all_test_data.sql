@@ -48,12 +48,17 @@ CREATE OR REPLACE FUNCTION public.purge_all_test_data()
 RETURNS json
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'vbfits_forbidden: admin access required.' USING ERRCODE = '42501';
+  END IF;
   TRUNCATE TABLE public.order_items, public.orders CASCADE;
   TRUNCATE TABLE public.return_requests CASCADE;
   RETURN json_build_object('success', true, 'message', 'All test orders and items purged successfully.');
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.purge_all_test_data() TO authenticated, anon, service_role;
+REVOKE ALL ON FUNCTION public.purge_all_test_data() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.purge_all_test_data() TO authenticated, service_role;

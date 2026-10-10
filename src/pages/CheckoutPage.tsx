@@ -284,8 +284,10 @@ export const CheckoutPage: React.FC = () => {
 
     // Build items payload (shared by both payment paths)
     const itemsPayload = cart.map((item) => ({
+      productId: item.productId,
       name: item.name,
       size: item.size,
+      color: item.color,
       price: item.price,
       image: item.image,
       quantity: item.quantity

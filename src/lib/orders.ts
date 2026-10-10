@@ -40,6 +40,7 @@ export interface CreateOrderParams {
     productId?: string;
     name: string;
     size: string;
+    color?: string;
     price: number;
     currency?: string;
     image: string;
@@ -448,6 +449,20 @@ export async function createOrder({
       }
     }
 
+    // Redundant, human-readable copy of the ordered items on the order itself.
+    // The admin dashboard / WhatsApp message fall back to this if order_items is ever empty.
+    finalAddress = {
+      ...(finalAddress && typeof finalAddress === 'object' ? finalAddress : {}),
+      items_snapshot: items.map((it) => ({
+        name: it.name,
+        size: it.size,
+        color: it.color || null,
+        quantity: Number(it.quantity) || 1,
+        price: Number(it.price) || 0,
+        image: it.image || null
+      }))
+    };
+
     // 1. Insert order record with all calculated financial fields
     const primaryPayload: any = {
       customer_id: safeCustomerId,
@@ -509,28 +524,57 @@ export async function createOrder({
     }
 
     // 2. Insert itemized lines into order_items (non-fatal notice if schema has minor variance)
-    const itemsPayload = items.map((item) => ({
-      order_id: order.id,
-      product_name: item.name || 'منتج',
-      variant_title: `Size: ${item.size}`,
-      unit_price: Number(item.price) || 0,
-      quantity: Number(item.quantity) || 1,
-      total_price: (Number(item.price) || 0) * (Number(item.quantity) || 1),
-      image_url: item.image
-    }));
+    const isUuid = (v?: string) =>
+      !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
+    const itemsPayload = items.map((item) => {
+      const qty = Number(item.quantity) || 1;
+      const price = Number(item.price) || 0;
+      const row: Record<string, any> = {
+        order_id: order.id,
+        product_name: item.name || 'منتج',
+        variant_title: item.color ? `Size: ${item.size} / Color: ${item.color}` : `Size: ${item.size}`,
+        unit_price: price,
+        quantity: qty,
+        total_price: price * qty,
+        image_url: item.image
+      };
+      // product_id has a FK to products(id); only send real UUIDs (static catalog ids are slugs)
+      if (isUuid(item.productId)) row.product_id = item.productId;
+      return row;
+    });
 
     let { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
     if (itemsError) {
       console.error('[createOrder] order_items insert failed, retrying minimal:', itemsError.message);
-      // Retry with only the guaranteed core columns (in case optional columns are missing)
-      const minimalPayload = itemsPayload.map(({ order_id, product_name, unit_price, quantity, total_price }) => ({
-        order_id, product_name, unit_price, quantity, total_price
+      // Retry with only the guaranteed core columns (in case optional columns/FKs are the problem)
+      const minimalPayload = itemsPayload.map((r) => ({
+        order_id: r.order_id,
+        product_name: r.product_name,
+        variant_title: r.variant_title,
+        unit_price: r.unit_price,
+        quantity: r.quantity,
+        total_price: r.total_price
       }));
       const retry = await supabase.from('order_items').insert(minimalPayload);
       itemsError = retry.error;
       if (itemsError) {
         console.error('[createOrder] order_items minimal insert failed:', itemsError.message);
       }
+    }
+
+    if (itemsError) {
+      // Never leave an empty order behind: cancel the orphan and tell the customer.
+      try {
+        await supabase
+          .from('orders')
+          .update({ status: 'cancelled', notes: `[AUTO-CANCELLED: items failed to save] ${orderNotes || ''}` })
+          .eq('id', order.id);
+      } catch {}
+      return {
+        order: null,
+        error: `تعذر حفظ محتويات الطلب، برجاء المحاولة مرة أخرى. (${itemsError.message})`
+      };
     }
 
     // 3. Fire-and-forget confirmation email (only for COD or already paid orders)
@@ -685,7 +729,7 @@ export async function convertOrderToCOD(
             address: orderData.shipping_address_snapshot,
             items: (orderData.items || []).map((it: any) => ({
               name: it.product_name,
-              size: it.variant_title?.replace('Size: ', '') || 'One Size',
+              size: it.variant_title?.match(/Size:\s*([^/,]+?)\s*(?:\/|,|$)/i)?.[1] || it.variant_title || 'One Size',
               quantity: it.quantity,
               price: it.unit_price
             })),

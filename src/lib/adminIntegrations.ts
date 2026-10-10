@@ -46,9 +46,19 @@ export function generateWhatsAppOrderLink(order: AdminOrder): string {
 
   const customerName = order.customer_name && order.customer_name !== 'Private Client' ? order.customer_name : 'يا فندم';
   const orderNum = order.order_number || order.id.slice(0, 8);
-  const itemsText = (order.items || [])
-    .map((item) => `• ${item.product_name} (مقاس: ${item.size || 'حر'})`)
-    .join('\n');
+  const itemsText =
+    (order.items || []).length > 0
+      ? (order.items || [])
+          .map((item) => {
+            const parts = [
+              item.size ? `مقاس: ${item.size}` : '',
+              item.color ? `لون: ${item.color}` : '',
+              `الكمية: ${item.quantity || 1}`
+            ].filter(Boolean);
+            return `• ${item.product_name} (${parts.join(' — ')})`;
+          })
+          .join('\n')
+      : '• (هنراجع تفاصيل القطع معاك)';
 
   const paymentDesc =
     order.payment_method === 'COD' || order.payment_method === 'cash_on_delivery'
@@ -64,7 +74,7 @@ ${itemsText}
 
 العنوان المسجل: ${((order.shipping_address as any)?.governorate || 'المحافظة')} - ${((order.shipping_address as any)?.city || '')} - ${((order.shipping_address as any)?.street_line1 || '')}
 
-هل العنوان والمقاسات جاهزة للتجهيز والشحن لحضرتك؟`;
+هل تفاصيل الأوردر والعنوان مظبوطين عشان نأكد الشحن لحضرتك؟`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }

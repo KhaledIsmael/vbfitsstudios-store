@@ -4,6 +4,7 @@ import {
   fetchAdminCategories,
   saveAdminProduct,
   archiveAdminProduct,
+  deleteAdminProduct,
   type AdminProduct,
   type AdminCategory,
   type AdminProductVariant,
@@ -49,6 +50,11 @@ export const AdminProductsPage: React.FC = () => {
   const [activeEditorTab, setActiveEditorTab] = useState<'details' | 'variants' | 'images'>('details');
   const [isSaving, setIsSaving] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  // Permanent delete modal state
+  const [deleteTarget, setDeleteTarget] = useState<AdminProduct | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Form states
   const [formData, setFormData] = useState<Partial<AdminProduct>>({});
@@ -185,6 +191,25 @@ export const AdminProductsPage: React.FC = () => {
     } else {
       alert(`عذراً، حدث خطأ: ${res.error}`);
     }
+  };
+
+  // Permanent hard delete (confirmed through modal)
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    const res = await deleteAdminProduct({
+      id: deleteTarget.id,
+      slug: deleteTarget.slug,
+      name: deleteTarget.name
+    });
+    setIsDeleting(false);
+    if (res.error) {
+      setDeleteError(res.error);
+      return;
+    }
+    setProducts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+    setDeleteTarget(null);
   };
 
   // Handle variant manipulation
@@ -499,6 +524,19 @@ export const AdminProductsPage: React.FC = () => {
                               <Archive className="w-3.5 h-3.5 text-rose-500" />
                             )}
                           </button>
+
+                          <button
+                            type="button"
+                            id={`delete-product-${prod.id}`}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setDeleteTarget(prod);
+                            }}
+                            title="حذف نهائي للقطعة"
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -509,6 +547,59 @@ export const AdminProductsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Permanent delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fade-in">
+          <div
+            onClick={() => !isDeleting && setDeleteTarget(null)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs"
+          />
+          <div
+            dir="rtl"
+            role="dialog"
+            aria-modal="true"
+            id="delete-product-modal"
+            className="relative z-10 w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 text-slate-800"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2.5 rounded-xl bg-rose-100 text-rose-600">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">حذف نهائي للمنتج</h3>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              هتحذف <span className="font-bold text-slate-900">{deleteTarget.name}</span> نهائياً مع كل مقاساتها وصورها من المتجر وقاعدة البيانات. الطلبات القديمة هتفضل محفوظة باسم القطعة. الإجراء ده لا يمكن التراجع عنه. لو عايز تخفيها بس استخدم الأرشفة.
+            </p>
+            {deleteError && (
+              <div className="mt-3 p-3 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg">
+                {deleteError}
+              </div>
+            )}
+            <div className="mt-5 flex items-center gap-3">
+              <button
+                type="button"
+                id="confirm-delete-product"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-sm font-bold transition-colors cursor-pointer"
+              >
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {isDeleting ? 'جاري الحذف...' : 'نعم، احذف نهائياً'}
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteTarget(null)}
+                className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold transition-colors cursor-pointer"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 4. شاشة / درج تعديل وإضافة المنتج المبسطة                     */}

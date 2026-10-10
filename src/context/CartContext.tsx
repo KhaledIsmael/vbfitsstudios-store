@@ -12,6 +12,7 @@ export interface CartItem {
   image: string;
   size: string;
   quantity: number;
+  color?: string;
 }
 
 interface CartContextType {
@@ -197,7 +198,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
               currency: product.currency,
               image: product.images[0] || '/assets/products/black-shirt.jpeg',
               size,
-              quantity
+              quantity,
+              color: product.color
             }
           ];
 

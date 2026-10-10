@@ -35,7 +35,7 @@ import {
   Trash2,
   ExternalLink
 } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient';
+import { adminSupabase } from '../../lib/supabaseClient';
 
 type OrderStatusFilter = 'all' | 'unfulfilled' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -189,19 +189,34 @@ export const AdminOrdersPage: React.FC = () => {
 
   const handlePurgeTestData = async () => {
     const confirmed = window.confirm(
-      'تنبيه هام: هل تريد تصفير وحذف جميع الطلبات التجريبية والبيانات الوهمية لتجهيز المتجر للإنتاج الفعلي النظيف؟'
+      'تنبيه هام: سيتم حذف جميع الطلبات ومحتوياتها وطلبات المرتجعات نهائياً ولا يمكن التراجع عن ذلك. هل أنت متأكد؟'
     );
     if (!confirmed) return;
     setLoading(true);
     try {
-      const { error } = await supabase.rpc('purge_all_test_data');
+      const { error } = await adminSupabase.rpc('purge_all_test_data');
       if (error) {
-        alert(
-          'تنبيه: لتنفيذ التصفير الكامل، يرجى تشغيل سكربت purge_all_test_data.sql المحدث في محرر SQL في Supabase.'
-        );
-      } else {
-        alert('تم تصفير جميع الطلبات التجريبية بنجاح! المتجر الآن جاهز للإنتاج ببيانات نظيفة 100%.');
+        const msg = error.message || '';
+        if (msg.includes('vbfits_forbidden') || (error as any).code === '42501') {
+          alert('ليس لديك صلاحية التصفير. سجّل الدخول بحساب المدير الرئيسي ثم حاول مرة أخرى.');
+        } else if ((error as any).code === 'PGRST202' || msg.includes('Could not find the function')) {
+          alert('دالة التصفير غير مثبتة بقاعدة البيانات بعد. نفّذ ملف الـ migration الجديد مرة واحدة فقط.');
+        } else {
+          alert('فشل التصفير: ' + msg);
+        }
+        return;
       }
+
+      // Clear any cached local order overrides so stale data does not reappear
+      try {
+        localStorage.removeItem('vbfits_admin_orders_overrides_v1');
+        localStorage.removeItem('vbfits_order_status_overrides');
+      } catch {}
+
+      setSelectedOrder(null);
+      setIsDetailOpen(false);
+      setOrders([]);
+      alert('تم تصفير جميع الطلبات التجريبية بنجاح! المتجر الآن جاهز ببيانات نظيفة.');
       await loadOrders();
     } catch (e: any) {
       alert('حدث خطأ أثناء التصفير: ' + (e?.message || 'خطأ غير متوقع'));

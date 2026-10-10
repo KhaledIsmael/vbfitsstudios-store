@@ -194,7 +194,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (brevoKey && toEmail && toEmail.includes('@')) {
           const itemsList = (fullOrder.items || []).map((it: any) => ({
             name: it.product_name,
-            size: it.variant_title?.replace('Size: ', '') || 'One Size',
+            size: it.variant_title?.match(/Size:\s*([^/,]+?)\s*(?:\/|,|$)/i)?.[1] || it.variant_title || 'One Size',
             quantity: it.quantity,
             price: Number(it.unit_price)
           }));

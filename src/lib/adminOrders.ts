@@ -225,18 +225,41 @@ export async function fetchAdminOrders(): Promise<AdminOrder[]> {
           payment_method: resolvedPaymentMethod,
           notes: row.notes || undefined,
           internal_notes: row.internal_notes || undefined,
-          items: (row.items || []).map((item: any) => ({
-            id: item.id,
-            product_id: item.product_id,
-            product_name: item.product_name,
-            size: item.variant_title?.split(' / ')[0] || item.size || 'M',
-            color: item.variant_title?.split(' / ')[1] || item.color || 'Black',
-            sku: item.sku || 'VB-ITEM-01',
-            unit_price: Number(item.unit_price || 0),
-            quantity: Number(item.quantity || 1),
-            total_price: Number(item.total_price || (item.unit_price * item.quantity)),
-            image_url: item.image_url || '/assets/products/black-shirt.jpeg'
-          })),
+          items: (() => {
+            const dbItems: any[] = row.items || [];
+            if (dbItems.length > 0) {
+              return dbItems.map((item: any) => {
+                const vt: string = item.variant_title || '';
+                const sizeMatch = vt.match(/Size:\s*([^/,]+?)\s*(?:\/|,|$)/i);
+                const colorMatch = vt.match(/Color:\s*([^/,]+?)\s*(?:\/|,|$)/i);
+                return {
+                  id: item.id,
+                  product_id: item.product_id,
+                  product_name: item.product_name,
+                  size: sizeMatch?.[1] || item.size || vt || 'M',
+                  color: colorMatch?.[1] || item.color || 'Black',
+                  sku: item.sku || '',
+                  unit_price: Number(item.unit_price || 0),
+                  quantity: Number(item.quantity || 1),
+                  total_price: Number(item.total_price || (item.unit_price * item.quantity)),
+                  image_url: item.image_url || '/assets/products/black-shirt.jpeg'
+                };
+              });
+            }
+            const snap: any[] = Array.isArray(address.items_snapshot) ? address.items_snapshot : [];
+            return snap.map((s: any, i: number) => ({
+              id: `snap-${row.id}-${i}`,
+              product_id: undefined,
+              product_name: s.name,
+              size: s.size || 'M',
+              color: s.color || 'Black',
+              sku: '',
+              unit_price: Number(s.price || 0),
+              quantity: Number(s.quantity || 1),
+              total_price: Number(s.price || 0) * Number(s.quantity || 1),
+              image_url: s.image || '/assets/products/black-shirt.jpeg'
+            }));
+          })(),
           refunds: (row.refunds || []).map((r: any) => ({
             id: r.id,
             order_id: r.order_id,
