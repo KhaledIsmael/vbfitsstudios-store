@@ -35,17 +35,15 @@ const SlideImage: React.FC<SlideImageProps> = ({ slide, isActive, isFirst, enter
           style={{ objectFit: 'cover' }}
         />
       ) : (
-        <img
-          src={slide.media_url}
-          alt={slide.title}
-          className={imgClass}
-          draggable={false}
-          width={1920}
-          height={1080}
-          loading={isFirst ? 'eager' : 'lazy'}
-          decoding={isFirst ? 'sync' : 'async'}
-          fetchPriority={isFirst ? 'high' : 'low'}
-        />
+          <img
+            src={slide.media_url}
+            alt={slide.title}
+            className={imgClass}
+            draggable={false}
+            loading={isFirst ? 'eager' : 'lazy'}
+            decoding={isFirst ? 'sync' : 'async'}
+            fetchPriority={isFirst ? 'high' : 'low'}
+          />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-black/25 pointer-events-none" />
     </div>
@@ -90,12 +88,15 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ splashCleared }) => {
 
   const active = slides[activeIndex];
 
+  // Use responsive heights and a max-width constraint for extra-large screens to prevent excessive pixelation/stretching
+  const containerClasses = "relative w-full h-[85vh] sm:h-[650px] lg:h-[750px] xl:h-[850px] 2xl:max-w-[2560px] mx-auto overflow-hidden select-none bg-[#0a0a0a]";
+
   if (slides.length === 0) {
-    return <section className="relative w-full h-[92vh] sm:h-screen bg-[#0a0a0a]" aria-label="Hero" />;
+    return <section className={containerClasses} aria-label="Hero" />;
   }
 
   return (
-    <section className="relative w-full h-[92vh] sm:h-screen overflow-hidden select-none" aria-label="Hero Slider">
+    <section className={containerClasses} aria-label="Hero Slider">
 
       {slides.map((slide, i) => (
         <SlideImage key={slide.id} slide={slide} isActive={i === activeIndex} isFirst={i === 0} entered={splashCleared} />

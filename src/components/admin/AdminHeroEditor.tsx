@@ -109,7 +109,15 @@ export const AdminHeroEditor: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h3 className="text-base font-extrabold text-slate-900">Hero Banners Editor</h3>
-          <p className="text-xs text-slate-500 mt-1">Upload images, MP4 videos, or GIFs. Media type is auto-detected.</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Upload images, MP4 videos, or GIFs. Media type is auto-detected.
+          </p>
+          <div className="mt-3 p-3.5 bg-blue-50/80 border border-blue-100 rounded-xl max-w-3xl shadow-sm">
+            <p className="text-[11.5px] text-blue-800 leading-relaxed">
+              <strong className="font-extrabold text-blue-900 block mb-0.5">Recommended Resolution & Aspect Ratio:</strong> 
+              For the best visual quality on large desktop and Retina displays without pixelation, please upload high-resolution media at a minimum of <strong>1920x1080px</strong> (16:9 aspect ratio). Vertical images may be heavily cropped on desktop monitors, so landscape or center-focused compositions are ideal.
+            </p>
+          </div>
         </div>
         <button onClick={handleAddBanner} className="bg-zinc-950 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-black transition-colors">
           <Plus className="w-4 h-4" /> Add Banner
