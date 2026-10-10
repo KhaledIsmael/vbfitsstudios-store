@@ -591,14 +591,7 @@ export const ProductDetailPage: React.FC = () => {
                 </button>
                 {openSection === 'details' && (
                   <div className="pt-3 space-y-3 text-[#6B6B6B] leading-relaxed animate-fade-in font-spec text-xs">
-                    {product.description && <p>{product.description}</p>}
-                    {product.details && product.details.length > 0 && (
-                      <ul className="list-disc pl-4 space-y-1 pt-1">
-                        {product.details.map((d, i) => (
-                          <li key={i}>{d}</li>
-                        ))}
-                      </ul>
-                    )}
+                    {product.description && <p className="whitespace-pre-line">{product.description}</p>}
                   </div>
                 )}
               </div>
