@@ -37,8 +37,10 @@ import {
   Timer,
   Eye,
   RefreshCw,
-  Image
+  Image,
+  Upload
 } from 'lucide-react';
+import { uploadAdminMedia } from '../../lib/adminProducts';
 import { BRAND_CONFIG } from '../../config/assets';
 import {
   getSiteSettings,
@@ -88,6 +90,21 @@ export const AdminMarketingPage: React.FC = () => {
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [siteSettingsSaved, setSiteSettingsSaved] = useState(false);
   const [resetGateFeedback, setResetGateFeedback] = useState<string | null>(null);
+  const [uploadingLaunchImage, setUploadingLaunchImage] = useState(false);
+
+  const handleUploadLaunchImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLaunchImage(true);
+    const { url, error } = await uploadAdminMedia(file);
+    if (url) {
+      setSiteSettings(prev => ({ ...prev, launch_image_url: url }));
+    } else {
+      alert(error || 'Failed to upload image');
+    }
+    setUploadingLaunchImage(false);
+    if (e.target) e.target.value = '';
+  };
 
   // Free Integrations state (Telegram & Webhooks)
   const [telegramToken, setTelegramToken] = useState(
@@ -834,6 +851,57 @@ export const AdminMarketingPage: React.FC = () => {
                 <span className="text-[10px] text-slate-400 block mt-0.5 font-medium">
                   نص توضيحي إضافي يظهر أسفل العنوان الرئيسي مباشرة.
                 </span>
+              </div>
+
+              {/* صورة خلفية شاشة العد التنازلي */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="font-extrabold text-slate-900 block text-xs">
+                      صورة خلفية بوابة الإطلاق (Launch Background Image)
+                    </label>
+                    <span className="text-[11px] text-slate-500 block">
+                      صورة تظهر بملء الشاشة خلف العد التنازلي. اتركها فارغة لاستخدام الصورة الافتراضية.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  {siteSettings.launch_image_url && (
+                    <div className="relative w-32 h-24 rounded-lg overflow-hidden border border-slate-200 bg-black">
+                      {siteSettings.launch_image_url.endsWith('.mp4') ? (
+                         <video src={siteSettings.launch_image_url} className="w-full h-full object-cover" autoPlay muted loop playsInline />
+                      ) : (
+                         <img src={siteSettings.launch_image_url} alt="Launch Gate" className="w-full h-full object-cover" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSiteSettings(prev => ({ ...prev, launch_image_url: '' }))}
+                        className="absolute top-1 right-1 p-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-xs cursor-pointer shadow-md"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-2 items-center">
+                    <label className={`flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold transition-all flex-shrink-0 ${uploadingLaunchImage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 cursor-pointer'}`}>
+                      {uploadingLaunchImage ? <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" /> : <Upload className="w-3.5 h-3.5 text-slate-600" />}
+                      <span>{uploadingLaunchImage ? 'جاري الرفع...' : 'رفع صورة'}</span>
+                      <input type="file" accept="image/*,video/mp4" className="hidden" onChange={handleUploadLaunchImage} disabled={uploadingLaunchImage} />
+                    </label>
+
+                    <div className="flex-1">
+                      <input
+                        type="url"
+                        value={siteSettings.launch_image_url || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, launch_image_url: e.target.value })}
+                        placeholder="أو أدخل رابط مباشر للصورة (URL)"
+                        className="w-full bg-white border border-slate-200 p-2 rounded-lg text-slate-900 text-xs font-mono focus:outline-none focus:border-zinc-900"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* 4. مفتاح On/Off لبوابة الشاشة الكاملة (countdown_gate_enabled) */}

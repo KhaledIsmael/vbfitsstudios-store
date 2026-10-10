@@ -10,6 +10,7 @@ export interface SiteSettings {
   teaser_subtext?: string;
   teaser_text?: string; // consolidated teaser text
   countdown_strip_text?: string;
+  launch_image_url?: string;
   editorial_media_url?: string;
   editorial_media_type?: 'image' | 'video' | 'gif';
   social_proof_media_url?: string;
@@ -49,6 +50,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   teaser_subtext: 'SECURE EARLY ATELIER ACCESS & PRIVATE VIP DROP DISPATCHES',
   teaser_text: 'THE ARCHIVAL VAULT OPENS SOON. SECURE EARLY ATELIER ACCESS.',
   countdown_strip_text: 'OFFICIAL LAUNCH INCOMING · WORLDWIDE DROP',
+  launch_image_url: '',
   editorial_media_url: '',
   editorial_media_type: 'image',
   social_proof_media_url: '',
@@ -307,6 +309,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
             ? `${data.teaser_headline}. ${data.teaser_subtext || ''}`
             : DEFAULT_SITE_SETTINGS.teaser_text),
         countdown_strip_text: data.countdown_strip_text || DEFAULT_SITE_SETTINGS.countdown_strip_text,
+        launch_image_url: data.launch_image_url || DEFAULT_SITE_SETTINGS.launch_image_url,
         social_instagram_url: formatSocialUrl('instagram', data.social_instagram_url),
         social_whatsapp_url: formatSocialUrl('whatsapp', data.social_whatsapp_url),
         social_tiktok_url: formatSocialUrl('tiktok', data.social_tiktok_url),
@@ -392,6 +395,7 @@ export async function updateSiteSettings(
     teaser_headline: headline,
     teaser_subtext: subtext,
     teaser_text: teaserCombined,
+    launch_image_url: settings.launch_image_url !== undefined ? settings.launch_image_url : current.launch_image_url,
     social_whatsapp_url: formatSocialUrl('whatsapp', settings.social_whatsapp_url !== undefined ? settings.social_whatsapp_url : current.social_whatsapp_url),
     social_instagram_url: formatSocialUrl('instagram', settings.social_instagram_url !== undefined ? settings.social_instagram_url : current.social_instagram_url),
     social_tiktok_url: formatSocialUrl('tiktok', settings.social_tiktok_url !== undefined ? settings.social_tiktok_url : current.social_tiktok_url),
@@ -420,6 +424,7 @@ export async function updateSiteSettings(
         teaser_subtext: updated.teaser_subtext,
         teaser_text: updated.teaser_text,
         countdown_strip_text: updated.countdown_strip_text,
+        launch_image_url: updated.launch_image_url,
         social_instagram_url: updated.social_instagram_url,
         social_whatsapp_url: updated.social_whatsapp_url,
         social_tiktok_url: updated.social_tiktok_url,

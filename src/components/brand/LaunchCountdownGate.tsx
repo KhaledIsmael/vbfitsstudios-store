@@ -127,7 +127,7 @@ export const LaunchCountdownGate: React.FC<LaunchCountdownGateProps> = ({
   const pad = (n: number) => n.toString().padStart(2, '0');
 
   // Background image - fallback to a generic placeholder if BRAND_CONFIG.hero.src isn't set
-  const bgImage = BRAND_CONFIG.hero?.src || '/assets/hero/hero.webp';
+  const bgImage = settings.launch_image_url || BRAND_CONFIG.hero?.src || '/assets/hero/hero.webp';
 
   return (
     <div
