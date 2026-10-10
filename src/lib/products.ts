@@ -217,7 +217,7 @@ function applyCatalogOverrides(baseProducts: Product[], overrides: Record<string
       if (override.price !== undefined) target.price = Number(override.price);
       if (override.name) target.name = override.name;
       if (override.subtitle !== undefined) target.subtitle = override.subtitle || undefined;
-      if (override.description) target.description = override.description;
+      if (override.description !== undefined) target.description = override.description;
       if (override.featured !== undefined) target.featured = Boolean(override.featured);
       if (override.is_new_arrival !== undefined) target.isNewArrival = Boolean(override.is_new_arrival);
       if (override.images && override.images.length > 0) {
