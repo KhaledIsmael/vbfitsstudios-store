@@ -10,6 +10,7 @@ import { ProductGallery } from '../components/ui/ProductGallery';
 import { ProductImage } from '../components/ui/ProductImage';
 import { DeliveryChecker } from '../components/ui/DeliveryChecker';
 import { RestockModal } from '../components/ui/RestockModal';
+import { ProductSizeChartModal } from '../components/ui/ProductSizeChartModal';
 
 // ─── Trust Badges Strip ───────────────────────────────────────────────────────
 const TrustBadges: React.FC = () => (
@@ -478,13 +479,15 @@ export const ProductDetailPage: React.FC = () => {
                 <span className="text-[11px] font-spec font-bold uppercase tracking-spec text-[#8E8E8E]">
                   Select Size
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setShowSizeGuide(true)}
-                  className="text-[11px] font-spec font-bold uppercase tracking-spec underline text-[#2D2D2D] hover:opacity-75"
-                >
-                  Sizechart
-                </button>
+                {product.size_chart?.enabled !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeGuide(true)}
+                    className="text-[11px] font-spec font-bold uppercase tracking-spec underline text-[#2D2D2D] hover:opacity-75"
+                  >
+                    Sizechart
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -609,7 +612,7 @@ export const ProductDetailPage: React.FC = () => {
                 </button>
                 {openSection === 'delivery' && (
                   <div className="pt-3 text-[#6B6B6B] leading-relaxed animate-fade-in font-spec text-xs">
-                    <p>{product.shippingInfo || 'Free express shipping on all domestic orders above 1,500 EGP. Standard courier delivery takes 2-4 business days. 14-day hassle-free return policy.'}</p>
+                    <p>{product.shippingInfo || 'Express courier shipping on all domestic orders; the shipping fee is shown at checkout. Standard courier delivery takes 2-4 business days. 14-day hassle-free return policy.'}</p>
                   </div>
                 )}
               </div>
@@ -665,54 +668,12 @@ export const ProductDetailPage: React.FC = () => {
       </div>
 
       {/* Size Guide Modal */}
-      {showSizeGuide && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="size-guide-modal-title"
-          onClick={() => setShowSizeGuide(false)}
-        >
-          <div
-            className="bg-white max-w-lg w-full p-8 relative shadow-2xl animate-scale-in"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center border-b border-[#EAEAEA] pb-4 mb-6">
-              <h3 id="size-guide-modal-title" className="text-xs uppercase tracking-widest font-semibold text-black">
-                Garment Measurements (Inches)
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowSizeGuide(false)}
-                className="text-black text-lg hover:opacity-60 p-1 leading-none rounded focus-visible:ring-2 focus-visible:ring-black"
-                aria-label="Close size chart"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left" aria-label="Garment size measurements in inches">
-                <thead>
-                  <tr className="border-b border-[#EAEAEA] text-[#888888]">
-                    <th scope="col" className="py-2">Size</th><th scope="col" className="py-2">Chest</th>
-                    <th scope="col" className="py-2">Length</th><th scope="col" className="py-2">Sleeve</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EAEAEA]">
-                  <tr><th scope="row" className="py-2.5 font-medium text-left">S</th><td>44"</td><td>28"</td><td>25.5"</td></tr>
-                  <tr><th scope="row" className="py-2.5 font-medium text-left">M</th><td>46"</td><td>29"</td><td>26.0"</td></tr>
-                  <tr><th scope="row" className="py-2.5 font-medium text-left">L</th><td>48"</td><td>30"</td><td>26.5"</td></tr>
-                  <tr><th scope="row" className="py-2.5 font-medium text-left">XL</th><td>50"</td><td>31"</td><td>27.0"</td></tr>
-                  <tr><th scope="row" className="py-2.5 font-medium text-left">XXL</th><td>52"</td><td>32"</td><td>27.5"</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <p className="text-[11px] text-[#777777] mt-4">
-              All measurements are taken flat. Designed with an intentional boxy luxury drape.
-            </p>
-          </div>
-        </div>
-      )}
+      <ProductSizeChartModal
+        isOpen={showSizeGuide}
+        onClose={() => setShowSizeGuide(false)}
+        productName={product.name}
+        sizeChart={product.size_chart}
+      />
 
       {/* Image Lightbox */}
       {lightboxSrc && (

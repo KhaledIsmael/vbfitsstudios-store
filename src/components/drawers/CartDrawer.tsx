@@ -97,10 +97,6 @@ export const CartDrawer: React.FC = () => {
     setIsCartOpen(false);
   };
 
-  const freeShippingThreshold = 250;
-  const isFreeShipping = subtotal >= freeShippingThreshold;
-  const progressPercent = Math.min(100, (subtotal / freeShippingThreshold) * 100);
-
   return (
     <AnimatePresence>
       {isCartOpen && (
@@ -288,24 +284,6 @@ export const CartDrawer: React.FC = () => {
             ) : (
               /* ── STATE 3: FILLED STATE ── */
               <div className="space-y-4">
-                {/* Free Shipping Progress Bar per REFERENCE-SPEC 10.2 */}
-                <div className="py-2">
-                  <div className="flex justify-between items-center text-[11px] uppercase tracking-wider mb-2 font-mono text-spec-muted">
-                    {isFreeShipping ? (
-                      <span className="text-black font-semibold">Complimentary Express Shipping Unlocked</span>
-                    ) : (
-                      <span>{(freeShippingThreshold - subtotal).toFixed(2)} EGP away from free shipping</span>
-                    )}
-                    <span>{Math.round(progressPercent)}%</span>
-                  </div>
-                  <div className="w-full h-1 bg-[#EAEAEA] rounded-none overflow-hidden">
-                    <div
-                      className="h-full bg-black transition-all duration-long ease-in-out"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-                </div>
-
                 {/* Item List */}
                 <ul className="divide-y divide-spec-border" aria-label="Items in your bag">
                   {cart.map((item) => (

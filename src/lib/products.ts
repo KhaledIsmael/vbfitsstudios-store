@@ -140,7 +140,25 @@ function mapSupabaseToProduct(row: SupabaseProductRow): Product {
       'Complimentary express shipping across Egypt. Standard delivery 2–4 business days. 14-day hassle-free returns.',
     stockBySize: Object.keys(stockBySize).length > 0 ? stockBySize : undefined,
     variantIdBySize: Object.keys(variantIdBySize).length > 0 ? variantIdBySize : undefined,
+    size_chart: (row as any).size_chart || undefined,
   };
+}
+
+function withTimeout<T>(promise: Promise<T>, ms = 2500, fallback: T): Promise<T> {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => resolve(fallback), ms);
+  });
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return res;
+    }).catch(() => {
+      clearTimeout(timeoutId);
+      return fallback;
+    }),
+    timeoutPromise
+  ]);
 }
 
 /**
@@ -155,11 +173,13 @@ async function fetchCloudCatalogOverrides(): Promise<Record<string, any>> {
 
   let cloud: Record<string, any> = {};
   try {
-    const { data } = await supabase
+    const cloudPromise = supabase
       .from('store_settings')
       .select('value')
       .eq('key', 'catalog_products_override')
       .maybeSingle();
+
+    const { data } = await withTimeout(cloudPromise, 2000, { data: null, error: null } as any);
 
     if (data?.value && typeof data.value === 'object') {
       cloud = data.value;
@@ -239,6 +259,9 @@ function applyCatalogOverrides(baseProducts: Product[], overrides: Record<string
         });
         target.stockBySize = stockMap;
       }
+      if (override.size_chart !== undefined) {
+        target.size_chart = override.size_chart;
+      }
     } else if (override.name && override.price && !archivedIds.has(key)) {
       // Newly created product from admin
       const overrideImages = (override.images || []).map((img: any) => img.url || img);
@@ -271,7 +294,8 @@ function applyCatalogOverrides(baseProducts: Product[], overrides: Record<string
         description: override.description || '',
         details: Array.isArray(override.details) ? override.details : [],
         fabricCare: Array.isArray(override.fabric_care) ? override.fabric_care : [],
-        shippingInfo: override.shipping_info || 'Complimentary express shipping across Egypt.'
+        shippingInfo: override.shipping_info || 'Complimentary express shipping across Egypt.',
+        size_chart: override.size_chart || undefined
       };
       productList.push(newProduct);
       map.set(newProduct.id, newProduct);
@@ -353,7 +377,7 @@ export async function getProductById(idOrSlug: string): Promise<Product | null> 
       query = query.eq('slug', idOrSlug);
     }
 
-    const { data, error } = await query.maybeSingle();
+    const { data, error } = await withTimeout(query.maybeSingle(), 2500, { data: null, error: null } as any);
 
     let product: Product | null = null;
     if (!error && data) {

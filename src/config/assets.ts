@@ -19,6 +19,8 @@ export interface MediaItem {
   displayOrder: number;
 }
 
+import { DEFAULT_TSHIRT_SIZE_CHART, type ProductSizeChart } from '../types/sizeChart';
+
 export interface Product {
   id: string;
   slug?: string;
@@ -50,11 +52,11 @@ export interface Product {
    * 0 = sold out; 1–5 = low stock; >5 = in stock.
    */
   stockBySize?: Record<string, number>;
-  /**
-   * Maps each size to its underlying product_variant_id (UUID or identifier)
-   * used for restock alerts and waitlist signups.
-   */
   variantIdBySize?: Record<string, string>;
+  /**
+   * Product-specific size chart configuration.
+   */
+  size_chart?: ProductSizeChart;
 }
 
 export const BRAND_CONFIG = {
@@ -130,7 +132,8 @@ export const PRODUCTS: Product[] = [
       L: "var-vb-long-sleeve-black-L",
       XL: "var-vb-long-sleeve-black-XL",
       XXL: "var-vb-long-sleeve-black-XXL"
-    }
+    },
+    size_chart: DEFAULT_TSHIRT_SIZE_CHART
   },
   {
     id: "vb-long-sleeve-white",
@@ -174,7 +177,8 @@ export const PRODUCTS: Product[] = [
       L: "var-vb-long-sleeve-white-L",
       XL: "var-vb-long-sleeve-white-XL",
       XXL: "var-vb-long-sleeve-white-XXL"
-    }
+    },
+    size_chart: DEFAULT_TSHIRT_SIZE_CHART
   },
   {
     id: "vb-long-sleeve-nocturne",

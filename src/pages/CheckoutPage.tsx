@@ -45,9 +45,8 @@ interface OrderSuccessData {
   total: number;
 }
 
-// Payment Method: Visible options in order:
-// 1. Cash on Delivery, 2. Bank Cards, 3. Smart Wallets, 4. Apple Pay
-type PaymentMethodOption = 'Cash on Delivery' | 'Bank Cards' | 'Smart Wallets' | 'Apple Pay';
+// Payment Method: Cash on Delivery is the only option for new orders.
+type PaymentMethodOption = 'Cash on Delivery';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -73,18 +72,12 @@ export const CheckoutPage: React.FC = () => {
   const [landmark, setLandmark] = useState('');
   const [saveToProfile, setSaveToProfile] = useState(true);
 
-  // Payment Method
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption>('Cash on Delivery');
-  const [walletPhone, setWalletPhone] = useState('');
-
-  // Bank Cards inline form fields (UI only — actual processing via Paymob hosted page)
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-  const [cardName, setCardName] = useState('');
+  // Payment Method (Cash on Delivery is the only option for new orders)
+  const paymentMethod: PaymentMethodOption = 'Cash on Delivery';
 
   // Promo Code
   const [promoCode, setPromoCode] = useState('');
+  const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
   const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
   const [promoMessage, setPromoMessage] = useState<string | null>(null);
 
@@ -145,7 +138,8 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  // Handle promo code
+  // Handle promo code (validated by the database; the order trigger re-validates and
+  // recomputes the final discount, so this value is only a preview)
   const handleApplyPromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!promoCode.trim()) return;
@@ -153,12 +147,33 @@ export const CheckoutPage: React.FC = () => {
     const result = await validateDiscountCode(promoCode, subtotal);
     if (result.valid) {
       setAppliedDiscount(result.discountAmount);
+      setAppliedPromoCode(promoCode.trim().toUpperCase());
       setPromoMessage(result.message);
     } else {
       setAppliedDiscount(0);
+      setAppliedPromoCode(null);
       setPromoMessage(result.message);
     }
   };
+
+  // Re-validate the applied code whenever the cart subtotal changes
+  useEffect(() => {
+    if (!appliedPromoCode) return;
+    let isMounted = true;
+    validateDiscountCode(appliedPromoCode, subtotal).then((result) => {
+      if (!isMounted) return;
+      if (result.valid) {
+        setAppliedDiscount(result.discountAmount);
+      } else {
+        setAppliedDiscount(0);
+        setAppliedPromoCode(null);
+        setPromoMessage(result.message);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [subtotal, appliedPromoCode]);
 
   // Active governorate based on selected saved address or inline form
   const effectiveGov = useMemo(() => {
@@ -171,28 +186,25 @@ export const CheckoutPage: React.FC = () => {
 
   // Dynamic Shipping calculation state
   const [shippingFee, setShippingFee] = useState<number>(() => getEstimatedShippingFee('Cairo', subtotal));
-  const [isFreeShipping, setIsFreeShipping] = useState<boolean>(false);
   const [currentZone, setCurrentZone] = useState<ShippingZone | null>(null);
 
-  // Recalculate shipping fee dynamically whenever governorate or subtotal changes
+  // Recalculate shipping fee dynamically whenever the governorate or subtotal changes.
+  // Shipping is always charged (no free-shipping threshold).
   useEffect(() => {
     let isMounted = true;
     calculateShippingFee(effectiveGov, subtotal).then((res) => {
       if (isMounted) {
         setShippingFee(res.fee);
-        setIsFreeShipping(res.isFree);
         setCurrentZone(res.zone);
-
-        // Auto-switch away from COD if courier COD is disabled for this governorate
-        if (res.zone && res.zone.cod_available === false && paymentMethod === 'Cash on Delivery') {
-          setPaymentMethod('Bank Cards');
-        }
       }
     });
     return () => {
       isMounted = false;
     };
-  }, [effectiveGov, subtotal, paymentMethod]);
+  }, [effectiveGov, subtotal]);
+
+  // Cash on Delivery is the only payment method; destinations without COD cannot be ordered to
+  const codUnavailable = !!currentZone && currentZone.cod_available === false;
 
   // Grand total calculation (subtotal minus discount plus governorate shipping fee)
   const grandTotal = Math.max(0, subtotal - appliedDiscount + shippingFee);
@@ -218,6 +230,12 @@ export const CheckoutPage: React.FC = () => {
     }
     if (!contactPhone.trim()) {
       setErrorMessage('Please enter a reachable mobile phone number for the courier.');
+      return;
+    }
+    if (codUnavailable) {
+      setErrorMessage(
+        `Cash on Delivery is unavailable for ${effectiveGov}, so orders to this destination cannot be placed. Please choose a different delivery governorate.`
+      );
       return;
     }
 
@@ -295,98 +313,6 @@ export const CheckoutPage: React.FC = () => {
 
     setIsSubmitting(true);
 
-    // ── ONLINE PAYMENT PATH: Create pending order → call Paymob → redirect ──
-    if (paymentMethod !== 'Cash on Delivery') {
-      // 1. Create a 'pending' order in Supabase first so we never lose the order
-      const { order: pendingOrder, error: orderErr } = await createOrder({
-        customerId: isLoggedIn && user ? user.id : null,
-        items: itemsPayload,
-        subtotal: subtotal,
-        discountAmount: appliedDiscount,
-        shippingAmount: shippingFee,
-        total: grandTotal,
-        discountCode: promoCode ? promoCode.trim().toUpperCase() : undefined,
-        shippingAddress: finalAddressSnapshot,
-        paymentMethod: 'Pay Online',
-        status: 'pending',
-        notes: `Payment: ${paymentMethod} (pending) | Email: ${contactEmail} | Phone: ${contactPhone}${orderNotes ? ' | ' + orderNotes : ''}`
-      });
-
-      setIsSubmitting(false);
-
-      if (orderErr || !pendingOrder) {
-        setErrorMessage(
-          orderErr?.includes('violates row-level security')
-            ? 'Guest orders are completing setup. Please sign in or try again shortly.'
-            : `Order registration error: ${orderErr}`
-        );
-        return;
-      }
-
-      // 2. Build billing data for Paymob
-      const nameParts = contactName.trim().split(' ');
-      const billingData = {
-        firstName: nameParts[0] || 'Guest',
-        lastName: nameParts.slice(1).join(' ') || 'Client',
-        email: contactEmail,
-        phone: contactPhone,
-        street: finalAddressSnapshot?.street || 'NA',
-        building: finalAddressSnapshot?.building || 'NA',
-        floor: finalAddressSnapshot?.floor || 'NA',
-        apartment: finalAddressSnapshot?.floor || 'NA',
-        city: finalAddressSnapshot?.city || 'Cairo',
-        governorate: finalAddressSnapshot?.governorate || 'Cairo',
-        country: 'EG'
-      };
-
-      // 3. Call Paymob serverless function
-      try {
-        setIsSubmitting(true);
-        // Map Bank Cards, Smart Wallets, and Apple Pay
-        const channel = paymentMethod === 'Apple Pay' ? 'applepay' : paymentMethod === 'Smart Wallets' ? 'wallet' : 'card';
-        const finalWalletPhone = paymentMethod === 'Smart Wallets'
-          ? (walletPhone.trim() || contactPhone.trim())
-          : undefined;
-
-        const paymobRes = await fetch('/api/paymob/create-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: pendingOrder.id,
-            orderNumber: pendingOrder.order_number,
-            amountCents: Math.round(grandTotal * 100),
-            currency: 'EGP',
-            paymentChannel: channel,
-            walletPhone: finalWalletPhone,
-            billingData
-          })
-        });
-
-        const paymobData = await paymobRes.json();
-        setIsSubmitting(false);
-
-        if (!paymobRes.ok || paymobData.error) {
-          setErrorMessage(
-            paymobData.error ||
-              'The payment gateway is temporarily unavailable. Please choose Cash on Delivery or try again.'
-          );
-          return;
-        }
-
-        // 4. Redirect to Paymob hosted payment page
-        // Note: We preserve cart in state so if the payment is declined or cancelled,
-        // the client does not lose their shopping bag! Cart is cleared upon verified callback.
-        window.location.href = paymobData.redirectUrl;
-        return;
-      } catch (fetchErr: any) {
-        setIsSubmitting(false);
-        setErrorMessage(
-          'Unable to reach the payment gateway. Please check your connection or select Cash on Delivery.'
-        );
-        return;
-      }
-    }
-
     // ── COD PATH: create order directly and navigate to confirmation ──
 
     const notesSummary = [
@@ -405,7 +331,7 @@ export const CheckoutPage: React.FC = () => {
       discountAmount: appliedDiscount,
       shippingAmount: shippingFee,
       total: grandTotal,
-      discountCode: promoCode ? promoCode.trim().toUpperCase() : undefined,
+      discountCode: appliedPromoCode || undefined,
       shippingAddress: finalAddressSnapshot,
       paymentMethod: 'Cash on Delivery',
       notes: notesSummary,
@@ -431,7 +357,7 @@ export const CheckoutPage: React.FC = () => {
         orderNumber: order?.order_number || 'VBF-CONFIRMED',
         trackingNumber: order?.tracking_number || '',
         email: contactEmail,
-        total: grandTotal,
+        total: Number(order?.total ?? grandTotal),
         paymentMethod: 'COD',
         paymentStatus: 'pending_collection',
         address: finalAddressSnapshot
@@ -902,7 +828,7 @@ export const CheckoutPage: React.FC = () => {
                     <p className="text-[12px] text-[#888888]">Delivery within 2–5 business days</p>
                   </div>
                 </div>
-                <span className="text-[13px] font-semibold text-[#1a1a1a]">Free</span>
+                <span className="text-[13px] font-semibold text-[#1a1a1a]">{shippingFee.toFixed(2)} EGP</span>
               </div>
             </section>
 
@@ -931,7 +857,7 @@ export const CheckoutPage: React.FC = () => {
                     value="Cash on Delivery"
                     disabled={currentZone ? !currentZone.cod_available : false}
                     checked={paymentMethod === 'Cash on Delivery'}
-                    onChange={() => setPaymentMethod('Cash on Delivery')}
+                    readOnly
                     className="mt-0.5 accent-black"
                   />
                   <div className="flex-1">
@@ -941,7 +867,7 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                     {currentZone && !currentZone.cod_available ? (
                       <p className="text-[11px] text-amber-700 mt-1.5 font-medium">
-                        Cash on Delivery is unavailable for {effectiveGov}. Please choose Bank Cards, Smart Wallets, or Apple Pay.
+                        Cash on Delivery is unavailable for {effectiveGov}, so orders to this destination cannot be placed. Please choose a different delivery governorate.
                       </p>
                     ) : (
                       paymentMethod === 'Cash on Delivery' && (
@@ -949,194 +875,6 @@ export const CheckoutPage: React.FC = () => {
                           Pay in cash or via POS card machine directly to the courier at your door.
                         </p>
                       )
-                    )}
-                  </div>
-                </label>
-
-                {/* Option 2: Bank Cards */}
-                <label
-                  className={`flex items-start gap-3 p-4 cursor-pointer transition-colors ${
-                    paymentMethod === 'Bank Cards' ? 'bg-[#F2F2F2]' : 'bg-white hover:bg-[#FAFAFA]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="payment_choice"
-                    value="Bank Cards"
-                    checked={paymentMethod === 'Bank Cards'}
-                    onChange={() => setPaymentMethod('Bank Cards')}
-                    className="mt-0.5 accent-black"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[14px] font-medium text-[#1a1a1a]">Bank Cards</span>
-                      {/* Card brand icons */}
-                      <div className="flex items-center gap-1.5">
-                        {/* Visa */}
-                        <svg viewBox="0 0 48 32" className="h-5 w-auto" aria-label="Visa">
-                          <rect width="48" height="32" rx="4" fill="#1A1F71"/>
-                          <text x="8" y="22" fill="white" fontSize="14" fontWeight="bold" fontFamily="Arial">VISA</text>
-                        </svg>
-                        {/* Mastercard */}
-                        <svg viewBox="0 0 48 32" className="h-5 w-auto" aria-label="Mastercard">
-                          <rect width="48" height="32" rx="4" fill="#252525"/>
-                          <circle cx="19" cy="16" r="9" fill="#EB001B"/>
-                          <circle cx="29" cy="16" r="9" fill="#F79E1B"/>
-                          <path d="M24 9.5a9 9 0 0 1 0 13A9 9 0 0 1 24 9.5z" fill="#FF5F00"/>
-                        </svg>
-                        {/* Meeza */}
-                        <svg viewBox="0 0 48 32" className="h-5 w-auto" aria-label="Meeza">
-                          <rect width="48" height="32" rx="4" fill="#00853D"/>
-                          <text x="6" y="21" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial">Meeza</text>
-                        </svg>
-                      </div>
-                    </div>
-                    {paymentMethod === 'Bank Cards' && (
-                      <div className="mt-4 space-y-3">
-                        <p className="text-[12px] text-[#666666] leading-relaxed">
-                          Secure card payment via Paymob. You will enter full card details on the next screen.
-                        </p>
-                        {/* Card Number */}
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={cardNumber}
-                            onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
-                            placeholder=" "
-                            maxLength={16}
-                            className="peer w-full border border-[#D9D9D9] rounded-md px-3 pt-5 pb-2 text-[14px] text-[#1a1a1a] bg-white focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition-colors font-mono tracking-widest"
-                          />
-                          <label className="absolute left-3 top-1 text-[10px] text-[#888888] uppercase tracking-wider pointer-events-none peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-[13px] peer-placeholder-shown:capitalize peer-placeholder-shown:tracking-normal peer-focus:top-1 peer-focus:text-[10px] peer-focus:uppercase peer-focus:tracking-wider transition-all">
-                            Card number
-                          </label>
-                          <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#888888]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                          </svg>
-                        </div>
-                        {/* Expiry + CVV */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={cardExpiry}
-                              onChange={(e) => {
-                                let v = e.target.value.replace(/\D/g, '').slice(0, 4);
-                                if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
-                                setCardExpiry(v);
-                              }}
-                              placeholder=" "
-                              maxLength={5}
-                              className="peer w-full border border-[#D9D9D9] rounded-md px-3 pt-5 pb-2 text-[14px] text-[#1a1a1a] bg-white focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition-colors"
-                            />
-                            <label className="absolute left-3 top-1 text-[10px] text-[#888888] uppercase tracking-wider pointer-events-none peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-[13px] peer-placeholder-shown:capitalize peer-placeholder-shown:tracking-normal peer-focus:top-1 peer-focus:text-[10px] peer-focus:uppercase peer-focus:tracking-wider transition-all">
-                              Expiry (MM/YY)
-                            </label>
-                          </div>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={cardCvv}
-                              onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                              placeholder=" "
-                              maxLength={4}
-                              className="peer w-full border border-[#D9D9D9] rounded-md px-3 pt-5 pb-2 text-[14px] text-[#1a1a1a] bg-white focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition-colors"
-                            />
-                            <label className="absolute left-3 top-1 text-[10px] text-[#888888] uppercase tracking-wider pointer-events-none peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-[13px] peer-placeholder-shown:capitalize peer-placeholder-shown:tracking-normal peer-focus:top-1 peer-focus:text-[10px] peer-focus:uppercase peer-focus:tracking-wider transition-all">
-                              Security code
-                            </label>
-                          </div>
-                        </div>
-                        {/* Cardholder Name */}
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={cardName}
-                            onChange={(e) => setCardName(e.target.value)}
-                            placeholder=" "
-                            className="peer w-full border border-[#D9D9D9] rounded-md px-3 pt-5 pb-2 text-[14px] text-[#1a1a1a] bg-white focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition-colors"
-                          />
-                          <label className="absolute left-3 top-1 text-[10px] text-[#888888] uppercase tracking-wider pointer-events-none peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-[13px] peer-placeholder-shown:capitalize peer-placeholder-shown:tracking-normal peer-focus:top-1 peer-focus:text-[10px] peer-focus:uppercase peer-focus:tracking-wider transition-all">
-                            Name on card
-                          </label>
-                        </div>
-                        <label className="flex items-center gap-2 text-[12px] text-[#444444] cursor-pointer select-none">
-                          <input type="checkbox" defaultChecked className="w-4 h-4 accent-black rounded" />
-                          Use shipping address as billing address
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </label>
-
-                {/* Option 3: Smart Wallets */}
-                <label
-                  className={`flex items-start gap-3 p-4 cursor-pointer transition-colors ${
-                    paymentMethod === 'Smart Wallets' ? 'bg-[#F2F2F2]' : 'bg-white hover:bg-[#FAFAFA]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="payment_choice"
-                    value="Smart Wallets"
-                    checked={paymentMethod === 'Smart Wallets'}
-                    onChange={() => setPaymentMethod('Smart Wallets')}
-                    className="mt-0.5 accent-black"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[14px] font-medium text-[#1a1a1a]">Smart Wallets</span>
-                      <span className="text-[11px] text-white bg-black px-2 py-0.5 rounded uppercase tracking-wide font-medium">Instant OTP</span>
-                    </div>
-                    {paymentMethod === 'Smart Wallets' && (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-[12px] text-[#666666] leading-relaxed">
-                          Vodafone Cash, Orange Money, Etisalat Cash, WE Pay, and other Egyptian wallets.
-                        </p>
-                        <div className="relative">
-                          <input
-                            type="tel"
-                            value={walletPhone}
-                            onChange={(e) => setWalletPhone(e.target.value)}
-                            placeholder=" "
-                            className="peer w-full border border-[#D9D9D9] rounded-md px-3 pt-5 pb-2 text-[14px] text-[#1a1a1a] bg-white focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition-colors"
-                          />
-                          <label className="absolute left-3 top-1 text-[10px] text-[#888888] uppercase tracking-wider pointer-events-none peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-[13px] peer-placeholder-shown:capitalize peer-placeholder-shown:tracking-normal peer-focus:top-1 peer-focus:text-[10px] peer-focus:uppercase peer-focus:tracking-wider transition-all">
-                            Wallet phone number (optional)
-                          </label>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </label>
-
-                {/* Option 4: Apple Pay */}
-                <label
-                  className={`flex items-start gap-3 p-4 cursor-pointer transition-colors ${
-                    paymentMethod === 'Apple Pay' ? 'bg-[#F2F2F2]' : 'bg-white hover:bg-[#FAFAFA]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="payment_choice"
-                    value="Apple Pay"
-                    checked={paymentMethod === 'Apple Pay'}
-                    onChange={() => setPaymentMethod('Apple Pay')}
-                    className="mt-0.5 accent-black"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[14px] font-medium text-[#1a1a1a]">Apple Pay</span>
-                        <svg className="w-4 h-4 text-black inline-block" viewBox="0 0 170 170" fill="currentColor" aria-label="Apple logo">
-                          <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.08-7.73-7.94-12.11-14.58-6.19-9.37-11.05-20.2-14.58-32.48-3.53-12.28-5.3-23.75-5.3-34.41 0-14.58 3.64-26.69 10.92-36.33 7.28-9.64 16.59-14.52 27.93-14.65 4.89 0 10.16 1.34 15.81 4.02 5.65 2.68 9.3 4.08 10.95 4.19 1.35 0 5.17-1.46 11.46-4.36 6.3-2.9 11.95-4.24 16.97-4.02 12.51.65 22.38 5.48 29.6 14.5-10.98 6.64-16.36 15.82-16.14 27.53.22 9.14 3.75 16.86 10.6 23.16 6.85 6.3 15.02 9.89 24.51 10.77-2.18 6.53-4.73 13.06-7.66 19.59zM119.22 33.15c0-7.39 2.66-14.28 7.98-20.67 5.33-6.39 12-10.63 20.02-12.73.22 1.09.33 2.07.33 2.94 0 7.29-2.77 14.23-8.31 20.82-5.54 6.59-12.28 10.74-20.22 12.44-.01-.98-.01-1.78.2-2.8z" />
-                        </svg>
-                      </div>
-                    </div>
-                    {paymentMethod === 'Apple Pay' && (
-                      <p className="text-[12px] text-[#666666] mt-2 leading-relaxed">
-                        Fast one-touch payment via Apple Wallet. Available on Safari and iOS devices with Face ID or Touch ID.
-                      </p>
                     )}
                   </div>
                 </label>
@@ -1167,7 +905,7 @@ export const CheckoutPage: React.FC = () => {
             {/* ── SUBMIT BUTTON ── */}
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || codUnavailable}
               className="w-full bg-[#111111] hover:bg-black text-white py-4 rounded-md text-[15px] font-semibold tracking-wide transition-all duration-200 disabled:opacity-60 flex items-center justify-center gap-3"
             >
               {isSubmitting ? (
@@ -1291,13 +1029,7 @@ export const CheckoutPage: React.FC = () => {
 
               <div className="flex justify-between text-[#555555]">
                 <span>Shipping ({effectiveGov})</span>
-                <span className="text-[#1a1a1a] font-medium">
-                  {isFreeShipping || shippingFee === 0 ? (
-                    <span className="text-emerald-700 font-semibold">Free Delivery</span>
-                  ) : (
-                    `${shippingFee.toFixed(2)} EGP`
-                  )}
-                </span>
+                <span className="text-[#1a1a1a] font-medium">{shippingFee.toFixed(2)} EGP</span>
               </div>
 
               <div className="border-t border-[#E0E0E0] pt-3 flex justify-between items-baseline">

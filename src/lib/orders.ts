@@ -386,6 +386,11 @@ export async function createOrder({
     return { order: null, error: 'Cannot place order with an empty shopping bag.' };
   }
 
+  // Cash on Delivery is the only payment method accepted for new orders.
+  if (paymentMethod !== 'COD' && paymentMethod !== 'Cash on Delivery') {
+    return { order: null, error: 'Only Cash on Delivery is available for new orders.' };
+  }
+
   try {
     const orderNumber = `VBF-${Math.floor(10000 + Math.random() * 90000)}`;
     const trackingNumber = `DHL-${Math.floor(100000000 + Math.random() * 900000000)}`;
@@ -576,6 +581,16 @@ export async function createOrder({
         error: `تعذر حفظ محتويات الطلب، برجاء المحاولة مرة أخرى. (${itemsError.message})`
       };
     }
+
+    // Totals (shipping, discount, total) are computed by the database; re-read the final row
+    try {
+      const { data: finalOrder } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', order.id)
+        .maybeSingle();
+      if (finalOrder) order = finalOrder;
+    } catch {}
 
     // 3. Fire-and-forget confirmation email (only for COD or already paid orders)
     // Online pending payments will have confirmation emails sent via the webhook upon verified payment!

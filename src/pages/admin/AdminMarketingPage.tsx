@@ -232,15 +232,23 @@ export const AdminMarketingPage: React.FC = () => {
 
   // Toggle active status
   const handleToggleActive = async (id: string, current: boolean) => {
-    await toggleDiscountCodeActive(id, !current);
-    setCodes((prev) => prev.map((c) => (c.id === id ? { ...c, is_active: !current } : c)));
+    const res = await toggleDiscountCodeActive(id, !current);
+    if (res.success) {
+      setCodes((prev) => prev.map((c) => (c.id === id ? { ...c, is_active: !current } : c)));
+    } else {
+      alert(res.error || 'تعذر تحديث حالة كود الخصم.');
+    }
   };
 
   // Delete code
   const handleDeleteCode = async (id: string) => {
     if (!confirm('هل تريد حذف كود الخصم هذا نهائياً؟')) return;
-    await deleteDiscountCode(id);
-    setCodes((prev) => prev.filter((c) => c.id !== id));
+    const res = await deleteDiscountCode(id);
+    if (res.success) {
+      setCodes((prev) => prev.filter((c) => c.id !== id));
+    } else {
+      alert(res.error || 'تعذر حذف كود الخصم.');
+    }
   };
 
   // Copy code to clipboard

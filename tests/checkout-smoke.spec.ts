@@ -15,46 +15,44 @@ import { test, expect } from '@playwright/test';
 test.describe('Staging Checkout Flow & Payment Security Smoke Tests', () => {
 
   test('1. Catalog to Checkout flow: adds silhouette to cart and opens checkout', async ({ page }) => {
-    // Navigate to Shop
-    await page.goto('/shop');
-    await expect(page).toHaveTitle(/VB FITS STUDIOS/i);
+    await page.addInitScript(() => {
+      localStorage.setItem('past_gate', 'true');
+    });
 
-    // Wait for catalog items to appear
-    const productCard = page.locator('.group.cursor-pointer').first();
-    await expect(productCard).toBeVisible({ timeout: 10000 });
+    // Navigate to product detail page
+    await page.goto('/product/vb-long-sleeve-black');
+    await expect(page).toHaveURL(/\/product\/vb-long-sleeve-black/);
 
-    // Click into the first product detail page
-    await productCard.click();
+    // Select in-stock size M (Size S is sold out)
+    await page.getByRole('button', { name: /Select size M/i }).click();
 
-    // Verify on product detail page
-    await expect(page).toHaveURL(/\/product\//);
-    const addToBagBtn = page.getByRole('button', { name: /Add to Shopping Bag/i });
-    await expect(addToBagBtn).toBeVisible({ timeout: 10000 });
-
-    // Add product to cart
+    const addToBagBtn = page.getByRole('button', { name: /Add to Cart/i });
+    await expect(addToBagBtn).toBeVisible({ timeout: 15000 });
     await addToBagBtn.click();
 
     // Direct navigation to checkout
     await page.goto('/checkout');
     await expect(page).toHaveURL(/\/checkout/);
 
-    // Verify Checkout header & Order Summary are populated
-    await expect(page.locator('text=Order Summary')).toBeVisible();
-    await expect(page.locator('text=Total Value')).toBeVisible();
+    // Verify Checkout headers are populated
+    await expect(page.getByRole('heading', { name: 'Contact' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Delivery' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Payment' })).toBeVisible();
   });
 
   test('2. Checkout form validation & delivery coordinates for guest client', async ({ page }) => {
     // Populate cart via localStorage to ensure test isolation
     await page.goto('/');
     await page.evaluate(() => {
+      localStorage.setItem('past_gate', 'true');
       const mockCartItem = [
         {
           id: 'vb-heavyweight-tee-mock-M',
           productId: 'prod-heavyweight-tee',
           name: 'Signature Boxy Heavyweight Tee',
           price: 180,
-          currency: '$',
-          image: '/assets/products/black-shirt.jpeg',
+          currency: 'EGP',
+          image: '/assets/products/black-shirt.webp',
           size: 'M',
           quantity: 1
         }
@@ -64,47 +62,48 @@ test.describe('Staging Checkout Flow & Payment Security Smoke Tests', () => {
 
     // Navigate to Checkout
     await page.goto('/checkout');
-    await expect(page.locator('text=1. Contact Information')).toBeVisible();
-    await expect(page.locator('text=2. Delivery Coordinates')).toBeVisible();
-    await expect(page.locator('text=3. Settlement Method')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Contact' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Delivery' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Payment' })).toBeVisible();
 
     // Fill Client Contact details
-    const nameInput = page.getByPlaceholder('e.g. Christian Dior');
-    const emailInput = page.getByPlaceholder('name@domain.com');
-    const phoneInput = page.getByPlaceholder('+20 100 000 0000');
+    const nameInput = page.getByLabel('Full name');
+    const emailInput = page.getByLabel('Email address');
+    const phoneInput = page.getByLabel(/Phone/i);
 
     await nameInput.fill('Smoke Test Client');
     await emailInput.fill('smoke-testing@vbfitsstudios.com');
-    await phoneInput.fill('+20 100 123 4567');
+    await phoneInput.fill('01001234567');
 
     // Fill Delivery Coordinates
-    const cityInput = page.getByPlaceholder(/New Cairo/i);
-    const streetInput = page.getByPlaceholder(/South 90th Street/i);
+    const cityInput = page.getByLabel('City / District');
+    const addressInput = page.getByLabel('Address', { exact: true });
 
     await cityInput.fill('New Cairo');
-    await streetInput.fill('North 90th St, Sector 1');
+    await addressInput.fill('North 90th St, Sector 1');
 
     // Verify values entered cleanly
     await expect(nameInput).toHaveValue('Smoke Test Client');
     await expect(emailInput).toHaveValue('smoke-testing@vbfitsstudios.com');
-    await expect(phoneInput).toHaveValue('+20 100 123 4567');
+    await expect(phoneInput).toHaveValue('01001234567');
     await expect(cityInput).toHaveValue('New Cairo');
-    await expect(streetInput).toHaveValue('North 90th St, Sector 1');
+    await expect(addressInput).toHaveValue('North 90th St, Sector 1');
 
     // Verify Cash on Delivery radio is selected by default
     const codRadio = page.locator('input[type="radio"][value="Cash on Delivery"]');
     await expect(codRadio).toBeChecked();
 
     // Verify submission CTA is present and displays order total
-    const submitBtn = page.getByRole('button', { name: /Confirm Acquisition/i });
+    const submitBtn = page.getByRole('button', { name: /Confirm order/i });
     await expect(submitBtn).toBeVisible();
     await expect(submitBtn).toBeEnabled();
   });
 
-  test('3. Security verification (P2.3): No raw card data inputs exist on app DOM', async ({ page }) => {
+  test('3. COD Exclusivity verification: COD is the sole payment method; online card/wallet channels removed', async ({ page }) => {
     // Populate cart and load checkout
     await page.goto('/');
     await page.evaluate(() => {
+      localStorage.setItem('past_gate', 'true');
       localStorage.setItem(
         'vbfits_cart',
         JSON.stringify([
@@ -113,8 +112,8 @@ test.describe('Staging Checkout Flow & Payment Security Smoke Tests', () => {
             productId: 'sec-item',
             name: 'Archival Tailored Overcoat',
             price: 650,
-            currency: '$',
-            image: '/assets/products/black-shirt.jpeg',
+            currency: 'EGP',
+            image: '/assets/products/black-shirt.webp',
             size: 'L',
             quantity: 1
           }
@@ -130,23 +129,20 @@ test.describe('Staging Checkout Flow & Payment Security Smoke Tests', () => {
     );
     await expect(rawCardInputs).toHaveCount(0);
 
-    // 2. Select "Pay Online" option
-    const payOnlineRadio = page.locator('input[type="radio"][value="Pay Online"]');
-    await payOnlineRadio.check();
-    await expect(payOnlineRadio).toBeChecked();
+    // 2. Assert Cash on Delivery is present and selected
+    const codRadio = page.locator('input[type="radio"][value="Cash on Delivery"]');
+    await expect(codRadio).toBeVisible();
+    await expect(codRadio).toBeChecked();
 
-    // 3. Verify channel sub-selector appears with Paymob delegate branding
-    await expect(page.locator('text=Powered by Paymob')).toBeVisible();
-    await expect(page.getByRole('button', { name: /Bank Cards/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Smart Wallets/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Installments/i })).toBeVisible();
+    // 3. Assert "Pay Online", "Bank Cards", "Smart Wallets", "Powered by Paymob" are NOT present
+    await expect(page.locator('input[type="radio"][value="Pay Online"]')).toHaveCount(0);
+    await expect(page.locator('text=Powered by Paymob')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Bank Cards/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Smart Wallets/i })).toHaveCount(0);
 
-    // 4. Confirm STILL no raw card fields exist — Paymob handles Hosted Checkout entirely
-    await expect(rawCardInputs).toHaveCount(0);
-
-    // 5. Submit CTA now routes to external gateway redirect
-    const payBtn = page.getByRole('button', { name: /Proceed to Payment/i });
-    await expect(payBtn).toBeVisible();
+    // 4. Submit CTA routes directly to Confirm order (COD)
+    const submitBtn = page.getByRole('button', { name: /Confirm order/i });
+    await expect(submitBtn).toBeVisible();
   });
 
   test('4. Supabase Auth Rate Limiting & Backoff UI smoke test', async ({ page }) => {

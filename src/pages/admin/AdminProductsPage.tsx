@@ -11,6 +11,8 @@ import {
   type AdminProductImage
 } from '../../lib/adminProducts';
 import { MediaUploader } from '../../components/admin/MediaUploader';
+import { ProductSizeChartEditor } from '../../components/admin/ProductSizeChartEditor';
+import { DEFAULT_TSHIRT_SIZE_CHART } from '../../types/sizeChart';
 import { AdminInfoTooltip } from '../../components/admin/AdminInfoTooltip';
 import { exportProductsToExcel } from '../../lib/adminExport';
 import {
@@ -47,7 +49,7 @@ export const AdminProductsPage: React.FC = () => {
   // Editor drawer state
   const [editingProduct, setEditingProduct] = useState<AdminProduct | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [activeEditorTab, setActiveEditorTab] = useState<'details' | 'variants' | 'images'>('details');
+  const [activeEditorTab, setActiveEditorTab] = useState<'details' | 'variants' | 'images' | 'size_chart'>('details');
   const [isSaving, setIsSaving] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
@@ -153,7 +155,8 @@ export const AdminProductsPage: React.FC = () => {
       category_id: categories[0]?.id || '',
       featured: false,
       is_new_arrival: true,
-      is_published: true
+      is_published: true,
+      size_chart: { ...DEFAULT_TSHIRT_SIZE_CHART, enabled: true }
     });
     setFormVariants([
       { size: 'S', stock: 10, sku: 'VB-S', color: 'Black' },
@@ -170,7 +173,12 @@ export const AdminProductsPage: React.FC = () => {
   // Open editor to edit an existing product
   const handleEdit = (prod: AdminProduct) => {
     setEditingProduct(prod);
-    setFormData({ ...prod });
+    setFormData({
+      ...prod,
+      size_chart: prod.size_chart
+        ? JSON.parse(JSON.stringify(prod.size_chart))
+        : { ...DEFAULT_TSHIRT_SIZE_CHART, enabled: true }
+    });
     setFormVariants(prod.variants ? JSON.parse(JSON.stringify(prod.variants)) : []);
     setFormImages(prod.images ? JSON.parse(JSON.stringify(prod.images)) : []);
     setActiveEditorTab('details');
@@ -278,6 +286,7 @@ export const AdminProductsPage: React.FC = () => {
       related_product_ids: formData.related_product_ids || [],
       details: formData.details || [],
       fabric_care: formData.fabric_care || [],
+      size_chart: formData.size_chart ?? null,
       variants: formVariants,
       images: formImages
     };
@@ -643,7 +652,8 @@ export const AdminProductsPage: React.FC = () => {
                 {[
                   { id: 'details', label: '1. البيانات الأساسية والسعر' },
                   { id: 'variants', label: '2. المقاسات والكميات' },
-                  { id: 'images', label: '3. صور القطعة' }
+                  { id: 'images', label: '3. صور القطعة' },
+                  { id: 'size_chart', label: '4. جدول المقاسات (Size Chart)' }
                 ].map((t) => (
                   <button
                     key={t.id}
@@ -848,6 +858,16 @@ export const AdminProductsPage: React.FC = () => {
                     onChange={(updatedImgs) => setFormImages(updatedImgs)}
                   />
                 </div>
+              )}
+
+              {/* Tab 4: جدول المقاسات (Size Chart) */}
+              {activeEditorTab === 'size_chart' && (
+                <ProductSizeChartEditor
+                  value={formData.size_chart}
+                  onChange={(updated) => setFormData({ ...formData, size_chart: updated })}
+                  productVariants={formVariants}
+                  productName={formData.name || 'القطعة'}
+                />
               )}
             </div>
 

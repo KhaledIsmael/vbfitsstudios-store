@@ -82,19 +82,14 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           return { error: null };
         }
       } catch (sbErr) {
-        console.warn('[AdminAuth] Supabase Auth sign-in caught exception, using master admin fallback:', sbErr);
+        console.warn('[AdminAuth] Supabase Auth sign-in caught exception:', sbErr);
       }
 
-      // Fallback: localStorage-only session (allows entry even if Supabase Auth schema is recovering)
-      const masterUser: AdminUser = {
-        id: cleanEmail === PRIMARY_ADMIN_EMAIL ? 'adm-vbfits-root' : 'adm-root-01',
-        email: cleanEmail,
-        name: 'مدير المتجر الرئيسي',
-        role: 'admin'
+      // No valid Supabase session: refuse to create a localStorage-only admin session,
+      // because database writes (RLS) would silently fail without a real session.
+      return {
+        error: 'تعذر إنشاء جلسة آمنة مع قاعدة البيانات. يرجى تسجيل الدخول مرة أخرى. (Could not establish a database session — please sign in again.)'
       };
-      setAdminUser(masterUser);
-      localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(masterUser));
-      return { error: null };
     }
 
     // 2. Supabase Auth via isolated adminSupabase client (does not touch customer tokens)

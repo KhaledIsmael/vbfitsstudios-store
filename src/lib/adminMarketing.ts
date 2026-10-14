@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, adminSupabase } from './supabaseClient';
 
 declare const process: { env?: Record<string, string | undefined> } | undefined;
 
@@ -29,52 +29,8 @@ export interface StoreAnnouncement {
   link?: string;
 }
 
-const LOCAL_DISCOUNTS_KEY = 'vbfits_admin_discount_codes_v1';
 const LOCAL_SUBSCRIBERS_KEY = 'vbfits_admin_newsletter_subscribers_v1';
 const LOCAL_ANNOUNCEMENT_KEY = 'vbfits_storefront_announcement_v1';
-
-// Seed default discount codes
-const DEFAULT_DISCOUNT_CODES: DiscountCode[] = [
-  {
-    id: 'disc-welcome10',
-    code: 'WELCOME10',
-    discount_type: 'percentage',
-    discount_value: 10,
-    min_spend: 0,
-    max_uses: 1000,
-    times_used: 34,
-    starts_at: new Date(Date.now() - 86400000 * 30).toISOString(),
-    expires_at: null,
-    is_active: true,
-    created_at: new Date(Date.now() - 86400000 * 30).toISOString()
-  },
-  {
-    id: 'disc-vip20',
-    code: 'VIP20',
-    discount_type: 'percentage',
-    discount_value: 20,
-    min_spend: 250,
-    max_uses: 500,
-    times_used: 18,
-    starts_at: new Date(Date.now() - 86400000 * 15).toISOString(),
-    expires_at: new Date(Date.now() + 86400000 * 60).toISOString(),
-    is_active: true,
-    created_at: new Date(Date.now() - 86400000 * 15).toISOString()
-  },
-  {
-    id: 'disc-atelier50',
-    code: 'ATELIER50',
-    discount_type: 'fixed',
-    discount_value: 50,
-    min_spend: 300,
-    max_uses: 200,
-    times_used: 9,
-    starts_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-    expires_at: new Date(Date.now() + 86400000 * 14).toISOString(),
-    is_active: true,
-    created_at: new Date(Date.now() - 86400000 * 7).toISOString()
-  }
-];
 
 // Seed default subscribers
 const DEFAULT_SUBSCRIBERS: NewsletterSubscriber[] = [
@@ -104,130 +60,132 @@ const DEFAULT_SUBSCRIBERS: NewsletterSubscriber[] = [
   }
 ];
 
-function getLocalDiscounts(): DiscountCode[] {
+// ─── 1. DISCOUNT CODES CRUD (database only: no browser cache, no seeded codes) ─
+
+const NO_SESSION_MESSAGE =
+  'لا توجد جلسة صالحة مع قاعدة البيانات. يرجى تسجيل الدخول مرة أخرى. (No valid database session — please sign in again.)';
+
+/** Writes/reads of discount_codes are protected by RLS and need a real admin Supabase session. */
+async function hasAdminSession(): Promise<boolean> {
   try {
-    const raw = localStorage.getItem(LOCAL_DISCOUNTS_KEY);
-    return raw ? JSON.parse(raw) : DEFAULT_DISCOUNT_CODES;
+    const { data } = await adminSupabase.auth.getSession();
+    return !!data.session;
   } catch {
-    return DEFAULT_DISCOUNT_CODES;
+    return false;
   }
 }
 
-function saveLocalDiscounts(codes: DiscountCode[]) {
+/** Older dashboard versions kept a browser copy of the promo codes; make sure it is never used again. */
+function clearLegacyLocalDiscounts() {
   try {
-    localStorage.setItem(LOCAL_DISCOUNTS_KEY, JSON.stringify(codes));
-  } catch (err) {
-    console.warn('Could not save local discount codes:', err);
+    localStorage.removeItem('vbfits_admin_discount_codes_v1');
+  } catch {
+    // ignore
   }
 }
-
-// ─── 1. DISCOUNT CODES CRUD ──────────────────────────────────────────────────
 
 export async function fetchDiscountCodes(): Promise<DiscountCode[]> {
-  try {
-    const { data, error } = await supabase
-      .from('discount_codes')
-      .select('*')
-      .order('created_at', { ascending: false });
+  clearLegacyLocalDiscounts();
+  if (!(await hasAdminSession())) throw new Error(NO_SESSION_MESSAGE);
 
-    if (!error && data && data.length > 0) {
-      saveLocalDiscounts(data as DiscountCode[]);
-      return data as DiscountCode[];
-    }
-  } catch (err) {
-    console.warn('fetchDiscountCodes fallback:', err);
-  }
-  return getLocalDiscounts();
+  const { data, error } = await adminSupabase
+    .from('discount_codes')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data || []) as DiscountCode[];
 }
 
 export async function createDiscountCode(
   params: Omit<DiscountCode, 'id' | 'times_used' | 'created_at'>
 ): Promise<{ success: boolean; data?: DiscountCode; error?: string }> {
-  const codeFormatted = params.code.trim().toUpperCase();
-  const newCode: DiscountCode = {
-    ...params,
-    id: 'disc-' + Date.now(),
-    code: codeFormatted,
-    times_used: 0,
-    created_at: new Date().toISOString()
-  };
+  if (!(await hasAdminSession())) return { success: false, error: NO_SESSION_MESSAGE };
 
-  // Local sync
-  const current = getLocalDiscounts();
-  if (current.some((c) => c.code === codeFormatted)) {
-    return { success: false, error: 'Promo code already exists.' };
-  }
-  const updated = [newCode, ...current];
-  saveLocalDiscounts(updated);
+  // Codes are normalised (trimmed, no spaces, upper-case); the DB enforces uniqueness on upper(code)
+  const codeFormatted = params.code.trim().toUpperCase().replace(/\s+/g, '');
 
-  // Supabase sync
-  try {
-    const { data, error } = await supabase
-      .from('discount_codes')
-      .insert({
-        code: codeFormatted,
-        discount_type: params.discount_type,
-        discount_value: params.discount_value,
-        min_spend: params.min_spend,
-        max_uses: params.max_uses,
-        starts_at: params.starts_at,
-        expires_at: params.expires_at,
-        is_active: params.is_active
-      })
-      .select()
-      .single();
+  const { data, error } = await adminSupabase
+    .from('discount_codes')
+    .insert({
+      code: codeFormatted,
+      discount_type: params.discount_type,
+      discount_value: params.discount_value,
+      min_spend: params.min_spend,
+      max_uses: params.max_uses,
+      starts_at: params.starts_at,
+      expires_at: params.expires_at,
+      is_active: params.is_active
+    })
+    .select()
+    .single();
 
-    if (!error && data) {
-      return { success: true, data: data as DiscountCode };
+  if (error) {
+    if (error.code === '23505') {
+      return { success: false, error: 'هذا الكود موجود بالفعل. (Promo code already exists.)' };
     }
-  } catch (err: any) {
-    console.warn('createDiscountCode DB notice:', err);
+    return { success: false, error: error.message };
   }
-
-  return { success: true, data: newCode };
+  return { success: true, data: data as DiscountCode };
 }
 
 export async function updateDiscountCode(
   id: string,
   updates: Partial<DiscountCode>
 ): Promise<{ success: boolean; error?: string }> {
-  // Local sync
-  const current = getLocalDiscounts();
-  const updated = current.map((c) => (c.id === id ? { ...c, ...updates } : c));
-  saveLocalDiscounts(updated);
+  if (!(await hasAdminSession())) return { success: false, error: NO_SESSION_MESSAGE };
 
-  // Supabase sync
-  try {
-    await supabase.from('discount_codes').update(updates).eq('id', id);
-  } catch (err) {
-    console.warn('updateDiscountCode DB notice:', err);
+  const payload: Partial<DiscountCode> = { ...updates };
+  if (payload.code !== undefined) payload.code = payload.code.trim().toUpperCase().replace(/\s+/g, '');
+
+  const { data, error } = await adminSupabase
+    .from('discount_codes')
+    .update(payload)
+    .eq('id', id)
+    .select('id');
+
+  if (error) {
+    if (error.code === '23505') {
+      return { success: false, error: 'هذا الكود موجود بالفعل. (Promo code already exists.)' };
+    }
+    return { success: false, error: error.message };
   }
-
+  if (!data || data.length === 0) {
+    return { success: false, error: 'لم يتم تحديث أي سجل. (Promo code not found or update not permitted.)' };
+  }
   return { success: true };
 }
 
 export async function toggleDiscountCodeActive(
   id: string,
   isActive: boolean
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; error?: string }> {
   return updateDiscountCode(id, { is_active: isActive });
 }
 
-export async function deleteDiscountCode(id: string): Promise<{ success: boolean }> {
-  const current = getLocalDiscounts();
-  saveLocalDiscounts(current.filter((c) => c.id !== id));
+/**
+ * Hard-deletes the promo code row. Historical orders are unaffected: orders keep their own
+ * discount_code text and discount_amount, and orders.discount_code_id is ON DELETE SET NULL.
+ */
+export async function deleteDiscountCode(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!(await hasAdminSession())) return { success: false, error: NO_SESSION_MESSAGE };
 
-  try {
-    await supabase.from('discount_codes').delete().eq('id', id);
-  } catch (err) {
-    console.warn('deleteDiscountCode DB notice:', err);
+  const { data, error } = await adminSupabase
+    .from('discount_codes')
+    .delete()
+    .eq('id', id)
+    .select('id');
+
+  if (error) return { success: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { success: false, error: 'لم يتم حذف أي سجل. (Promo code not found or delete not permitted.)' };
   }
-
   return { success: true };
 }
 
 /**
- * Validates a promo code for checkout application.
+ * Validates a promo code for checkout. Validation is performed by the database function
+ * validate_discount_code (the same rules the order trigger enforces when the order is saved).
  */
 export async function validateDiscountCode(
   inputCode: string,
@@ -242,74 +200,35 @@ export async function validateDiscountCode(
     return { valid: false, discountAmount: 0, message: 'Please provide a discount code.' };
   }
 
-  const clean = inputCode.trim().toUpperCase();
+  const clean = inputCode.trim().toUpperCase().replace(/\s+/g, '');
 
-  // Legacy hardcoded fallback support
-  if (clean === 'VB10' || clean === 'VIP10') {
-    const discount = subtotal * 0.1;
+  try {
+    const { data, error } = await supabase.rpc('validate_discount_code', {
+      p_code: clean,
+      p_subtotal: subtotal
+    });
+
+    if (error || !data) {
+      return {
+        valid: false,
+        discountAmount: 0,
+        message: 'Could not validate this code right now. Please try again.'
+      };
+    }
+
+    const res = data as { valid?: boolean; discount_amount?: number; message?: string };
     return {
-      valid: true,
-      discountAmount: discount,
-      message: 'Privilege code applied: 10% archival savings.'
+      valid: !!res.valid,
+      discountAmount: res.valid ? Number(res.discount_amount) || 0 : 0,
+      message: String(res.message || '')
     };
-  }
-  if (clean === 'FREESHIP') {
-    return {
-      valid: true,
-      discountAmount: 0,
-      message: 'Complimentary express shipping active on all orders.'
-    };
-  }
-
-  const allCodes = await fetchDiscountCodes();
-  const match = allCodes.find((c) => c.code.toUpperCase() === clean);
-
-  if (!match) {
-    return { valid: false, discountAmount: 0, message: 'Invalid or unrecognized coupon code.' };
-  }
-
-  if (!match.is_active) {
-    return { valid: false, discountAmount: 0, message: 'This coupon code is currently disabled.' };
-  }
-
-  const now = new Date().getTime();
-  if (match.starts_at && new Date(match.starts_at).getTime() > now) {
-    return { valid: false, discountAmount: 0, message: 'This promotion has not started yet.' };
-  }
-
-  if (match.expires_at && new Date(match.expires_at).getTime() < now) {
-    return { valid: false, discountAmount: 0, message: 'This coupon code has expired.' };
-  }
-
-  if (match.max_uses && match.times_used >= match.max_uses) {
-    return { valid: false, discountAmount: 0, message: 'This coupon code has reached its usage limit.' };
-  }
-
-  if (match.min_spend && subtotal < match.min_spend) {
+  } catch {
     return {
       valid: false,
       discountAmount: 0,
-      message: `Requires a minimum cart spend of $${match.min_spend.toFixed(2)}.`
+      message: 'Could not validate this code right now. Please try again.'
     };
   }
-
-  let discount = 0;
-  if (match.discount_type === 'percentage') {
-    discount = (subtotal * match.discount_value) / 100;
-  } else {
-    discount = Math.min(subtotal, match.discount_value);
-  }
-
-  return {
-    valid: true,
-    discountAmount: discount,
-    message: `Promotion applied: ${
-      match.discount_type === 'percentage'
-        ? `${match.discount_value}% savings`
-        : `$${match.discount_value.toFixed(2)} discount`
-    }.`,
-    codeDetails: match
-  };
 }
 
 // ─── 2. NEWSLETTER SUBSCRIBERS ────────────────────────────────────────────────

@@ -41,8 +41,7 @@ export async function fetchAdminShippingZones(): Promise<AdminShippingZone[]> {
         min_days: Number(z.min_days || 2),
         max_days: Number(z.max_days || 5),
         cod_available: Boolean(z.cod_available),
-        shipping_rate: Number(z.shipping_rate ?? z.shipping_fee ?? z.rate ?? 65),
-        free_shipping_threshold: z.free_shipping_threshold ? Number(z.free_shipping_threshold) : 1500
+        shipping_rate: Number(z.shipping_rate ?? z.shipping_fee ?? z.rate ?? 65)
       }));
 
       saveLocalShippingZones(dbZones);
@@ -76,9 +75,6 @@ export async function updateAdminShippingZone(
     dbPayload.shipping_rate = updates.shipping_rate;
     dbPayload.shipping_fee = updates.shipping_rate;
     dbPayload.rate = updates.shipping_rate;
-  }
-  if (updates.free_shipping_threshold !== undefined) {
-    dbPayload.free_shipping_threshold = updates.free_shipping_threshold;
   }
 
   // 1. Sync directly to shipping_zones table using admin client

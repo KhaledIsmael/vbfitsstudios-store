@@ -1,5 +1,6 @@
 import { adminSupabase, supabase } from './supabaseClient';
 import { PRODUCTS, type Product } from '../config/assets';
+import { DEFAULT_TSHIRT_SIZE_CHART, type ProductSizeChart } from '../types/sizeChart';
 
 const LOCAL_STORAGE_CATALOG_KEY = 'vbfits_catalog_overrides';
 
@@ -48,6 +49,7 @@ export interface AdminProduct {
   details: string[];
   fabric_care: string[];
   shipping_info?: string | null;
+  size_chart?: ProductSizeChart | null;
   variants: AdminProductVariant[];
   images: AdminProductImage[];
   created_at?: string;
@@ -148,6 +150,7 @@ export async function fetchAdminProducts(): Promise<AdminProduct[]> {
         details: Array.isArray(row.details) ? row.details : [],
         fabric_care: Array.isArray(row.fabric_care) ? row.fabric_care : [],
         shipping_info: row.shipping_info,
+        size_chart: row.size_chart || null,
         variants: (row.variants || []).map((v: any) => ({
           id: v.id,
           product_id: v.product_id,
@@ -207,6 +210,7 @@ export async function fetchAdminProducts(): Promise<AdminProduct[]> {
         details: p.details || [],
         fabric_care: p.fabricCare || [],
         shipping_info: p.shippingInfo,
+        size_chart: (p as any).size_chart || DEFAULT_TSHIRT_SIZE_CHART,
         variants: (p.sizes || ['S', 'M', 'L', 'XL']).map((sz) => ({
           id: `var-${p.id}-${sz}`,
           product_id: p.id,
@@ -490,6 +494,7 @@ export async function saveAdminProduct(
       details: productData.details || [],
       fabric_care: productData.fabric_care || [],
       shipping_info: productData.shipping_info || null,
+      size_chart: productData.size_chart ?? null,
       updated_at: new Date().toISOString()
     };
 
@@ -627,6 +632,7 @@ export async function saveAdminProduct(
       details: productData.details || [],
       fabric_care: productData.fabric_care || [],
       shipping_info: productData.shipping_info || null,
+      size_chart: productData.size_chart ?? null,
       variants: variants.map((v) => ({
         ...v,
         product_id: finalId,
