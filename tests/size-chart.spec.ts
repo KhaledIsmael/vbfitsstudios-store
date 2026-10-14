@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Product Specific Size Chart Tests', () => {
-  test('opens size chart modal on PDP and supports visual & table views', async ({ page }) => {
+test.describe('Product Specific Size Chart Tests (Image-Only)', () => {
+  test('opens size chart modal on PDP, displays image-only view without table option or toggle', async ({ page }) => {
     // Bypass countdown gate
     await page.addInitScript(() => {
       localStorage.setItem('past_gate', 'true');
@@ -24,23 +24,18 @@ test.describe('Product Specific Size Chart Tests', () => {
     await expect(modal).toBeVisible();
     await expect(modal.locator('text=SIZE GUIDE')).toBeVisible();
 
-    // Verify visual diagram with template image is present
-    const templateImg = modal.locator('img[alt*="Technical Size Chart"]');
-    await expect(templateImg).toBeVisible();
+    // Verify size chart image is displayed
+    const chartImg = modal.locator('img[alt*="Size Guide"]');
+    await expect(chartImg).toBeVisible();
 
-    // Switch to table view
-    const tableBtn = modal.getByRole('button', { name: /Table/i });
-    if (await tableBtn.isVisible()) {
-      await tableBtn.click();
-      // Verify table headers (Size, Length, Width, Sleeve length)
-      await expect(modal.locator('table')).toBeVisible();
-      await expect(modal.getByRole('columnheader', { name: 'Size' })).toBeVisible();
-      await expect(modal.getByRole('columnheader', { name: 'Length (cm)', exact: true })).toBeVisible();
-      await expect(modal.getByRole('columnheader', { name: 'Width (cm)' })).toBeVisible();
-      await expect(modal.getByRole('columnheader', { name: 'Sleeve length (cm)' })).toBeVisible();
-    }
+    // Verify NO Visual/Table toggle buttons exist
+    await expect(modal.getByRole('button', { name: /Table/i })).toHaveCount(0);
+    await expect(modal.getByRole('button', { name: /Visual/i })).toHaveCount(0);
 
-    // Close modal
+    // Verify NO measurement table element exists
+    await expect(modal.locator('table')).toHaveCount(0);
+
+    // Close modal via close button
     const closeBtn = modal.getByRole('button', { name: /Close size guide/i });
     await closeBtn.click();
     await expect(modal).not.toBeVisible();

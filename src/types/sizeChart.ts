@@ -20,8 +20,9 @@ export interface ProductSizeChart {
   category: 't-shirt' | 'trousers' | 'hoodie' | 'custom' | string;
   unit: 'cm' | 'inch' | string;
   template_image_url?: string;
-  columns: SizeChartColumn[];
-  rows: SizeChartRow[];
+  image_url?: string;
+  columns?: SizeChartColumn[];
+  rows?: SizeChartRow[];
   layout?: SizeChartLayout;
   notes?: string;
   render_mode?: 'overlay' | 'table';
