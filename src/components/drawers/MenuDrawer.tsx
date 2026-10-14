@@ -77,7 +77,6 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({ isOpen, onClose }) => {
 
   // Fetch dynamic socials from siteSettings
   const allowedSocials = [
-    { name: 'WhatsApp', url: formatSocialUrl('whatsapp', settings.social_whatsapp_url) },
     { name: 'Instagram', url: formatSocialUrl('instagram', settings.social_instagram_url) },
     { name: 'TikTok', url: formatSocialUrl('tiktok', settings.social_tiktok_url) }
   ];

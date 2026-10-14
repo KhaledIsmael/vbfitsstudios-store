@@ -171,7 +171,6 @@ export const ContactPage: React.FC = () => {
                 Socials
               </h3>
               <div className="flex flex-col gap-2 font-medium">
-                <a href={formatSocialUrl('whatsapp', settings.social_whatsapp_url)} target="_blank" rel="noopener noreferrer" className="text-black hover:opacity-60 transition-opacity">WhatsApp</a>
                 <a href={formatSocialUrl('instagram', settings.social_instagram_url)} target="_blank" rel="noopener noreferrer" className="text-black hover:opacity-60 transition-opacity">Instagram</a>
                 <a href={formatSocialUrl('tiktok', settings.social_tiktok_url)} target="_blank" rel="noopener noreferrer" className="text-black hover:opacity-60 transition-opacity">TikTok</a>
               </div>
