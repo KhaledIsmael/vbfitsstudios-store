@@ -144,19 +144,21 @@ function mapSupabaseToProduct(row: SupabaseProductRow): Product {
   };
 }
 
-function withTimeout<T>(promise: Promise<T>, ms = 2500, fallback: T): Promise<T> {
+function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 2500, fallback: T): Promise<T> {
   let timeoutId: any;
   const timeoutPromise = new Promise<T>((resolve) => {
     timeoutId = setTimeout(() => resolve(fallback), ms);
   });
   return Promise.race([
-    promise.then((res) => {
-      clearTimeout(timeoutId);
-      return res;
-    }).catch(() => {
-      clearTimeout(timeoutId);
-      return fallback;
-    }),
+    Promise.resolve(promiseLike)
+      .then((res) => {
+        clearTimeout(timeoutId);
+        return res;
+      })
+      .catch(() => {
+        clearTimeout(timeoutId);
+        return fallback;
+      }),
     timeoutPromise
   ]);
 }
