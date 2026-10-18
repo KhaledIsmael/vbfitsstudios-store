@@ -61,7 +61,7 @@ export const Footer: React.FC = () => {
 
   // ── Site Settings for Social URLs ──
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
-  
+
   React.useEffect(() => {
     getSiteSettings().then(setSettings);
   }, []);
@@ -100,9 +100,6 @@ export const Footer: React.FC = () => {
             <h4 className="font-spec font-bold text-xs sm:text-sm tracking-spec text-black uppercase">
               JOIN VB FITS TODAY!
             </h4>
-            <p className="font-spec text-xs text-[#555555] uppercase tracking-spec">
-              GET 10% OFF YOUR FIRST ORDER!
-            </p>
             <form onSubmit={handleSubscribe} className="pt-2 max-w-sm">
               <div className="flex border border-[#CCCCCC] bg-white">
                 <label htmlFor="footer-newsletter-email" className="sr-only">
@@ -151,9 +148,8 @@ export const Footer: React.FC = () => {
 
             {/* Links List */}
             <div
-              className={`${
-                openSections.service ? 'max-h-60 opacity-100 py-3' : 'max-h-0 opacity-0 py-0'
-              } md:max-h-none md:opacity-100 md:py-0 overflow-hidden transition-all duration-300`}
+              className={`${openSections.service ? 'max-h-60 opacity-100 py-3' : 'max-h-0 opacity-0 py-0'
+                } md:max-h-none md:opacity-100 md:py-0 overflow-hidden transition-all duration-300`}
             >
               <ul className="space-y-2.5 pt-1">
                 {serviceLinks.map((item) => (
@@ -192,9 +188,8 @@ export const Footer: React.FC = () => {
 
             {/* Links List */}
             <div
-              className={`${
-                openSections.policies ? 'max-h-72 opacity-100 py-3' : 'max-h-0 opacity-0 py-0'
-              } md:max-h-none md:opacity-100 md:py-0 overflow-hidden transition-all duration-300`}
+              className={`${openSections.policies ? 'max-h-72 opacity-100 py-3' : 'max-h-0 opacity-0 py-0'
+                } md:max-h-none md:opacity-100 md:py-0 overflow-hidden transition-all duration-300`}
             >
               <ul className="space-y-2.5 pt-1">
                 {policyLinks.map((item) => (
@@ -233,9 +228,8 @@ export const Footer: React.FC = () => {
 
             {/* Links List */}
             <div
-              className={`${
-                openSections.socials ? 'max-h-60 opacity-100 py-3' : 'max-h-0 opacity-0 py-0'
-              } md:max-h-none md:opacity-100 md:py-0 overflow-hidden transition-all duration-300`}
+              className={`${openSections.socials ? 'max-h-60 opacity-100 py-3' : 'max-h-0 opacity-0 py-0'
+                } md:max-h-none md:opacity-100 md:py-0 overflow-hidden transition-all duration-300`}
             >
               <ul className="space-y-2.5 pt-1">
                 {socialLinks.map((item) => (
@@ -282,7 +276,7 @@ export const Footer: React.FC = () => {
               className="hover:opacity-60 transition-opacity"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.88 2.89 2.89 0 0 1-2.89-2.88 2.89 2.89 0 0 1 2.89-2.88c.3 0 .59.05.86.13v-3.52a6.38 6.38 0 0 0-.86-.06A6.34 6.34 0 0 0 3 15.67 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.17a8.28 8.28 0 0 0 4.92 1.6V7.32a4.85 4.85 0 0 1-1-.63z"/>
+                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.88 2.89 2.89 0 0 1-2.89-2.88 2.89 2.89 0 0 1 2.89-2.88c.3 0 .59.05.86.13v-3.52a6.38 6.38 0 0 0-.86-.06A6.34 6.34 0 0 0 3 15.67 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.17a8.28 8.28 0 0 0 4.92 1.6V7.32a4.85 4.85 0 0 1-1-.63z" />
               </svg>
             </a>
           </div>
@@ -290,22 +284,22 @@ export const Footer: React.FC = () => {
             <div className="flex items-center gap-3 text-[11px] font-spec tracking-spec uppercase text-[#555555]">
               <span>© 2026 VB FITS STUDIOS</span>
             </div>
-            
+
             <div className="text-[9px] font-spec tracking-widest uppercase text-[#555555] mt-1 flex items-center justify-center gap-1.5">
               <span>Built by</span>
-              <a 
-                href={formatSocialUrl('url', settings.credits_developer_url)} 
-                target="_blank" 
-                rel="noopener noreferrer" 
+              <a
+                href={formatSocialUrl('url', settings.credits_developer_url)}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-black hover:opacity-60 transition-colors font-bold"
               >
                 {settings.credits_developer_name || 'Khaled Ismail'}
               </a>
               <span>&amp;</span>
-              <a 
-                href={formatSocialUrl('url', settings.credits_agency_url)} 
-                target="_blank" 
-                rel="noopener noreferrer" 
+              <a
+                href={formatSocialUrl('url', settings.credits_agency_url)}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-black hover:opacity-60 transition-colors font-bold"
               >
                 {settings.credits_agency_name || 'ERTH'}
