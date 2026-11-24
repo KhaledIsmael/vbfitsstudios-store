@@ -71,7 +71,7 @@ vi.mock('../lib/telegramNotifier', () => ({
 // ─────────────────────────────────────────────────────────────────────────────
 // Test subject imports — after mocks
 // ─────────────────────────────────────────────────────────────────────────────
-import { createOrder } from '../lib/orders';
+import { createOrder, getOrderPaymentStatus } from '../lib/orders';
 import { classifyOrderError } from '../lib/orderErrors';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -420,5 +420,103 @@ describe('COD order — false success guard', () => {
     const result = await createOrder({ ...validParams, customerId: null });
     expect(result.order).toBeNull();
     expect(result.error).toBeTruthy();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. Idempotency & outage retry safety (no duplicate fallback inserts)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('createOrder — idempotency & outage retry safety', () => {
+  it('returns existing order on 23505 client_request_id collision without creating a duplicate', async () => {
+    const existingRow = {
+      id: 'existing-order-uuid',
+      order_number: 'VBF-77777',
+      total: 899,
+      status: 'pending',
+    };
+    const insertSpy = vi.fn().mockReturnThis();
+    mockFromImpl = (table: string) => {
+      if (table === 'orders') {
+        return {
+          insert: insertSpy,
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue(
+            mockSupabaseError('duplicate key value violates unique constraint "orders_client_request_id_key"', '23505')
+          ),
+          maybeSingle: vi.fn().mockResolvedValue(mockSupabaseSuccess(existingRow)),
+          update: vi.fn().mockReturnThis(),
+        };
+      }
+      if (table === 'addresses') return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue(mockSupabaseSuccess(null)) };
+      return makeQueryBuilder();
+    };
+
+    const result = await createOrder(validParams);
+    expect(result.error).toBeNull();
+    expect(result.order?.id).toBe('existing-order-uuid');
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['402 Payment Required', '402'],
+    ['429 Too Many Requests', '429'],
+    ['503 Service Unavailable', '503'],
+    ['Failed to fetch — network timeout', 'PGRST000'],
+    ['new row violates row-level security policy', '42501'],
+  ])('does NOT run fallback insert on %s', async (message, code) => {
+    const insertSpy = vi.fn().mockReturnThis();
+    mockFromImpl = (table: string) => {
+      if (table === 'orders') {
+        return {
+          insert: insertSpy,
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue(mockSupabaseError(message, code)),
+          maybeSingle: vi.fn().mockResolvedValue(mockSupabaseSuccess(null)),
+          update: vi.fn().mockReturnThis(),
+        };
+      }
+      if (table === 'addresses') return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue(mockSupabaseSuccess(null)) };
+      return makeQueryBuilder();
+    };
+
+    const result = await createOrder({ ...validParams, customerId: null });
+    expect(result.order).toBeNull();
+    expect(result.error).toContain(message);
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Online payment status verification — no false success
+// ─────────────────────────────────────────────────────────────────────────────
+describe('getOrderPaymentStatus — online payment verification', () => {
+  it('returns pending/failed status from server rather than confirming unpaid orders', async () => {
+    mockFromImpl = () => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue(
+        mockSupabaseSuccess({ id: 'order-online-1', payment_status: 'pending', order_number: 'VBF-88888' })
+      ),
+    });
+
+    const res = await getOrderPaymentStatus('VBF-88888');
+    expect(res.error).toBeNull();
+    expect(res.paymentStatus).toBe('pending');
+    expect(res.paymentStatus).not.toBe('paid');
+  });
+
+  it('returns error and null status when Supabase fails during payment callback check', async () => {
+    mockFromImpl = () => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue(mockSupabaseError('503 Service Unavailable', '503')),
+    });
+
+    const res = await getOrderPaymentStatus('VBF-88888');
+    expect(res.paymentStatus).toBeNull();
+    expect(res.orderId).toBeNull();
+    expect(res.error).toContain('503');
   });
 });

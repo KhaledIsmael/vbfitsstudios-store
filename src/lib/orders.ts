@@ -507,8 +507,60 @@ export async function createOrder({
       .select()
       .single();
 
-    // Resilient fallback 1: If customer_id caused any constraint issue, retry immediately as guest order
-    if (orderError && safeCustomerId) {
+    // Idempotency collision: if client_request_id already exists (23505), return the existing order
+    // instead of falling back and creating a duplicate.
+    const isIdempotencyConflict =
+      !!clientRequestId &&
+      !!orderError &&
+      (orderError.code === '23505' ||
+        orderError.message?.includes('orders_client_request_id_key') ||
+        orderError.message?.toLowerCase().includes('duplicate key'));
+
+    if (isIdempotencyConflict) {
+      const { data: existingOrder } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('client_request_id', clientRequestId!)
+        .maybeSingle();
+
+      if (existingOrder?.id) {
+        return { order: existingOrder, error: null };
+      }
+      return {
+        order: null,
+        error: 'This order may have already been submitted. Please check your Order History before retrying.'
+      };
+    }
+
+    const isOutageOrNetworkError = (err: any): boolean => {
+      const msg = String(err?.message || '').toLowerCase();
+      return (
+        msg.includes('402') ||
+        msg.includes('429') ||
+        msg.includes('500') ||
+        msg.includes('502') ||
+        msg.includes('503') ||
+        msg.includes('504') ||
+        msg.includes('timeout') ||
+        msg.includes('failed to fetch') ||
+        msg.includes('network') ||
+        msg.includes('aborted')
+      );
+    };
+
+    const isSchemaColumnError = (err: any): boolean => {
+      const code = String(err?.code || '');
+      const msg = String(err?.message || '').toLowerCase();
+      return (
+        code === '42703' ||
+        code === 'PGRST204' ||
+        msg.includes('column') ||
+        msg.includes('schema cache')
+      );
+    };
+
+    // Resilient fallback 1: If customer_id caused a FK/RLS constraint issue (not outage/duplicate), retry as guest order
+    if (orderError && safeCustomerId && !isOutageOrNetworkError(orderError)) {
       console.warn('Retrying order insert without customer_id to ensure instant registration:', orderError.message);
       const guestPayload = { ...primaryPayload, customer_id: null };
       const guestRes = await supabase.from('orders').insert(guestPayload).select().single();
@@ -516,8 +568,8 @@ export async function createOrder({
       orderError = guestRes.error;
     }
 
-    // Resilient fallback 2: If optional schema columns don't exist yet (strips client_request_id too)
-    if (orderError) {
+    // Resilient fallback 2: Only when optional schema columns don't exist yet (strips client_request_id too)
+    if (orderError && isSchemaColumnError(orderError)) {
       console.warn('Retrying order insert with basic fallback payload...', orderError.message);
       const fallbackPayload: any = {
         order_number: orderNumber,

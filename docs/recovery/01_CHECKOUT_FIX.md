@@ -24,11 +24,12 @@
 
 | File | Change type | Purpose |
 |------|-------------|---------|
-| `src/pages/CheckoutPage.tsx` | Modified | Submit guard, failure path hardening, stale-price check, outage error handling |
+| `src/pages/CheckoutPage.tsx` | Modified | Submit guard, failure path hardening, live price/stock/availability check, outage error handling, `sessionStorage` durable request ID |
+| `src/pages/PaymentCallbackPage.tsx` | Modified | Always verify `getOrderPaymentStatus()` with server before confirming online payment |
 | `src/lib/orderErrors.ts` | New | Extracted `classifyOrderError` helper for outage/RLS/network error classification |
-| `src/lib/orders.ts` | Modified | Added `clientRequestId` to `CreateOrderParams` and primary insert payload |
+| `src/lib/orders.ts` | Modified | Added `clientRequestId`, `23505` idempotency lookup, and outage/schema fallback guards |
 | `supabase/migrations/20261124000045_order_idempotency_key.sql` | New (not applied) | Adds `client_request_id` column + partial unique index for server-side idempotency |
-| `src/__tests__/checkout-reliability.test.ts` | New | Vitest unit tests — 21 test cases |
+| `src/__tests__/checkout-reliability.test.ts` | New | Vitest unit tests — 29 test cases |
 | `package.json` / `package-lock.json` | Modified | Added `vitest` devDependency to run unit tests |
 
 ---
@@ -83,15 +84,16 @@ Ambiguous errors render in **amber** (instead of red) to visually distinguish "w
 
 ---
 
-### Fix D — Stale-price guard
+### Fix D — Live price & availability guard
 
-Before submitting, the page now queries `products` table for live prices of all cart `productId`s.
+Before submitting, the page now queries `products` (including `is_published` and `product_variants(size, stock)`) for all UUID `productId`s in the cart.
 
 | Scenario | Before | After |
 |----------|--------|-------|
 | Product price changed in DB after cart loaded | Order placed at stale cart price | Submission blocked; amber warning shown: "One or more prices in your bag have changed. Please return to the shop to refresh your cart." |
-| Price check Supabase request fails (402, network) | N/A | Non-fatal; logs warning, allows submission to proceed |
-| Items with no productId (static catalog entries) | N/A | Skipped from price-check gracefully |
+| Product unpublished or variant out of stock / insufficient stock | Order placed regardless | Submission blocked; clear availability/stock error shown; cart preserved |
+| Price/availability Supabase request fails (402, 429, 5xx, timeout) | N/A | Submission blocked with classified outage message; purchases are NOT allowed on stale cached prices during outages |
+| Items with non-UUID static fallback IDs | N/A | Skipped from UUID query gracefully |
 
 ---
 
@@ -182,9 +184,10 @@ Before submitting, the page now queries `products` table for live prices of all 
 | `createOrder — failure` | 4 | All-fallback failure returns null order, empty items blocked, non-COD blocked, `order_items` failure auto-cancels orphan |
 | Submit guard | 1 | Sequential calls handled correctly; guard is component-level (documented) |
 | Outage classification | 5 | 402, 429, 503, timeout, RLS — `isAmbiguous` correctness |
-| COD false success guard | 2 | Null-data response = error (not success); `order_items` failure = error not success |
+| `createOrder — idempotency & outage retry safety` | 6 | `23505` returns existing order without duplicate insert; 402/429/503/timeout/RLS do NOT trigger fallback inserts |
+| `getOrderPaymentStatus — online payment verification` | 2 | Unpaid/pending orders stay unconfirmed; Supabase 503 error returns null status |
 
-**Total: 21 test cases**
+**Total: 29 test cases**
 
 **Not covered (requires Playwright / running app):**
 - Duplicate click on actual DOM submit button being blocked by `isSubmittingRef`
@@ -233,8 +236,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS orders_client_request_id_key
 All checks ran after the final edit on branch `fix/egress-reliability`:
 
 1. **Typecheck (`node node_modules\typescript\bin\tsc --noEmit`)**: ✅ Passed (exit code 0, no errors)
-2. **Unit Tests (`node node_modules\vitest\vitest.mjs run src/__tests__/checkout-reliability.test.ts`)**: ✅ Passed — 1 test file, 21 passed (21 tests), 65ms
-3. **Production Build (`npm run build` → `tsc && vite build`)**: ✅ Passed — 2614 modules transformed, built in 3.45s
+2. **Unit Tests (`node node_modules\vitest\vitest.mjs run src/__tests__/checkout-reliability.test.ts`)**: ✅ Passed — 1 test file, 29 passed (29 tests), 121ms
+3. **Production Build (`npm run build` → `tsc && vite build`)**: ✅ Passed — 2614 modules transformed, built in 3.85s
 
 ---
 

@@ -43,12 +43,14 @@ export const PaymentCallbackPage: React.FC = () => {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Helper: navigate to confirmation (clears cart and uses deep-link if orderId available)
-  const goToConfirmation = (ps: string) => {
+  const goToConfirmation = (ps: string, verifiedOrderId?: string | null) => {
+    const resolvedOrderId = verifiedOrderId || orderId;
+    if (!resolvedOrderId) {
+      setPhase('failed');
+      return;
+    }
     clearCart();
-    const target = orderId
-      ? `/order-confirmation/${orderId}`
-      : '/order-confirmation';
-    navigate(target, {
+    navigate(`/order-confirmation/${resolvedOrderId}`, {
       replace: true,
       state: {
         orderNumber,
@@ -89,17 +91,12 @@ export const PaymentCallbackPage: React.FC = () => {
   };
 
   useEffect(() => {
-    // If the webhook already embedded the status in the URL → use it immediately
-    if (urlStatus === 'paid') {
-      goToConfirmation('paid');
-      return;
-    }
     if (urlStatus === 'failed') {
       setPhase('failed');
       return;
     }
 
-    // Otherwise: start polling Supabase until the webhook updates the row
+    // Never trust urlStatus === 'paid' alone; always verify against Supabase order status.
     if (!orderNumber) {
       setPhase('failed');
       return;
@@ -111,11 +108,11 @@ export const PaymentCallbackPage: React.FC = () => {
       count += 1;
       setPollCount(count);
 
-      const { paymentStatus } = await getOrderPaymentStatus(orderNumber);
+      const { paymentStatus, orderId: verifiedOrderId } = await getOrderPaymentStatus(orderNumber);
 
       if (paymentStatus === 'paid') {
         if (pollRef.current) clearInterval(pollRef.current);
-        goToConfirmation('paid');
+        goToConfirmation('paid', verifiedOrderId);
         return;
       }
 

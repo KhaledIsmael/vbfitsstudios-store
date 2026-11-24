@@ -59,11 +59,23 @@ export const CheckoutPage: React.FC = () => {
   const isSubmittingRef = useRef(false);
 
   /**
-   * Stable client request ID — generated once per checkout session, never reset on failure.
-   * Sent to createOrder so the server can deduplicate retries once the idempotency migration
-   * (supabase/migrations/20261124000045_order_idempotency_key.sql) is applied.
+   * Durable client request ID — persisted in sessionStorage across accidental reloads
+   * and never reset on failure. Cleared only after a server-acknowledged order ID.
+   * Prevents duplicate orders once migration 20261124000045_order_idempotency_key.sql is applied.
    */
-  const clientRequestIdRef = useRef<string>(crypto.randomUUID());
+  const clientRequestIdRef = useRef<string>(
+    (() => {
+      try {
+        const existing = sessionStorage.getItem('vbfits_checkout_req_id');
+        if (existing) return existing;
+        const fresh = crypto.randomUUID();
+        sessionStorage.setItem('vbfits_checkout_req_id', fresh);
+        return fresh;
+      } catch {
+        return crypto.randomUUID();
+      }
+    })()
+  );
 
   // Contact Info (for guest or editable for user)
   const [contactName, setContactName] = useState('');
@@ -267,34 +279,76 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
-    // ── Stale-price guard: re-fetch current prices from DB before submitting ──
-    try {
-      const productIds = [...new Set(cart.map((item) => item.productId).filter(Boolean))];
-      if (productIds.length > 0) {
-        const { data: liveProducts } = await supabase
-          .from('products')
-          .select('id, price')
-          .in('id', productIds);
+    // ── Live price & availability guard: verify against DB before submitting ──
+    const isUuid = (v?: string) =>
+      !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    const uuidProductIds = [...new Set(cart.map((item) => item.productId).filter(isUuid))];
 
-        if (liveProducts && liveProducts.length > 0) {
-          const liveMap = new Map(liveProducts.map((p: any) => [p.id, Number(p.price)]));
-          const stalItems = cart.filter((item) => {
-            const livePrice = liveMap.get(item.productId);
-            return livePrice !== undefined && Math.abs(livePrice - item.price) > 0.01;
-          });
-          if (stalItems.length > 0) {
+    if (uuidProductIds.length > 0) {
+      try {
+        const { data: liveProducts, error: priceError } = await supabase
+          .from('products')
+          .select('id, name, price, is_published, variants:product_variants(size, stock)')
+          .in('id', uuidProductIds);
+
+        if (priceError) {
+          const { userMessage, isAmbiguous } = classifyOrderError(priceError.message);
+          setErrorMessage(userMessage);
+          setErrorIsAmbiguous(isAmbiguous);
+          isSubmittingRef.current = false;
+          return;
+        }
+
+        const liveMap = new Map((liveProducts || []).map((p: any) => [p.id, p]));
+        for (const item of cart) {
+          if (!isUuid(item.productId)) continue;
+          const liveProduct: any = liveMap.get(item.productId);
+          if (!liveProduct || liveProduct.is_published === false) {
+            setErrorMessage(
+              `"${item.name}" is currently unavailable. Please remove it from your bag to continue.`
+            );
+            isSubmittingRef.current = false;
+            return;
+          }
+
+          if (Array.isArray(liveProduct.variants) && liveProduct.variants.length > 0) {
+            const matchingVariant = liveProduct.variants.find(
+              (v: any) => String(v.size).toLowerCase() === String(item.size).toLowerCase()
+            );
+            if (!matchingVariant || Number(matchingVariant.stock) <= 0) {
+              setErrorMessage(
+                `"${item.name}" (Size ${item.size}) is currently out of stock. Your bag has been preserved.`
+              );
+              isSubmittingRef.current = false;
+              return;
+            }
+            if (Number(matchingVariant.stock) < item.quantity) {
+              setErrorMessage(
+                `Only ${matchingVariant.stock} unit(s) of "${item.name}" (Size ${item.size}) remain in stock.`
+              );
+              isSubmittingRef.current = false;
+              return;
+            }
+          }
+
+          const livePrice = Number(liveProduct.price);
+          if (Math.abs(livePrice - item.price) > 0.01) {
             setStalePriceWarning(
               'One or more prices in your bag have changed. Please return to the shop to refresh your cart before placing your order.'
             );
-            setIsSubmitting(false);
             isSubmittingRef.current = false;
             return;
           }
         }
+      } catch (priceCheckErr: any) {
+        const { userMessage, isAmbiguous } = classifyOrderError(
+          priceCheckErr?.message || 'Failed to fetch live product availability'
+        );
+        setErrorMessage(userMessage);
+        setErrorIsAmbiguous(isAmbiguous);
+        isSubmittingRef.current = false;
+        return;
       }
-    } catch (priceCheckErr) {
-      // Non-fatal: price check failure should not block order; log and continue
-      console.warn('[checkout] Stale-price check failed (non-blocking):', priceCheckErr);
     }
 
     // Determine delivery address snapshot
@@ -413,6 +467,9 @@ export const CheckoutPage: React.FC = () => {
 
     // Server acknowledged a persisted order ID — safe to clear cart and navigate
     const confirmedOrderId = order.id;
+    try {
+      sessionStorage.removeItem('vbfits_checkout_req_id');
+    } catch {}
     clearCart();
 
     setIsSubmitting(false);
