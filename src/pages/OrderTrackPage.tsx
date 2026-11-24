@@ -367,7 +367,7 @@ export const OrderTrackPage: React.FC = () => {
         <div className="border border-[#EAEAEA] divide-y divide-[#EAEAEA]">
           <div className="flex justify-between items-center px-5 py-3.5 text-xs">
             <span className="text-[#888888] uppercase tracking-wider">Tracking ID</span>
-            <span className="font-mono text-black">{order.trackingNumber || '—'}</span>
+            <span className="font-mono text-black">{order.trackingNumber || 'Awaiting dispatch'}</span>
           </div>
           <div className="flex justify-between items-center px-5 py-3.5 text-xs">
             <span className="text-[#888888] uppercase tracking-wider">Payment</span>

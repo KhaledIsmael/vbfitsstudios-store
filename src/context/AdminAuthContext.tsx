@@ -129,7 +129,6 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         cleanEmail === 'admin@vbfitsstudios.com' ||
         cleanEmail === 'owner@vbfitsstudios.com' ||
         cleanEmail === 'vbfitsstudios@gmail.com' ||
-        cleanEmail.startsWith('admin@') ||
         role === 'admin' ||
         role === 'support';
 

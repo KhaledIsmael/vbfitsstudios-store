@@ -265,7 +265,7 @@ export async function getUserOrders(
 
       const override = cloudStatusUpdates[orderRow.id] || cloudStatusUpdates[orderRow.order_number];
       const effectiveStatus = (override?.status || orderRow.status || 'placed').toLowerCase();
-      const effectiveTracking = override?.tracking_number || orderRow.tracking_number || `DHL-${Math.floor(100000000 + Math.random() * 900000000)}`;
+      const effectiveTracking = override?.tracking_number || orderRow.tracking_number || null;
 
       return {
         id: orderRow.order_number || orderRow.id,
@@ -400,7 +400,7 @@ export async function createOrder({
 
   try {
     const orderNumber = `VBF-${Math.floor(10000 + Math.random() * 90000)}`;
-    const trackingNumber = `DHL-${Math.floor(100000000 + Math.random() * 900000000)}`;
+    const trackingNumber: string | null = null;
 
     // Resolve real shipping address snapshot from Supabase if authenticated and not provided or placeholder
     let finalAddress = shippingAddress;

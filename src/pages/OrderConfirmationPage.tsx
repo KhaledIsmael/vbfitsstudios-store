@@ -64,7 +64,7 @@ export const OrderConfirmationPage: React.FC = () => {
   const displayOrderNumber =
     order?.orderNumber || stateData.orderNumber || 'VBF-CONFIRMED';
   const displayTracking =
-    order?.trackingNumber || stateData.trackingNumber || '—';
+    order?.trackingNumber || stateData.trackingNumber || 'Awaiting dispatch';
   const displayTotal =
     order != null ? order.total : (stateData.total ?? 0);
   const displayCurrency = order?.currency || 'EGP';

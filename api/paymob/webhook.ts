@@ -138,14 +138,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
 
   // ─────────────────────────────────────────────────────────────────
-  // Update Supabase orders table
+  // Update Supabase orders table (preserving existing customer notes/email)
   // ─────────────────────────────────────────────────────────────────
+  const { data: existingOrder } = await supabase
+    .from('orders')
+    .select('notes')
+    .eq('order_number', merchantOrderId)
+    .maybeSingle();
+
+  const paymobNote = `Paymob txn ${paymobTransactionId} | ${newPaymentStatus}`;
+  const preservedNotes = existingOrder?.notes
+    ? `${existingOrder.notes} | ${paymobNote}`
+    : paymobNote;
+
   const { error: updateError } = await supabase
     .from('orders')
     .update({
       payment_status: newPaymentStatus,
       status: newOrderStatus,
-      notes: `Paymob txn ${paymobTransactionId} | ${newPaymentStatus}`
+      notes: preservedNotes
     })
     .eq('order_number', merchantOrderId);
 

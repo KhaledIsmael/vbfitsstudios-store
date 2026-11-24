@@ -123,7 +123,12 @@ export function getOptimizedImageUrl(
   if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('/')) {
     const supabaseUrl =
       (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_URL as string)) ||
-      'https://nsdurxslkhxqjwlbcpxc.supabase.co';
+      '';
+
+    if (!supabaseUrl) {
+      // Deliberate local preview / test fallback when VITE_SUPABASE_URL is not configured
+      return src.startsWith('products/') ? DEFAULT_PRODUCT_FALLBACK : DEFAULT_HERO_FALLBACK;
+    }
 
     if (!SUPABASE_IMAGE_TRANSFORMS_ENABLED) {
       return `${supabaseUrl}/storage/v1/object/public/${LEGACY_STORAGE_BUCKET}/${src}`;
