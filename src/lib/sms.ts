@@ -25,8 +25,7 @@ export async function sendSms(phone: string, message: string): Promise<{ success
     // });
     // if (!response.ok) throw new Error('SMS API Error');
 
-    console.log(`[SMS Simulation] Sending to ${phone}: ${message}`);
-    
+    // Do not log raw customer phone numbers or message bodies
     // Simulate network request
     await delay(500);
 

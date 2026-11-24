@@ -395,7 +395,7 @@ VB Fits Studios · Private Client Services
     }
 
     const brevoData = await brevoRes.json();
-    console.log(`Confirmation email sent → ${to} (messageId: ${brevoData.messageId})`);
+    console.log(`Confirmation email sent for order ${orderNumber} (messageId: ${brevoData.messageId})`);
     return res.status(200).json({ sent: true, messageId: brevoData.messageId });
   } catch (err: any) {
     console.error('send-confirmation exception:', err);

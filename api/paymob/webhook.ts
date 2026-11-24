@@ -110,9 +110,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ─────────────────────────────────────────────────────────────────
   const isValidHmac = verifyHmac(params, hmacSecret);
   if (!isValidHmac) {
-    console.warn('Paymob webhook: HMAC verification failed', { params });
+    console.warn('Paymob webhook: HMAC verification failed', {
+      id: params.id || null,
+      order: params.order || null
+    });
     // Return 200 to Paymob to prevent retries, but don't update DB
-    // (Log the failure for monitoring)
+    // (Log the failure for monitoring without logging customer PII)
     return res.status(200).send('HMAC_MISMATCH');
   }
 
@@ -138,24 +141,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
 
   // ─────────────────────────────────────────────────────────────────
-  // Update Supabase orders table (preserving existing customer notes/email)
+  // Update Supabase orders table (preserving notes, idempotent & out-of-order safe)
   // ─────────────────────────────────────────────────────────────────
   const { data: existingOrder } = await supabase
     .from('orders')
-    .select('notes')
+    .select('payment_status, status, notes')
     .eq('order_number', merchantOrderId)
     .maybeSingle();
 
+  const wasAlreadyPaid = String(existingOrder?.payment_status || '').toLowerCase() === 'paid';
+
+  // Out-of-order guard: never downgrade an already-paid order to 'failed' or 'pending'
+  const effectivePaymentStatus =
+    wasAlreadyPaid && newPaymentStatus !== 'paid' ? 'paid' : newPaymentStatus;
+
   const paymobNote = `Paymob txn ${paymobTransactionId} | ${newPaymentStatus}`;
-  const preservedNotes = existingOrder?.notes
-    ? `${existingOrder.notes} | ${paymobNote}`
+  const existingNotes = existingOrder?.notes || '';
+  const preservedNotes = existingNotes
+    ? existingNotes.includes(paymobNote)
+      ? existingNotes
+      : `${existingNotes} | ${paymobNote}`
     : paymobNote;
 
   const { error: updateError } = await supabase
     .from('orders')
     .update({
-      payment_status: newPaymentStatus,
-      status: newOrderStatus,
+      payment_status: effectivePaymentStatus,
+      status: existingOrder?.status || newOrderStatus,
       notes: preservedNotes
     })
     .eq('order_number', merchantOrderId);
@@ -167,9 +179,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ─────────────────────────────────────────────────────────────────
   // Send Confirmation Email for Paid Online Orders
-  // Fires ONLY when payment is successfully verified by the webhook!
+  // Fires ONLY once when payment transitions to verified 'paid'!
   // ─────────────────────────────────────────────────────────────────
-  if (isSuccess && newPaymentStatus === 'paid') {
+  if (isSuccess && newPaymentStatus === 'paid' && !wasAlreadyPaid) {
     try {
       const { data: fullOrder } = await supabase
         .from('orders')

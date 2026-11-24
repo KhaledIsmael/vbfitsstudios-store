@@ -385,7 +385,7 @@ concierge@vbfitsstudios.com
 
       if (!brevoRes.ok) {
         const errText = await brevoRes.text();
-        console.error(`Failed to send abandoned cart email to ${customerEmail}:`, errText);
+        console.error(`Failed to send abandoned cart email for user ${userId}:`, errText);
         processLog.push({ userId, status: 'error', reason: `Brevo gateway error ${brevoRes.status}` });
         continue;
       }

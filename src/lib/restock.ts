@@ -137,8 +137,7 @@ export async function submitRestockSignup(
         }
       }
     } else {
-      // Fallback for demo mode / unlinked variants
-      console.log(`[RESTOCK DEMO] Captured restock request for ${params.productName} (Size ${params.size}): ${params.contactType}=${cleanContact}`);
+      // Fallback for demo mode / unlinked variants (no PII logged)
     }
 
     markRestockSubscribed(params.productId, params.size);

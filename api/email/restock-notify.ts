@@ -220,12 +220,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               sent++;
             } else {
               const errBody = await brevoRes.text();
-              errors.push(`${row.contact}: ${errBody}`);
-              console.error('[restock-notify] Brevo error for', row.contact, errBody);
+              errors.push(`signup:${row.id}: ${errBody}`);
+              console.error('[restock-notify] Brevo error for signup', row.id, errBody);
             }
           } else {
-            // WhatsApp contact: log notification delivery and stamp notified
-            console.log(`[restock-notify] WhatsApp notification dispatched to ${row.contact} for ${productName} (Size ${size})`);
+            // WhatsApp contact: log notification delivery without PII and stamp notified
+            console.log(`[restock-notify] WhatsApp notification dispatched for signup ${row.id} (${productName}, Size ${size})`);
             await supabase
               .from('restock_signups')
               .update({ notified: true, notified_at: new Date().toISOString() })
@@ -306,8 +306,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         sent++;
       } else {
         const errBody = await brevoRes.text();
-        errors.push(`${row.email}: ${errBody}`);
-        console.error('[restock-notify] Brevo error for', row.email, errBody);
+        errors.push(`notification:${row.id}: ${errBody}`);
+        console.error('[restock-notify] Brevo error for notification', row.id, errBody);
       }
     }
 

@@ -293,32 +293,7 @@ export async function subscribeNewsletter(
     console.warn('subscribeNewsletter DB notice:', err);
   }
 
-  // Sync to Brevo contact list (free tier — non-blocking)
-  // BREVO_API_KEY is a server-side secret; this call is intentionally fire-and-forget.
-  // In production the browser doesn't have the key, so we only attempt this from
-  // a serverless context. For the storefront, the cron sync handles batched push.
-  try {
-    const brevoKey = (typeof process !== 'undefined' && process?.env?.BREVO_API_KEY) || '';
-    if (brevoKey) {
-      fetch('https://api.brevo.com/v3/contacts', {
-        method: 'POST',
-        headers: {
-          'api-key': brevoKey,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify({
-          email: cleanEmail,
-          attributes: { SOURCE: source },
-          listIds: [], // add Brevo list ID integers here when configured
-          updateEnabled: true
-        })
-      }).catch((err) => console.warn('[brevo-sync] notice:', err));
-    }
-  } catch {
-    // Silently ignore — Supabase row was already saved
-  }
-
+  // Newsletter subscriber row is stored in Supabase; server-side sync handles external mailing lists.
   return { success: true, message: 'Welcome to the VB FITS STUDIOS private newsletter.' };
 }
 
