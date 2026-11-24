@@ -57,6 +57,13 @@ export interface CreateOrderParams {
   /** Initial payment status. Use 'pending' for online payments awaiting gateway confirmation. */
   paymentStatus?: 'pending_collection' | 'paid' | 'failed' | 'pending' | 'unpaid';
   notes?: string;
+  /**
+   * Optional stable client-generated UUID for idempotency.
+   * Prevents duplicate orders on network-level retries once
+   * migration 20261124000045_order_idempotency_key.sql is applied.
+   * Safe to send without the migration — the column is ignored if absent.
+   */
+  clientRequestId?: string;
 }
 
 /**
@@ -380,7 +387,8 @@ export async function createOrder({
   shippingAddress,
   status = 'pending',
   paymentMethod = 'Cash on Delivery',
-  notes
+  notes,
+  clientRequestId,
 }: CreateOrderParams): Promise<{ order: any; error: string | null }> {
   if (!items || items.length === 0) {
     return { order: null, error: 'Cannot place order with an empty shopping bag.' };
@@ -486,6 +494,13 @@ export async function createOrder({
       notes: orderNotes
     };
 
+    // Attach idempotency key when provided — harmlessly ignored if the column does not yet exist.
+    // Once migration 20261124000045_order_idempotency_key.sql is applied, the unique index on
+    // client_request_id will prevent server-side duplicates on network retries.
+    if (clientRequestId) {
+      primaryPayload.client_request_id = clientRequestId;
+    }
+
     let { data: order, error: orderError } = await supabase
       .from('orders')
       .insert(primaryPayload)
@@ -501,7 +516,7 @@ export async function createOrder({
       orderError = guestRes.error;
     }
 
-    // Resilient fallback 2: If optional schema columns don't exist yet
+    // Resilient fallback 2: If optional schema columns don't exist yet (strips client_request_id too)
     if (orderError) {
       console.warn('Retrying order insert with basic fallback payload...', orderError.message);
       const fallbackPayload: any = {

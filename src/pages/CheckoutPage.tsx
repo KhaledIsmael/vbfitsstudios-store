@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +7,8 @@ import { getUserAddresses, createAddress, type Address } from '../lib/addresses'
 import { validateDiscountCode } from '../lib/adminMarketing';
 import { calculateShippingFee, getEstimatedShippingFee, type ShippingZone } from '../lib/shippingZones';
 import { BRAND_CONFIG } from '../config/assets';
+import { supabase } from '../lib/supabaseClient';
+import { classifyOrderError } from '../lib/orderErrors';
 
 const GOVERNORATES = [
   'Cairo',
@@ -53,6 +55,16 @@ export const CheckoutPage: React.FC = () => {
   const { cart, subtotal, totalItems, clearCart } = useCart();
   const { user, supabaseUser, isLoggedIn } = useAuth();
 
+  // ── Double-submit guard: ref-based so it survives React batched state updates ──
+  const isSubmittingRef = useRef(false);
+
+  /**
+   * Stable client request ID — generated once per checkout session, never reset on failure.
+   * Sent to createOrder so the server can deduplicate retries once the idempotency migration
+   * (supabase/migrations/20261124000045_order_idempotency_key.sql) is applied.
+   */
+  const clientRequestIdRef = useRef<string>(crypto.randomUUID());
+
   // Contact Info (for guest or editable for user)
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -87,7 +99,11 @@ export const CheckoutPage: React.FC = () => {
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorIsAmbiguous, setErrorIsAmbiguous] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<OrderSuccessData | null>(null);
+
+  // Stale-price warning: set when cart price diverges from live DB price
+  const [stalePriceWarning, setStalePriceWarning] = useState<string | null>(null);
 
   // Populate user data dynamically when logged in
   useEffect(() => {
@@ -210,33 +226,75 @@ export const CheckoutPage: React.FC = () => {
   const grandTotal = Math.max(0, subtotal - appliedDiscount + shippingFee);
 
   // Place Order Handler
-  const handlePlaceOrder = async (e: React.FormEvent) => {
+  const handlePlaceOrder = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // ── Double-submit guard (ref-based, survives React batch updates) ──
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     setErrorMessage(null);
+    setErrorIsAmbiguous(false);
+    setStalePriceWarning(null);
 
     if (cart.length === 0) {
       setErrorMessage('Your shopping bag is empty.');
+      isSubmittingRef.current = false;
       return;
     }
 
     // Validation
     if (!contactName.trim()) {
       setErrorMessage('Please provide your full legal name.');
+      isSubmittingRef.current = false;
       return;
     }
     if (!contactEmail.trim() || !contactEmail.includes('@')) {
       setErrorMessage('Please provide a valid delivery confirmation email.');
+      isSubmittingRef.current = false;
       return;
     }
     if (!contactPhone.trim()) {
       setErrorMessage('Please enter a reachable mobile phone number for the courier.');
+      isSubmittingRef.current = false;
       return;
     }
     if (codUnavailable) {
       setErrorMessage(
         `Cash on Delivery is unavailable for ${effectiveGov}, so orders to this destination cannot be placed. Please choose a different delivery governorate.`
       );
+      isSubmittingRef.current = false;
       return;
+    }
+
+    // ── Stale-price guard: re-fetch current prices from DB before submitting ──
+    try {
+      const productIds = [...new Set(cart.map((item) => item.productId).filter(Boolean))];
+      if (productIds.length > 0) {
+        const { data: liveProducts } = await supabase
+          .from('products')
+          .select('id, price')
+          .in('id', productIds);
+
+        if (liveProducts && liveProducts.length > 0) {
+          const liveMap = new Map(liveProducts.map((p: any) => [p.id, Number(p.price)]));
+          const stalItems = cart.filter((item) => {
+            const livePrice = liveMap.get(item.productId);
+            return livePrice !== undefined && Math.abs(livePrice - item.price) > 0.01;
+          });
+          if (stalItems.length > 0) {
+            setStalePriceWarning(
+              'One or more prices in your bag have changed. Please return to the shop to refresh your cart before placing your order.'
+            );
+            setIsSubmitting(false);
+            isSubmittingRef.current = false;
+            return;
+          }
+        }
+      }
+    } catch (priceCheckErr) {
+      // Non-fatal: price check failure should not block order; log and continue
+      console.warn('[checkout] Stale-price check failed (non-blocking):', priceCheckErr);
     }
 
     // Determine delivery address snapshot
@@ -265,6 +323,7 @@ export const CheckoutPage: React.FC = () => {
     if (!finalAddressSnapshot) {
       if (!city.trim() || !street.trim()) {
         setErrorMessage('Please complete the City and Street Address fields.');
+        isSubmittingRef.current = false;
         return;
       }
 
@@ -335,35 +394,48 @@ export const CheckoutPage: React.FC = () => {
       shippingAddress: finalAddressSnapshot,
       paymentMethod: 'Cash on Delivery',
       notes: notesSummary,
-      status: 'pending'
+      status: 'pending',
+      clientRequestId: clientRequestIdRef.current,
     });
 
-    setIsSubmitting(false);
+    // ── CRITICAL: only clear cart and navigate after confirmed persisted order ID ──
+    if (error || !order?.id) {
+      // Order NOT confirmed by server — preserve cart and form state
+      setIsSubmitting(false);
+      isSubmittingRef.current = false;
 
-    if (error) {
-      setErrorMessage(
-        error.includes('violates row-level security')
-          ? 'Guest orders are currently completing setup. Please sign in or try again shortly.'
-          : `Order placement notice: ${error}`
-      );
+      const rawError = error || 'Could not confirm your order. No order ID was returned.';
+      const { userMessage, isAmbiguous } = classifyOrderError(rawError);
+      setErrorMessage(userMessage);
+      setErrorIsAmbiguous(isAmbiguous);
       return;
     }
 
-    // COD success → deep-link to order confirmation page with real UUID
+    // Server acknowledged a persisted order ID — safe to clear cart and navigate
+    const confirmedOrderId = order.id;
     clearCart();
-    const orderId = order?.id;
-    navigate(orderId ? `/order-confirmation/${orderId}` : '/order-confirmation', {
+
+    setIsSubmitting(false);
+    isSubmittingRef.current = false;
+
+    navigate(`/order-confirmation/${confirmedOrderId}`, {
       state: {
-        orderNumber: order?.order_number || 'VBF-CONFIRMED',
-        trackingNumber: order?.tracking_number || '',
+        orderNumber: order.order_number || 'VBF-CONFIRMED',
+        trackingNumber: order.tracking_number || '',
         email: contactEmail,
-        total: Number(order?.total ?? grandTotal),
+        total: Number(order.total ?? grandTotal),
         paymentMethod: 'COD',
         paymentStatus: 'pending_collection',
         address: finalAddressSnapshot
       }
     });
-  };
+  }, [
+    cart, subtotal, grandTotal, shippingFee, appliedDiscount, appliedPromoCode,
+    contactName, contactEmail, contactPhone, orderNotes,
+    isLoggedIn, user, selectedAddressId, savedAddresses,
+    gov, city, street, building, floor, landmark, saveToProfile,
+    codUnavailable, effectiveGov, clearCart, navigate
+  ]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // VIEW: Order Confirmation View (legacy in-page view — kept for fallback)
@@ -523,14 +595,34 @@ export const CheckoutPage: React.FC = () => {
         ════════════════════════════════════════════════════════════════ */}
         <div className="flex-1 lg:max-w-[56%] px-5 sm:px-8 lg:px-14 xl:px-20 py-8 lg:py-10 order-2 lg:order-1">
 
+          {/* Stale-price warning */}
+          {stalePriceWarning && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-300 text-amber-800 text-xs flex justify-between items-start rounded-sm">
+              <span>⚠ {stalePriceWarning}</span>
+              <button
+                type="button"
+                onClick={() => setStalePriceWarning(null)}
+                className="font-bold text-amber-800 hover:opacity-60 ml-3 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Error notification */}
           {errorMessage && (
-            <div className="mb-6 p-4 bg-[#FFF5F5] border border-[#FEB2B2] text-[#C53030] text-xs flex justify-between items-center rounded-sm">
+            <div
+              className={`mb-6 p-4 border text-xs flex justify-between items-start rounded-sm ${
+                errorIsAmbiguous
+                  ? 'bg-amber-50 border-amber-300 text-amber-800'
+                  : 'bg-[#FFF5F5] border-[#FEB2B2] text-[#C53030]'
+              }`}
+            >
               <span>{errorMessage}</span>
               <button
                 type="button"
-                onClick={() => setErrorMessage(null)}
-                className="font-bold text-[#C53030] hover:opacity-60 ml-3 text-sm"
+                onClick={() => { setErrorMessage(null); setErrorIsAmbiguous(false); }}
+                className={`font-bold hover:opacity-60 ml-3 text-sm ${errorIsAmbiguous ? 'text-amber-800' : 'text-[#C53030]'}`}
               >
                 ✕
               </button>
