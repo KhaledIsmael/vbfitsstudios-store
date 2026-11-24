@@ -9,6 +9,9 @@ import { calculateShippingFee, getEstimatedShippingFee, type ShippingZone } from
 import { BRAND_CONFIG } from '../config/assets';
 import { supabase } from '../lib/supabaseClient';
 import { classifyOrderError } from '../lib/orderErrors';
+import { useOutageState } from '../hooks/useOutageState';
+import { detectOutage, reportOutage, reportRecovery, getOutageState } from '../lib/outage';
+import { probeConnectivity } from '../lib/connectivity';
 
 const GOVERNORATES = [
   'Cairo',
@@ -54,6 +57,19 @@ export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, subtotal, totalItems, clearCart } = useCart();
   const { user, supabaseUser, isLoggedIn } = useAuth();
+
+  // ── Outage awareness (advisory): ordering pauses while a recent outage is flagged.
+  // Cart and every form value stay untouched; "Re-check" performs a REAL server request.
+  const outage = useOutageState();
+  const [isRechecking, setIsRechecking] = useState(false);
+  const handleRecheck = useCallback(async () => {
+    setIsRechecking(true);
+    try {
+      await probeConnectivity();
+    } finally {
+      setIsRechecking(false);
+    }
+  }, []);
 
   // ── Double-submit guard: ref-based so it survives React batched state updates ──
   const isSubmittingRef = useRef(false);
@@ -279,6 +295,16 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
+    // Advisory outage hint: do not submit while a recent outage is flagged. The live check below remains
+    // the authority, and "Re-check" clears the hint only after a real successful server response.
+    if (getOutageState().active) {
+      setErrorMessage(
+        `${getOutageState().message} Ordering is paused until we can confirm prices and stock — tap "Re-check" and try again.`
+      );
+      isSubmittingRef.current = false;
+      return;
+    }
+
     // ── Live price & availability guard: verify against DB before submitting ──
     const isUuid = (v?: string) =>
       !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -292,6 +318,8 @@ export const CheckoutPage: React.FC = () => {
           .in('id', uuidProductIds);
 
         if (priceError) {
+          const priceOutage = detectOutage({ ...priceError, status: (priceError as any).status });
+          if (priceOutage) reportOutage(priceOutage);
           const { userMessage, isAmbiguous } = classifyOrderError(priceError.message);
           setErrorMessage(userMessage);
           setErrorIsAmbiguous(isAmbiguous);
@@ -340,7 +368,10 @@ export const CheckoutPage: React.FC = () => {
             return;
           }
         }
+        reportRecovery(); // server confirmed price & stock for every line
       } catch (priceCheckErr: any) {
+        const thrownOutage = detectOutage(priceCheckErr);
+        if (thrownOutage) reportOutage(thrownOutage);
         const { userMessage, isAmbiguous } = classifyOrderError(
           priceCheckErr?.message || 'Failed to fetch live product availability'
         );
@@ -1051,10 +1082,30 @@ export const CheckoutPage: React.FC = () => {
               </div>
             </section>
 
+            {outage.active && (
+              <div
+                role="alert"
+                className="rounded-md border border-[#F0D9A0] bg-[#FFF8E6] text-[#6B5200] text-[13px] px-4 py-3 space-y-2"
+              >
+                <p>
+                  {outage.message} Your bag and details are saved. Ordering is paused until we can
+                  confirm prices and stock.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleRecheck}
+                  disabled={isRechecking}
+                  className="underline underline-offset-2 font-semibold disabled:opacity-60"
+                >
+                  {isRechecking ? 'Checking…' : 'Re-check'}
+                </button>
+              </div>
+            )}
+
             {/* ── SUBMIT BUTTON ── */}
             <button
               type="submit"
-              disabled={isSubmitting || codUnavailable}
+              disabled={isSubmitting || codUnavailable || outage.active}
               className="w-full bg-[#111111] hover:bg-black text-white py-4 rounded-md text-[15px] font-semibold tracking-wide transition-all duration-200 disabled:opacity-60 flex items-center justify-center gap-3"
             >
               {isSubmitting ? (

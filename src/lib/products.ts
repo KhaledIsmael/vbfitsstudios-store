@@ -1,5 +1,7 @@
 import { supabase } from './supabaseClient';
 import { PRODUCTS, type Product, type MediaItem } from '../config/assets';
+import { publicRead, throwIfError } from './publicReadCache';
+import { reportDegraded, clearDegraded } from './outage';
 
 export type { Product };
 
@@ -144,27 +146,22 @@ function mapSupabaseToProduct(row: SupabaseProductRow): Product {
   };
 }
 
-function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 2500, fallback: T): Promise<T> {
-  let timeoutId: any;
-  const timeoutPromise = new Promise<T>((resolve) => {
-    timeoutId = setTimeout(() => resolve(fallback), ms);
-  });
-  return Promise.race([
-    Promise.resolve(promiseLike)
-      .then((res) => {
-        clearTimeout(timeoutId);
-        return res;
-      })
-      .catch(() => {
-        clearTimeout(timeoutId);
-        return fallback;
-      }),
-    timeoutPromise
-  ]);
-}
+// Short TTLs: public catalog data may be at most this stale while the backend is healthy.
+// Checkout never relies on this cache — it re-validates price/stock live (see CheckoutPage).
+const CATALOG_TTL_MS = 30_000;
+const PRODUCT_TTL_MS = 15_000;
+const CATEGORY_TTL_MS = 5 * 60_000;
+
+const PRODUCT_SELECT = `
+  *,
+  category:categories(*),
+  variants:product_variants(*),
+  images:product_images(*)
+`;
 
 /**
- * Helper to fetch cloud catalog overrides from store_settings and local storage
+ * Cloud catalog overrides (admin edits). De-duplicated in flight + short TTL.
+ * A failed read is NEVER cached as "no overrides": it is reported as degraded so the UI says so.
  */
 async function fetchCloudCatalogOverrides(): Promise<Record<string, any>> {
   let local: Record<string, any> = {};
@@ -175,22 +172,62 @@ async function fetchCloudCatalogOverrides(): Promise<Record<string, any>> {
 
   let cloud: Record<string, any> = {};
   try {
-    const cloudPromise = supabase
-      .from('store_settings')
-      .select('value')
-      .eq('key', 'catalog_products_override')
-      .maybeSingle();
-
-    const { data } = await withTimeout(cloudPromise, 2000, { data: null, error: null } as any);
-
-    if (data?.value && typeof data.value === 'object') {
-      cloud = data.value;
-    }
+    const r = await publicRead<Record<string, any>>(
+      'catalog:overrides',
+      async (signal) => {
+        const res = await supabase
+          .from('store_settings')
+          .select('value')
+          .eq('key', 'catalog_products_override')
+          .abortSignal(signal)
+          .maybeSingle();
+        throwIfError(res as any);
+        const value = (res as any).data?.value;
+        return value && typeof value === 'object' ? value : {};
+      },
+      { ttlMs: CATALOG_TTL_MS, timeoutMs: 4000 }
+    );
+    cloud = r.value;
+    if (r.stale) reportDegraded('catalog-overrides', 'stale');
+    else clearDegraded('catalog-overrides');
   } catch (err) {
     console.warn('Could not fetch cloud catalog overrides:', err);
+    reportDegraded('catalog-overrides', 'fallback');
   }
 
   return { ...local, ...cloud };
+}
+
+/**
+ * Loads the published catalog once per TTL (shared by landing, shop, PDP related items).
+ * - Genuinely empty catalog (no error) keeps the historical static seed behaviour.
+ * - Any failure falls back to the static catalog but is FLAGGED (banner) — never presented as live.
+ */
+async function loadBaseProducts(): Promise<Product[]> {
+  try {
+    const r = await publicRead<Product[]>(
+      'catalog:base',
+      async (signal) => {
+        const res = await supabase
+          .from('products')
+          .select(PRODUCT_SELECT)
+          .eq('is_published', true)
+          .order('created_at', { ascending: false })
+          .abortSignal(signal);
+        throwIfError(res as any);
+        return ((res as any).data || []).map(mapSupabaseToProduct) as Product[];
+      },
+      { ttlMs: CATALOG_TTL_MS, timeoutMs: 6000 }
+    );
+    if (r.stale) reportDegraded('catalog', 'stale');
+    else clearDegraded('catalog');
+    if (r.value.length === 0) return [...PRODUCTS];
+    return r.value.map((p) => ({ ...p }));
+  } catch (err) {
+    console.warn('loadBaseProducts failed (flagged static fallback):', err);
+    reportDegraded('catalog', 'fallback');
+    return [...PRODUCTS];
+  }
 }
 
 /**
@@ -309,33 +346,11 @@ function applyCatalogOverrides(baseProducts: Product[], overrides: Record<string
 }
 
 /**
- * Fetches all published products from Supabase with relations (category, variants, images).
+ * Fetches all published products (cached ≤ CATALOG_TTL_MS, in-flight de-duplicated).
+ * Catalog rows and admin overrides are independent reads, so they run in parallel.
  */
 export async function getAllProducts(): Promise<Product[]> {
-  let list: Product[] = [];
-  try {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        variants:product_variants(*),
-        images:product_images(*)
-      `)
-      .eq('is_published', true)
-      .order('created_at', { ascending: false });
-
-    if (!error && data && data.length > 0) {
-      list = data.map(mapSupabaseToProduct);
-    } else {
-      list = [...PRODUCTS];
-    }
-  } catch (err) {
-    console.warn('getAllProducts exception (falling back to static catalog):', err);
-    list = [...PRODUCTS];
-  }
-
-  const overrides = await fetchCloudCatalogOverrides();
+  const [list, overrides] = await Promise.all([loadBaseProducts(), fetchCloudCatalogOverrides()]);
   return applyCatalogOverrides(list, overrides);
 }
 
@@ -349,65 +364,62 @@ export async function getFeaturedProducts(limit = 2): Promise<Product[]> {
 }
 
 /**
- * Fetches a single product by UUID or slug from Supabase.
+ * Fetches a single product by UUID or slug (row cached ≤ PRODUCT_TTL_MS).
+ * Display data only: checkout re-validates price and stock live and never trusts this cache.
  */
 export async function getProductById(idOrSlug: string): Promise<Product | null> {
   if (!idOrSlug) return null;
 
-  const overrides = await fetchCloudCatalogOverrides();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+
+  const fetchRow = async (): Promise<SupabaseProductRow | null> => {
+    try {
+      const r = await publicRead<SupabaseProductRow | null>(
+        `product:${idOrSlug.slice(0, 120)}`,
+        async (signal) => {
+          let query = supabase.from('products').select(PRODUCT_SELECT).eq('is_published', true);
+          query = isUuid
+            ? query.or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`)
+            : query.eq('slug', idOrSlug);
+          const res = await query.abortSignal(signal).maybeSingle();
+          throwIfError(res as any);
+          return ((res as any).data as SupabaseProductRow | null) ?? null;
+        },
+        { ttlMs: PRODUCT_TTL_MS, timeoutMs: 5000 }
+      );
+      if (r.stale) reportDegraded('product', 'stale');
+      else clearDegraded('product');
+      return r.value;
+    } catch (err) {
+      console.warn(`getProductById query failed for "${idOrSlug}" (flagged fallback):`, err);
+      reportDegraded('product', 'fallback');
+      return null;
+    }
+  };
+
+  // Independent reads → parallel
+  const [overrides, row] = await Promise.all([fetchCloudCatalogOverrides(), fetchRow()]);
+
   const override = overrides[idOrSlug];
   if (override && (override.is_archived === true || override.is_published === false)) {
     return null; // Product archived by admin
   }
 
-  try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+  const product: Product | null = row
+    ? mapSupabaseToProduct(row)
+    : PRODUCTS.find((p) => p.id === idOrSlug) || null;
 
-    let query = supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        variants:product_variants(*),
-        images:product_images(*)
-      `)
-      .eq('is_published', true);
-
-    if (isUuid) {
-      query = query.or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`);
-    } else {
-      query = query.eq('slug', idOrSlug);
-    }
-
-    const { data, error } = await withTimeout(query.maybeSingle(), 2500, { data: null, error: null } as any);
-
-    let product: Product | null = null;
-    if (!error && data) {
-      product = mapSupabaseToProduct(data);
-    } else {
-      product = PRODUCTS.find((p) => p.id === idOrSlug) || null;
-    }
-
-    if (!product && override && override.name && override.price) {
-      const mergedList = applyCatalogOverrides([], { [idOrSlug]: override });
-      return mergedList[0] || null;
-    }
-
-    if (product) {
-      const merged = applyCatalogOverrides([product], overrides);
-      return merged[0] || null;
-    }
-
-    return null;
-  } catch (err) {
-    console.warn(`getProductById exception for "${idOrSlug}":`, err);
-    const fallback = PRODUCTS.find((p) => p.id === idOrSlug);
-    if (fallback) {
-      const merged = applyCatalogOverrides([fallback], overrides);
-      return merged[0] || null;
-    }
-    return null;
+  if (!product && override && override.name && override.price) {
+    const mergedList = applyCatalogOverrides([], { [idOrSlug]: override });
+    return mergedList[0] || null;
   }
+
+  if (product) {
+    const merged = applyCatalogOverrides([product], overrides);
+    return merged[0] || null;
+  }
+
+  return null;
 }
 
 
@@ -498,52 +510,10 @@ export interface ProductFilterParams {
  */
 export async function getFilteredProducts(params: ProductFilterParams = {}): Promise<Product[]> {
   try {
-    let query = supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        variants:product_variants(*),
-        images:product_images(*)
-      `)
-      .eq('is_published', true);
-
-    // Database price range filtering
-    if (params.minPrice !== undefined && params.minPrice > 0) {
-      query = query.gte('price', params.minPrice);
-    }
-    if (params.maxPrice !== undefined && params.maxPrice < 10000) {
-      query = query.lte('price', params.maxPrice);
-    }
-
-    // New Arrivals collection pill
-    if (params.collectionFilter === 'new') {
-      query = query.eq('is_new_arrival', true);
-    }
-
-    // Database sorting
-    if (params.sortBy === 'price-asc') {
-      query = query.order('price', { ascending: true });
-    } else if (params.sortBy === 'price-desc') {
-      query = query.order('price', { ascending: false });
-    } else if (params.sortBy === 'popularity') {
-      query = query.order('featured', { ascending: false }).order('created_at', { ascending: false });
-    } else {
-      query = query.order('created_at', { ascending: false });
-    }
-
-    const { data, error } = await query;
-
-    let results: Product[];
-
-    if (error || !data || data.length === 0) {
-      results = [...PRODUCTS];
-    } else {
-      results = data.map(mapSupabaseToProduct);
-    }
-
-    const overrides = await fetchCloudCatalogOverrides();
-    results = applyCatalogOverrides(results, overrides);
+    // All filters/sorts are applied in memory on the shared cached catalogue, so changing a filter on
+    // /shop no longer costs two network requests per click.
+    const [base, overrides] = await Promise.all([loadBaseProducts(), fetchCloudCatalogOverrides()]);
+    let results: Product[] = applyCatalogOverrides(base, overrides);
 
     // Category filter
     if (params.category && params.category !== 'all') {
@@ -612,6 +582,7 @@ export async function getFilteredProducts(params: ProductFilterParams = {}): Pro
     return results;
   } catch (err) {
     console.warn('getFilteredProducts exception, returning catalog:', err);
+    reportDegraded('catalog', 'fallback');
     return PRODUCTS;
   }
 }
@@ -621,16 +592,25 @@ export async function getFilteredProducts(params: ProductFilterParams = {}): Pro
  */
 export async function getCategories(): Promise<Array<{ id: string; name: string; slug: string }>> {
   try {
-    const { data } = await supabase
-      .from('categories')
-      .select('id, name, slug')
-      .order('display_order', { ascending: true });
+    const r = await publicRead<Array<{ id: string; name: string; slug: string }>>(
+      'catalog:categories',
+      async (signal) => {
+        const res = await supabase
+          .from('categories')
+          .select('id, name, slug')
+          .order('display_order', { ascending: true })
+          .abortSignal(signal);
+        throwIfError(res as any);
+        return ((res as any).data || []) as Array<{ id: string; name: string; slug: string }>;
+      },
+      { ttlMs: CATEGORY_TTL_MS, timeoutMs: 4000 }
+    );
 
-    if (data && data.length > 0) {
-      return [{ id: 'all', name: 'All Categories', slug: 'all' }, ...data];
+    if (r.value.length > 0) {
+      return [{ id: 'all', name: 'All Categories', slug: 'all' }, ...r.value];
     }
   } catch (e) {
-    // fallback
+    // fallback (labels only — not price/stock sensitive)
   }
 
   return [
@@ -641,4 +621,3 @@ export async function getCategories(): Promise<Array<{ id: string; name: string;
     { id: 'accessories', name: 'Accessories', slug: 'accessories' }
   ];
 }
-

@@ -1,4 +1,6 @@
 import { supabase, adminSupabase } from './supabaseClient';
+import { publicRead, throwIfError, invalidatePublicReads } from './publicReadCache';
+import { detectOutage, reportDegraded, clearDegraded } from './outage';
 
 export interface SiteSettings {
   id?: string;
@@ -249,25 +251,17 @@ export function setPastGate(bypassed: boolean): void {
   }
 }
 
-/**
- * Fetch site settings from Supabase site_settings table,
- * falling back to store_settings key-value, localStorage, or defaults.
- */
-/**
- * Fetch site settings from localStorage or Supabase site_settings table.
- * Resolves immediately with local cache for zero latency, syncing in background.
- */
-export async function getSiteSettings(): Promise<SiteSettings> {
-  let cachedSettings: SiteSettings | null = null;
+/** Short TTL for the shared public settings read. The launch gate is re-checked at least this often. */
+export const SITE_SETTINGS_TTL_MS = 30_000;
 
-  // 1. Instant check from localStorage
+function readLocalSettings(): SiteSettings | null {
   try {
     const cached = localStorage.getItem(LOCAL_SETTINGS_KEY);
     if (cached) {
       const parsed = JSON.parse(cached);
       if (parsed && parsed.launch_at) {
         const gateEnabled = parsed.countdown_gate_enabled ?? parsed.gate_enabled ?? true;
-        cachedSettings = {
+        return {
           ...DEFAULT_SITE_SETTINGS,
           ...parsed,
           countdown_gate_enabled: gateEnabled,
@@ -276,95 +270,119 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       }
     }
   } catch {}
+  return null;
+}
 
-  // 2. Fetch from Supabase site_settings table (with 2s timeout)
-  try {
-    const fetchPromise = supabase
-      .from('site_settings')
-      .select('*')
-      .eq('id', 'current')
-      .maybeSingle();
+function mergeSiteSettingsRow(data: any): SiteSettings {
+  const gateEnabled = data.countdown_gate_enabled ?? data.gate_enabled ?? true;
+  return {
+    ...DEFAULT_SITE_SETTINGS,
+    ...data,
+    id: data.id || 'current',
+    launch_at: data.launch_at || DEFAULT_LAUNCH_AT,
+    countdown_gate_enabled: gateEnabled,
+    gate_enabled: gateEnabled,
+    countdown_strip_enabled: data.countdown_strip_enabled ?? true,
+    teaser_headline: data.teaser_headline || DEFAULT_SITE_SETTINGS.teaser_headline,
+    teaser_subtext: data.teaser_subtext || DEFAULT_SITE_SETTINGS.teaser_subtext,
+    teaser_text:
+      data.teaser_text ||
+      (data.teaser_headline
+        ? `${data.teaser_headline}. ${data.teaser_subtext || ''}`
+        : DEFAULT_SITE_SETTINGS.teaser_text),
+    countdown_strip_text: data.countdown_strip_text || DEFAULT_SITE_SETTINGS.countdown_strip_text,
+    launch_image_url: data.launch_image_url || DEFAULT_SITE_SETTINGS.launch_image_url,
+    social_instagram_url: formatSocialUrl('instagram', data.social_instagram_url),
+    social_whatsapp_url: formatSocialUrl('whatsapp', data.social_whatsapp_url),
+    social_tiktok_url: formatSocialUrl('tiktok', data.social_tiktok_url),
+    editorial_media_url: data.editorial_media_url || DEFAULT_SITE_SETTINGS.editorial_media_url,
+    editorial_media_type: data.editorial_media_type || DEFAULT_SITE_SETTINGS.editorial_media_type,
+    social_proof_media_url: data.social_proof_media_url || DEFAULT_SITE_SETTINGS.social_proof_media_url,
+    social_proof_media_type: data.social_proof_media_type || DEFAULT_SITE_SETTINGS.social_proof_media_type,
+    credits_developer_name: data.credits_developer_name || DEFAULT_SITE_SETTINGS.credits_developer_name,
+    credits_developer_url: data.credits_developer_url ? formatSocialUrl('url', data.credits_developer_url) : DEFAULT_SITE_SETTINGS.credits_developer_url,
+    credits_agency_name: data.credits_agency_name || DEFAULT_SITE_SETTINGS.credits_agency_name,
+    credits_agency_url: data.credits_agency_url ? formatSocialUrl('url', data.credits_agency_url) : DEFAULT_SITE_SETTINGS.credits_agency_url,
+    updated_at: data.updated_at
+  };
+}
 
-    const timeoutPromise = new Promise<{ data: any; error: any }>((resolve) =>
-      setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 1800)
-    );
+/**
+ * One live read of the settings (site_settings, then the store_settings mirror).
+ * Resolves `null` when the server answered but holds no settings row (cacheable).
+ * THROWS on outage-class errors so a failure is never cached as a valid value.
+ */
+async function loadLiveSiteSettings(signal: AbortSignal): Promise<SiteSettings | null> {
+  const primary: any = await supabase
+    .from('site_settings')
+    .select('*')
+    .eq('id', 'current')
+    .abortSignal(signal)
+    .maybeSingle();
 
-    const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
-
-    if (data && !error && data.launch_at) {
-      const gateEnabled = data.countdown_gate_enabled ?? data.gate_enabled ?? true;
-      const merged: SiteSettings = {
-        ...DEFAULT_SITE_SETTINGS,
-        ...data,
-        id: data.id || 'current',
-        launch_at: data.launch_at || DEFAULT_LAUNCH_AT,
-        countdown_gate_enabled: gateEnabled,
-        gate_enabled: gateEnabled,
-        countdown_strip_enabled: data.countdown_strip_enabled ?? true,
-        teaser_headline: data.teaser_headline || DEFAULT_SITE_SETTINGS.teaser_headline,
-        teaser_subtext: data.teaser_subtext || DEFAULT_SITE_SETTINGS.teaser_subtext,
-        teaser_text:
-          data.teaser_text ||
-          (data.teaser_headline
-            ? `${data.teaser_headline}. ${data.teaser_subtext || ''}`
-            : DEFAULT_SITE_SETTINGS.teaser_text),
-        countdown_strip_text: data.countdown_strip_text || DEFAULT_SITE_SETTINGS.countdown_strip_text,
-        launch_image_url: data.launch_image_url || DEFAULT_SITE_SETTINGS.launch_image_url,
-        social_instagram_url: formatSocialUrl('instagram', data.social_instagram_url),
-        social_whatsapp_url: formatSocialUrl('whatsapp', data.social_whatsapp_url),
-        social_tiktok_url: formatSocialUrl('tiktok', data.social_tiktok_url),
-        editorial_media_url: data.editorial_media_url || DEFAULT_SITE_SETTINGS.editorial_media_url,
-        editorial_media_type: data.editorial_media_type || DEFAULT_SITE_SETTINGS.editorial_media_type,
-        social_proof_media_url: data.social_proof_media_url || DEFAULT_SITE_SETTINGS.social_proof_media_url,
-        social_proof_media_type: data.social_proof_media_type || DEFAULT_SITE_SETTINGS.social_proof_media_type,
-        credits_developer_name: data.credits_developer_name || DEFAULT_SITE_SETTINGS.credits_developer_name,
-        credits_developer_url: data.credits_developer_url ? formatSocialUrl('url', data.credits_developer_url) : DEFAULT_SITE_SETTINGS.credits_developer_url,
-        credits_agency_name: data.credits_agency_name || DEFAULT_SITE_SETTINGS.credits_agency_name,
-        credits_agency_url: data.credits_agency_url ? formatSocialUrl('url', data.credits_agency_url) : DEFAULT_SITE_SETTINGS.credits_agency_url,
-        updated_at: data.updated_at
-      };
-      try {
-        localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(merged));
-      } catch {}
-      return merged;
-    }
-  } catch (err) {
-    console.warn('getSiteSettings table query notice:', err);
+  if (!primary.error && primary.data?.launch_at) {
+    return mergeSiteSettingsRow(primary.data);
+  }
+  if (primary.error && detectOutage({ ...primary.error, status: primary.status })) {
+    throwIfError(primary);
   }
 
-  // 3. Fall back to store_settings table (key = 'site_settings')
-  try {
-    const { data: storeData } = await supabase
-      .from('store_settings')
-      .select('value')
-      .eq('key', 'site_settings')
-      .maybeSingle();
+  const fallback: any = await supabase
+    .from('store_settings')
+    .select('value')
+    .eq('key', 'site_settings')
+    .abortSignal(signal)
+    .maybeSingle();
 
-    if (storeData && storeData.value && (storeData.value as any).launch_at) {
-      const val = storeData.value as SiteSettings;
-      const gateEnabled = val.countdown_gate_enabled ?? val.gate_enabled ?? true;
-      const merged: SiteSettings = {
-        ...DEFAULT_SITE_SETTINGS,
-        ...val,
-        countdown_gate_enabled: gateEnabled,
-        gate_enabled: gateEnabled
-      };
-      try {
-        localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(merged));
-      } catch {}
-      return merged;
-    }
-  } catch (err) {
-    console.warn('getSiteSettings fallback query notice:', err);
+  if (fallback.error) {
+    if (detectOutage({ ...fallback.error, status: fallback.status })) throwIfError(fallback);
+    return null;
   }
 
-  return cachedSettings || DEFAULT_SITE_SETTINGS;
+  const val = fallback.data?.value as SiteSettings | undefined;
+  if (val && (val as any).launch_at) {
+    const gateEnabled = val.countdown_gate_enabled ?? val.gate_enabled ?? true;
+    return { ...DEFAULT_SITE_SETTINGS, ...val, countdown_gate_enabled: gateEnabled, gate_enabled: gateEnabled };
+  }
+  return null;
+}
+
+/**
+ * Site settings for the storefront.
+ *  - Shared in-flight request + ${SITE_SETTINGS_TTL_MS / 1000}s TTL (invalidated on admin save).
+ *  - localStorage copy is a last-known-good *display* fallback only: when the server cannot be reached
+ *    the result is flagged degraded ('stale') so the UI says so; it is never treated as fresh.
+ */
+export async function getSiteSettings(): Promise<SiteSettings> {
+  const local = readLocalSettings();
+
+  try {
+    const r = await publicRead<SiteSettings | null>('settings:site', loadLiveSiteSettings, {
+      ttlMs: SITE_SETTINGS_TTL_MS,
+      timeoutMs: 4000
+    });
+    clearDegraded('site-settings');
+    if (r.stale) reportDegraded('site-settings', 'stale');
+    if (r.value) {
+      if (!r.fromCache) {
+        try {
+          localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(r.value));
+        } catch {}
+      }
+      return r.value;
+    }
+  } catch (err) {
+    console.warn('getSiteSettings live read failed (using last-known-good, flagged):', err);
+    reportDegraded('site-settings', local ? 'stale' : 'fallback');
+  }
+
+  return local || DEFAULT_SITE_SETTINGS;
 }
 
 /**
  * Updates site settings in Supabase and local storage
  */
-export async function updateSiteSettings(
+async function updateSiteSettingsImpl(
   settings: Partial<SiteSettings>
 ): Promise<{ success: boolean; data?: SiteSettings; error?: string }> {
   let current: SiteSettings = DEFAULT_SITE_SETTINGS;
@@ -464,7 +482,17 @@ export async function updateSiteSettings(
     } catch (err) {
       console.warn('store_settings dual-sync exception:', err);
     }
+    // DB writes are now durable: drop any copy cached while the write was in flight
+    invalidatePublicReads('settings:');
   })();
 
   return { success: true, data: updated };
+}
+
+/** Admin write → drop cached public reads so the change is visible immediately (this + other tabs). */
+export async function updateSiteSettings(
+  ...args: Parameters<typeof updateSiteSettingsImpl>
+): ReturnType<typeof updateSiteSettingsImpl> {
+  invalidatePublicReads('settings:');
+  return updateSiteSettingsImpl(...args);
 }

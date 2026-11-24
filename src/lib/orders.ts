@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { sendTelegramOrderAlert } from './telegramNotifier';
+import { detectOutage, reportOutage } from './outage';
 
 // ── Shared delivery window helper (matches email template + confirmation page) ──
 function getDeliveryWindow(createdAt?: string): string {
@@ -98,6 +99,20 @@ async function fetchCloudOrderStatusUpdates(): Promise<Record<string, any>> {
  * Links any past guest orders matching the customer's email or phone to their account ID
  * via the server-side SECURITY DEFINER RPC (never performs a client-side full-table scan).
  */
+const LINK_MEMO_TTL_MS = 10 * 60_000;
+const LINK_MEMO_MAX = 5;
+const linkMemo = new Map<string, { at: number; pending: Promise<{ linkedCount: number; error: string | null }> | null }>();
+
+export function __resetLinkMemoForTests(): void {
+  linkMemo.clear();
+}
+
+/**
+ * De-duplicated wrapper: auth bootstrap, onAuthStateChange and getUserOrders can all trigger linking
+ * for the same customer within seconds. The RPC is rate limited (5/h) and does a server-side scan, so
+ * we share the in-flight call and skip repeats for LINK_MEMO_TTL_MS. Results are never cached for
+ * other customers (memo key includes the customer id) and no order data is stored.
+ */
 export async function linkPastOrdersToCustomer(
   customerId: string,
   email?: string,
@@ -105,6 +120,37 @@ export async function linkPastOrdersToCustomer(
 ): Promise<{ linkedCount: number; error: string | null }> {
   if (!customerId || (!email && !phone)) return { linkedCount: 0, error: null };
 
+  const key = `${customerId}|${(email || '').toLowerCase()}|${phone || ''}`;
+  const memo = linkMemo.get(key);
+  if (memo) {
+    if (memo.pending) return memo.pending;
+    if (Date.now() - memo.at < LINK_MEMO_TTL_MS) return { linkedCount: 0, error: null };
+  }
+
+  const pending = linkPastOrdersToCustomerUncached(customerId, email, phone);
+  linkMemo.set(key, { at: Date.now(), pending });
+  while (linkMemo.size > LINK_MEMO_MAX) {
+    const oldest = linkMemo.keys().next().value;
+    if (oldest === undefined) break;
+    linkMemo.delete(oldest);
+  }
+  try {
+    const result = await pending;
+    // Failed attempts (e.g. outage) must be retryable; a 'rate_limited' answer is memoised to avoid hammering
+    if (result.error && result.error !== 'rate_limited') linkMemo.delete(key);
+    else linkMemo.set(key, { at: Date.now(), pending: null });
+    return result;
+  } catch (err) {
+    linkMemo.delete(key);
+    throw err;
+  }
+}
+
+async function linkPastOrdersToCustomerUncached(
+  customerId: string,
+  email?: string,
+  phone?: string
+): Promise<{ linkedCount: number; error: string | null }> {
   try {
     const cleanEmail = email?.trim().toLowerCase() || null;
     const cleanPhone = phone?.trim().replace(/[\s\-()]/g, '') || null;
@@ -148,10 +194,12 @@ export async function getUserOrders(
   }
 
   try {
-    // 1. Fetch orders directly belonging to customer_id (no guest full-table scan)
-    const { data: ownOrders } = await supabase
-      .from('orders')
-      .select(`
+    // Orders are auth-scoped and are NEVER stored in the shared public read cache.
+    // The two reads below are independent, so they run in parallel (one round-trip instead of two).
+    const [ordersRes, cloudStatusUpdates] = await Promise.all([
+      supabase
+        .from('orders')
+        .select(`
         id,
         order_number,
         status,
@@ -175,14 +223,21 @@ export async function getUserOrders(
           image_url
         )
       `)
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: false });
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false }),
+      fetchCloudOrderStatusUpdates()
+    ]);
 
-    const allRows = ownOrders || [];
+    if (ordersRes.error) {
+      // Do not pretend "no orders" silently: surface the outage (banner) when it is one.
+      const outage = detectOutage({ ...ordersRes.error, status: (ordersRes as any).status });
+      if (outage) reportOutage(outage);
+      console.warn('getUserOrders query error:', ordersRes.error.message);
+      return [];
+    }
+
+    const allRows = ordersRes.data || [];
     if (allRows.length === 0) return [];
-
-    // 3. Apply live cloud status updates from store_settings
-    const cloudStatusUpdates = await fetchCloudOrderStatusUpdates();
 
     return allRows.map((orderRow) => {
       const items: OrderItem[] = (orderRow.items || []).map((itemRow: any) => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense } from 'react';
+import { OutageBanner } from './components/ui/OutageBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { BrowserRouter, Routes, Route, useLocation, Outlet } from 'react-router-dom';
@@ -154,6 +155,9 @@ const StorefrontLayout: React.FC = () => {
           onBypass={() => setBypassed(true)}
         />
       )}
+
+      {/* Transparent outage / stale-data notice (never blocks navigation) */}
+      <OutageBanner />
 
       {/* 2. Admin QA Preview Status Banner (when gate is bypassed for testing) */}
       <QaPreviewBanner

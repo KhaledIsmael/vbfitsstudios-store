@@ -1,7 +1,25 @@
+﻿-- ============================================================================
+-- BLOCKED - DO NOT APPLY (moved out of supabase/migrations/ on 2026-11-24)
+--
+-- A dependency review (see docs/recovery/05_API_RESILIENCE.md, section 9) found that applying this
+-- file as-is would BREAK guest checkout / guest order viewing, because those flows read the
+-- caller's own freshly created guest order directly from public.orders as the anon role:
+--   1. createOrder(): INSERT ... RETURNING (.select()) needs SELECT visibility of the new row.
+--   2. order_items INSERT policy uses EXISTS(SELECT ... FROM orders) evaluated under the caller's RLS.
+--   3. createOrder() re-read of final totals and orphan auto-cancel UPDATE (guest).
+--   4. getOrderById (confirmation page), getOrderPaymentStatus (PaymentCallbackPage),
+--      convertOrderToCOD and lookupOrderForGuest (/track-order) all read orders directly.
+--
+-- Required BEFORE this can be used (staging first, with anon/guest/customer/admin tests):
+--   * SECURITY DEFINER RPC that places a guest order + items atomically and returns the confirmation row
+--   * SECURITY DEFINER RPCs: get_order_for_guest(order_number, email), get_order_payment_status(order_number)
+--   * matching client changes in src/lib/orders.ts and the pages listed above
+-- The policy/RPC SQL below remains the intended target state for RLS-01..RLS-14.
+-- ============================================================================
 -- ============================================================================
 -- VB FITS STUDIOS
 -- Migration: 20261124000046_rls_security_hardening.sql
--- Status:    PREPARED FOR STAGING — DO NOT APPLY TO PRODUCTION WITHOUT APPROVAL
+-- Status:    PREPARED FOR STAGING â€” DO NOT APPLY TO PRODUCTION WITHOUT APPROVAL
 --
 -- Addresses live-verified RLS & storage findings from 03_RLS_SECURITY.md:
 --   RLS-01 : orders SELECT no longer exposes customer_id IS NULL to any auth user
@@ -16,7 +34,7 @@
 --   RPCs   : link_guest_orders_to_customer() & lookup_guest_order() with rate limits
 -- ============================================================================
 
--- ── 1. orders: remove customer_id IS NULL from SELECT and UPDATE ─────────────
+-- â”€â”€ 1. orders: remove customer_id IS NULL from SELECT and UPDATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 DROP POLICY IF EXISTS "orders_select" ON public.orders;
 DROP POLICY IF EXISTS "orders_select_admin_or_own" ON public.orders;
 CREATE POLICY "orders_select"
@@ -38,7 +56,7 @@ CREATE POLICY "orders_update"
     OR public.is_admin_or_support()
   );
 
--- ── 2. order_items: restrict SELECT & INSERT to order owner / admin ──────────
+-- â”€â”€ 2. order_items: restrict SELECT & INSERT to order owner / admin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 DROP POLICY IF EXISTS "order_items_select" ON public.order_items;
 CREATE POLICY "order_items_select"
   ON public.order_items FOR SELECT
@@ -67,7 +85,7 @@ CREATE POLICY "order_items_insert"
     )
   );
 
--- ── 3. cart_items: remove user_id IS NULL / session_id IS NOT NULL exposure ──
+-- â”€â”€ 3. cart_items: remove user_id IS NULL / session_id IS NOT NULL exposure â”€â”€
 DROP POLICY IF EXISTS "cart_items_select" ON public.cart_items;
 CREATE POLICY "cart_items_select"
   ON public.cart_items FOR SELECT
@@ -104,7 +122,7 @@ CREATE POLICY "cart_items_delete"
     OR public.is_admin_or_support()
   );
 
--- ── 4. return_requests: remove customer_id IS NULL from SELECT ───────────────
+-- â”€â”€ 4. return_requests: remove customer_id IS NULL from SELECT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 DROP POLICY IF EXISTS "return_requests_select" ON public.return_requests;
 DROP POLICY IF EXISTS "return_requests_admin_read" ON public.return_requests;
 CREATE POLICY "return_requests_select"
@@ -114,7 +132,7 @@ CREATE POLICY "return_requests_select"
     OR public.is_admin_or_support()
   );
 
--- ── 5. customers: prevent self-promotion via role column on UPDATE ───────────
+-- â”€â”€ 5. customers: prevent self-promotion via role column on UPDATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 DROP POLICY IF EXISTS "customers_update" ON public.customers;
 DROP POLICY IF EXISTS "customers_update_own" ON public.customers;
 CREATE POLICY "customers_update"
@@ -131,18 +149,18 @@ CREATE POLICY "customers_update"
     )
   );
 
--- ── 6. site_settings: revoke write/delete grants from anon ───────────────────
+-- â”€â”€ 6. site_settings: revoke write/delete grants from anon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 REVOKE ALL ON public.site_settings FROM anon;
 GRANT SELECT ON public.site_settings TO anon;
 
--- ── 7. storage.objects: drop legacy permissive upload/update/delete policies ─
+-- â”€â”€ 7. storage.objects: drop legacy permissive upload/update/delete policies â”€
 DROP POLICY IF EXISTS "Staff can upload product-media" ON storage.objects;
 DROP POLICY IF EXISTS "Staff can upload store-media" ON storage.objects;
 DROP POLICY IF EXISTS "Staff can update/delete product-media" ON storage.objects;
 DROP POLICY IF EXISTS "Staff can update store-media" ON storage.objects;
 DROP POLICY IF EXISTS "Staff can delete store-media" ON storage.objects;
 
--- ── 8. Audit table & SECURITY DEFINER RPCs for guest linking & tracking ──────
+-- â”€â”€ 8. Audit table & SECURITY DEFINER RPCs for guest linking & tracking â”€â”€â”€â”€â”€â”€
 CREATE TABLE IF NOT EXISTS public.guest_lookup_audit (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_key    TEXT NOT NULL,

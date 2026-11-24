@@ -2,6 +2,7 @@ import { adminSupabase, supabase } from './supabaseClient';
 import { PRODUCTS, type Product } from '../config/assets';
 import { DEFAULT_TSHIRT_SIZE_CHART, type ProductSizeChart } from '../types/sizeChart';
 import { optimizeImageVariantsForUpload, LEGACY_STORAGE_BUCKET } from './image';
+import { invalidatePublicReads } from './publicReadCache';
 
 const LOCAL_STORAGE_CATALOG_KEY = 'vbfits_catalog_overrides';
 
@@ -287,7 +288,7 @@ export async function fetchAdminProducts(): Promise<AdminProduct[]> {
  * - Order history is preserved (order_items keep name/size/price; product_id becomes NULL).
  * - A tombstone is written to the catalog overrides so static/override-only products never reappear.
  */
-export async function deleteAdminProduct(prod: { id: string; slug?: string; name?: string }): Promise<{ error: string | null }> {
+async function deleteAdminProductImpl(prod: { id: string; slug?: string; name?: string }): Promise<{ error: string | null }> {
   const client = adminSupabase || supabase;
   const id = prod.id;
 
@@ -339,7 +340,7 @@ export async function deleteAdminProduct(prod: { id: string; slug?: string; name
 /**
  * Soft delete (archive/restore) a product without removing foreign key order histories.
  */
-export async function archiveAdminProduct(id: string, isArchived: boolean): Promise<{ error: string | null }> {
+async function archiveAdminProductImpl(id: string, isArchived: boolean): Promise<{ error: string | null }> {
   const client = adminSupabase || supabase;
   setLocalCatalogOverride(id, { is_archived: isArchived, updated_at: new Date().toISOString() });
 
@@ -466,7 +467,7 @@ export async function uploadAdminMedia(
  * Also saves variants and images to their respective tables.
  * Falls back to store_settings cloud sync for guaranteed persistence.
  */
-export async function saveAdminProduct(
+async function saveAdminProductImpl(
   productData: Partial<AdminProduct>,
   variants: AdminProductVariant[],
   images: AdminProductImage[]
@@ -671,5 +672,32 @@ export async function saveAdminProduct(
   } catch (err: any) {
     console.error('saveAdminProduct exception:', err);
     return { data: null, error: err.message || 'Failed to save product.' };
+  }
+}
+
+/** Admin write → drop cached public reads (this tab + other tabs) so edits show up immediately. */
+export async function deleteAdminProduct(...args: Parameters<typeof deleteAdminProductImpl>): ReturnType<typeof deleteAdminProductImpl> {
+  try {
+    return await deleteAdminProductImpl(...args);
+  } finally {
+    invalidatePublicReads();
+  }
+}
+
+/** Admin write → drop cached public reads (this tab + other tabs) so edits show up immediately. */
+export async function archiveAdminProduct(...args: Parameters<typeof archiveAdminProductImpl>): ReturnType<typeof archiveAdminProductImpl> {
+  try {
+    return await archiveAdminProductImpl(...args);
+  } finally {
+    invalidatePublicReads();
+  }
+}
+
+/** Admin write → drop cached public reads (this tab + other tabs) so edits show up immediately. */
+export async function saveAdminProduct(...args: Parameters<typeof saveAdminProductImpl>): ReturnType<typeof saveAdminProductImpl> {
+  try {
+    return await saveAdminProductImpl(...args);
+  } finally {
+    invalidatePublicReads();
   }
 }

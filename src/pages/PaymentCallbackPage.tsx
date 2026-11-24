@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getOrderPaymentStatus, convertOrderToCOD } from '../lib/orders';
 import { useCart } from '../context/CartContext';
+import { pollWithBackoff } from '../lib/pollWithBackoff';
+import { detectOutage, reportOutage } from '../lib/outage';
 
 /**
  * PaymentCallbackPage
@@ -17,14 +19,15 @@ import { useCart } from '../context/CartContext';
  *
  * Strategy:
  *   1. If payment_status is already in the URL (webhook set it), jump straight there.
- *   2. Otherwise poll Supabase every 2s (max 15 attempts / 30s) until status resolves.
+ *   2. Otherwise poll Supabase with bounded exponential backoff (45s total budget) until status resolves.
  *   3. Redirect to /order-confirmation on success, or show error state on failure.
  */
 
 type StatusPhase = 'loading' | 'paid' | 'failed' | 'timeout';
 
-const MAX_POLLS = 15;
-const POLL_INTERVAL_MS = 2000;
+const POLL_TOTAL_TIMEOUT_MS = 45_000;
+// Bounded exponential backoff (~1s, 1.7s, 2.9s, 4.9s, 8s, 8s…) → roughly 9 attempts inside the 45s budget.
+const POLL_EXPECTED_ATTEMPTS = 9;
 
 export const PaymentCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -40,7 +43,6 @@ export const PaymentCallbackPage: React.FC = () => {
   const [pollCount, setPollCount] = useState(0);
   const [isConvertingToCOD, setIsConvertingToCOD] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Helper: navigate to confirmation (clears cart and uses deep-link if orderId available)
   const goToConfirmation = (ps: string, verifiedOrderId?: string | null) => {
@@ -102,39 +104,34 @@ export const PaymentCallbackPage: React.FC = () => {
       return;
     }
 
-    let count = 0;
+    const controller = new AbortController();
 
-    const poll = async () => {
-      count += 1;
-      setPollCount(count);
-
-      const { paymentStatus, orderId: verifiedOrderId } = await getOrderPaymentStatus(orderNumber);
-
-      if (paymentStatus === 'paid') {
-        if (pollRef.current) clearInterval(pollRef.current);
-        goToConfirmation('paid', verifiedOrderId);
+    pollWithBackoff<{ paymentStatus: string | null; orderId: string | null; error: string | null }>({
+      fn: async () => {
+        const res = await getOrderPaymentStatus(orderNumber);
+        if (res.error) {
+          const outage = detectOutage(res.error);
+          if (outage) reportOutage(outage);
+        }
+        return res;
+      },
+      // Only a SERVER-confirmed terminal state ends polling. Errors, null and 'pending' keep polling
+      // until the total timeout; the URL status is never trusted on its own.
+      isDone: (r) => !r.error && (r.paymentStatus === 'paid' || r.paymentStatus === 'failed'),
+      totalTimeoutMs: POLL_TOTAL_TIMEOUT_MS,
+      signal: controller.signal,
+      onAttempt: (n) => setPollCount(n)
+    }).then((result) => {
+      if (controller.signal.aborted || result.status === 'aborted') return;
+      if (result.status === 'done') {
+        if (result.value.paymentStatus === 'paid') goToConfirmation('paid', result.value.orderId);
+        else setPhase('failed');
         return;
       }
+      setPhase('timeout');
+    });
 
-      if (paymentStatus === 'failed') {
-        if (pollRef.current) clearInterval(pollRef.current);
-        setPhase('failed');
-        return;
-      }
-
-      if (count >= MAX_POLLS) {
-        if (pollRef.current) clearInterval(pollRef.current);
-        setPhase('timeout');
-      }
-    };
-
-    // Run once immediately, then every POLL_INTERVAL_MS
-    poll();
-    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
-
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderNumber, urlStatus]);
 
@@ -142,7 +139,7 @@ export const PaymentCallbackPage: React.FC = () => {
   // RENDER: Loading / Polling State
   // ─────────────────────────────────────────────────────────────────
   if (phase === 'loading') {
-    const progress = Math.min(100, Math.round((pollCount / MAX_POLLS) * 100));
+    const progress = Math.min(100, Math.round((pollCount / POLL_EXPECTED_ATTEMPTS) * 100));
 
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">

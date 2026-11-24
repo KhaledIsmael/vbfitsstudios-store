@@ -1,5 +1,7 @@
 import { supabase, adminSupabase } from './supabaseClient';
 import { BRAND_CONFIG } from '../config/assets';
+import { publicRead, throwIfError, invalidatePublicReads } from './publicReadCache';
+import { reportDegraded, clearDegraded } from './outage';
 
 export interface HeroBanner {
   id: string;
@@ -78,20 +80,30 @@ const FALLBACK_SLIDES: HeroBanner[] = [
  */
 export async function fetchHeroBanners(): Promise<HeroBanner[]> {
   try {
-    const client = adminSupabase || supabase;
-    const { data, error } = await client
-      .from('hero_banners')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
-
-    if (error) throw error;
-    if (data && data.length > 0) {
-      saveCachedBanners(data as HeroBanner[]);
-      return data as HeroBanner[];
+    const r = await publicRead<HeroBanner[]>(
+      'hero:active',
+      async (signal) => {
+        const client = adminSupabase || supabase;
+        const res = await client
+          .from('hero_banners')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
+          .abortSignal(signal);
+        throwIfError(res as any);
+        return ((res as any).data || []) as HeroBanner[];
+      },
+      { ttlMs: 30_000, timeoutMs: 5000 }
+    );
+    if (r.stale) reportDegraded('hero', 'stale');
+    else clearDegraded('hero');
+    if (r.value.length > 0) {
+      if (!r.fromCache) saveCachedBanners(r.value);
+      return r.value;
     }
   } catch (e) {
     console.warn('fetchHeroBanners fallback to cache:', e);
+    reportDegraded('hero', 'fallback');
   }
 
   const cached = getCachedBanners().filter(b => b.is_active);
@@ -121,7 +133,7 @@ export async function fetchAllAdminHeroBanners(): Promise<HeroBanner[]> {
   return FALLBACK_SLIDES;
 }
 
-export async function saveHeroBanner(banner: Partial<HeroBanner>): Promise<{ success: boolean; data?: HeroBanner; error?: string }> {
+async function saveHeroBannerImpl(banner: Partial<HeroBanner>): Promise<{ success: boolean; data?: HeroBanner; error?: string }> {
   try {
     const client = adminSupabase || supabase;
     const isNew = !banner.id || banner.id.startsWith('new-');
@@ -176,7 +188,7 @@ export async function saveHeroBanner(banner: Partial<HeroBanner>): Promise<{ suc
   }
 }
 
-export async function deleteHeroBanner(id: string): Promise<boolean> {
+async function deleteHeroBannerImpl(id: string): Promise<boolean> {
   try {
     const client = adminSupabase || supabase;
     try {
@@ -188,5 +200,23 @@ export async function deleteHeroBanner(id: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Admin write → drop cached public reads (this tab + other tabs) so edits show up immediately. */
+export async function saveHeroBanner(...args: Parameters<typeof saveHeroBannerImpl>): ReturnType<typeof saveHeroBannerImpl> {
+  try {
+    return await saveHeroBannerImpl(...args);
+  } finally {
+    invalidatePublicReads();
+  }
+}
+
+/** Admin write → drop cached public reads (this tab + other tabs) so edits show up immediately. */
+export async function deleteHeroBanner(...args: Parameters<typeof deleteHeroBannerImpl>): ReturnType<typeof deleteHeroBannerImpl> {
+  try {
+    return await deleteHeroBannerImpl(...args);
+  } finally {
+    invalidatePublicReads();
   }
 }

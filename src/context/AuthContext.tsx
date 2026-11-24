@@ -8,6 +8,7 @@ import {
   type WishlistProduct
 } from '../lib/wishlist';
 import { linkPastOrdersToCustomer } from '../lib/orders';
+import { setPublicReadScope } from '../lib/publicReadCache';
 import { PRODUCTS } from '../config/assets';
 
 export interface OrderItem {
@@ -246,6 +247,12 @@ function setLocalGuestWishlist(items: WishlistProduct[]) {
         console.warn('Error loading wishlist:', err);
       })
       .finally(() => setWishlistLoading(false));
+  }, [supabaseUser?.id]);
+
+  // Partition the public read cache by auth identity so one user's responses can never be served to
+  // another user (or to a signed-out visitor) in the same tab.
+  useEffect(() => {
+    setPublicReadScope(supabaseUser?.id ?? null);
   }, [supabaseUser?.id]);
 
   // ── Auth session bootstrap ─────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { invalidatePublicReads } from './publicReadCache';
 import { PRODUCTS } from '../config/assets';
 
 export interface InventoryVariantItem {
@@ -156,7 +157,7 @@ export async function fetchInventoryVariants(): Promise<InventoryVariantItem[]> 
 /**
  * Updates stock inline and triggers automated Restock Me emails if stock went 0 -> >0.
  */
-export async function updateInventoryStock(
+async function updateInventoryStockImpl(
   variant: InventoryVariantItem,
   newStock: number,
   newThreshold?: number
@@ -268,5 +269,14 @@ export async function updateInventoryStock(
       };
     }
     return { success: true, restockResult, error: null };
+  }
+}
+
+/** Admin write → drop cached public reads (this tab + other tabs) so edits show up immediately. */
+export async function updateInventoryStock(...args: Parameters<typeof updateInventoryStockImpl>): ReturnType<typeof updateInventoryStockImpl> {
+  try {
+    return await updateInventoryStockImpl(...args);
+  } finally {
+    invalidatePublicReads();
   }
 }
