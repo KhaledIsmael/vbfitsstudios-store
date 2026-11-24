@@ -56,8 +56,7 @@ function verifyHmac(params: Record<string, string>, hmacSecret: string): boolean
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const hmacSecret = process.env.PAYMOB_HMAC_SECRET;
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseServiceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!hmacSecret) {
     console.error('PAYMOB_HMAC_SECRET not set');
@@ -65,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('Supabase credentials not set for webhook');
+    console.error('Supabase service role credentials not set for webhook');
     return res.status(500).send('Database not configured');
   }
 

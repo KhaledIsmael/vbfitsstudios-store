@@ -109,19 +109,11 @@ async function fetchCustomerProfile(userIdOrUser: string | SupabaseUser): Promis
       return { role: assignedRole, phone: data.phone || undefined };
     }
 
-    // Auto-create customers record if missing (e.g. OAuth or new email signup)
+    // Auto-create customers record if missing (e.g. OAuth or new email signup).
+    // Never send `role` from the client — roles are assigned server-side only.
     if (sbUser) {
       const metadata = sbUser.user_metadata || {};
       const rawName = metadata.full_name || metadata.name || (sbUser.email ? sbUser.email.split('@')[0] : 'Client');
-      
-      // Strictly isolate customer accounts from admin roles.
-      // Only explicit admin metadata or official admin emails can have admin privileges.
-      const isAdminIdent = 
-        metadata.role === 'admin' ||
-        metadata.role === 'support' ||
-        (sbUser.email && (sbUser.email.toLowerCase() === 'admin@vbfitsstudios.com' || sbUser.email.toLowerCase() === 'owner@vbfitsstudios.com'));
-
-      const initialRole: CustomerRole = isAdminIdent ? 'admin' : ((metadata.role as CustomerRole) || 'customer');
 
       const { data: created } = await supabase
         .from('customers')
@@ -130,8 +122,7 @@ async function fetchCustomerProfile(userIdOrUser: string | SupabaseUser): Promis
             id: sbUser.id,
             email: sbUser.email || '',
             full_name: rawName,
-            phone: metadata.phone || sbUser.phone || null,
-            role: initialRole
+            phone: metadata.phone || sbUser.phone || null
           },
           { onConflict: 'id' }
         )
@@ -142,7 +133,7 @@ async function fetchCustomerProfile(userIdOrUser: string | SupabaseUser): Promis
         return {
           role: (created.role && ['customer', 'support', 'admin'].includes(created.role))
             ? (created.role as CustomerRole)
-            : initialRole,
+            : 'customer',
           phone: created.phone || undefined
         };
       }

@@ -1,17 +1,18 @@
 # 03 — RLS Security Audit Report
 **VB FITS STUDIOS · fix/egress-reliability · Recovery Phase 3**
-_Generated: 2026-11-24 · Status: **PROPOSED — no SQL applied, no production permissions changed**_
+_Updated: 2026-11-24 · Status: **LIVE-VERIFIED · Migration `000046` & code hardening prepared on branch; Production DB untouched**_
 
 ---
 
 ## ⚠️ Mandatory Disclaimer
 
-All findings in this document are derived from static analysis of **migration files in the repository**.
-They describe the _intended_ database state at the time each migration was written.
+Initial hypotheses in this document were derived from static analysis of migration files.
+**Live Verification Update (2026-11-24):** The owner executed the consolidated read-only catalog
+verification query in Supabase SQL Editor and provided the live results:
 
-> **We cannot confirm which policies are live in production** without executing the verification
-> queries in §4 against the Supabase SQL editor.  Every finding is therefore classified as
-> `HYPOTHESIS` until the owner confirms it with the read-only queries below.
+- **CONFIRMED LIVE:** `RLS-01`, `RLS-02`, `RLS-03`, `RLS-04`, `RLS-05`, `RLS-06` (exploitable), `RLS-08` (missing `customers` UPDATE role guard), `RLS-10`, `RLS-11`, `RLS-14`.
+- **CONFIRMED SAFE (NOT CONFIRMED AS VULNERABLE):** `RLS-07` (`is_admin`, `is_admin_or_support`, `handle_new_customer` are all `SECURITY DEFINER`, `handle_new_customer` hardcodes `'customer'`, trigger targets `auth.users`), `RLS-09` (`store_settings` does not have open `WITH CHECK (true)` write).
+- **Prepared (NOT applied to Production):** `supabase/migrations/20261124000046_rls_security_hardening.sql` (for Staging verification first) and client/API hardening in `src/lib/orders.ts`, `src/context/AuthContext.tsx`, and `api/paymob/webhook.ts`.
 
 No customer PII was accessed, queried, or disclosed during this audit.
 All UUIDs used in test SQL are synthetic placeholders.

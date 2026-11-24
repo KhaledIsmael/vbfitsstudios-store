@@ -95,7 +95,8 @@ async function fetchCloudOrderStatusUpdates(): Promise<Record<string, any>> {
 }
 
 /**
- * Links any past guest orders matching the customer's email or phone to their account ID.
+ * Links any past guest orders matching the customer's email or phone to their account ID
+ * via the server-side SECURITY DEFINER RPC (never performs a client-side full-table scan).
  */
 export async function linkPastOrdersToCustomer(
   customerId: string,
@@ -105,41 +106,24 @@ export async function linkPastOrdersToCustomer(
   if (!customerId || (!email && !phone)) return { linkedCount: 0, error: null };
 
   try {
-    const cleanEmail = email?.trim().toLowerCase();
-    const cleanPhone = phone?.trim().replace(/[\s\-()]/g, '');
+    const cleanEmail = email?.trim().toLowerCase() || null;
+    const cleanPhone = phone?.trim().replace(/[\s\-()]/g, '') || null;
 
-    const { data: guestOrders, error } = await supabase
-      .from('orders')
-      .select('id, shipping_address_snapshot, notes')
-      .is('customer_id', null);
+    const { data, error } = await supabase.rpc('link_guest_orders_to_customer', {
+      p_customer_id: customerId,
+      p_email: cleanEmail,
+      p_phone: cleanPhone
+    });
 
-    if (error || !guestOrders || guestOrders.length === 0) {
-      return { linkedCount: 0, error: null };
+    if (error) {
+      return { linkedCount: 0, error: error.message };
     }
 
-    let linkedCount = 0;
-    for (const order of guestOrders) {
-      const addr = (order.shipping_address_snapshot as any) || {};
-      const addrEmail = String(addr.email || '').toLowerCase();
-      const addrPhone = String(addr.phone || '').replace(/[\s\-()]/g, '');
-      const notes = String(order.notes || '').toLowerCase();
-
-      const match =
-        (cleanEmail && addrEmail === cleanEmail) ||
-        (cleanEmail && notes.includes(cleanEmail)) ||
-        (cleanPhone && addrPhone && (addrPhone.includes(cleanPhone) || cleanPhone.includes(addrPhone))) ||
-        (cleanPhone && cleanPhone.length >= 8 && addrPhone.endsWith(cleanPhone.slice(-8)));
-
-      if (match) {
-        await supabase
-          .from('orders')
-          .update({ customer_id: customerId })
-          .eq('id', order.id);
-        linkedCount++;
-      }
-    }
-
-    return { linkedCount, error: null };
+    const res = (data || {}) as { linked_count?: number; error?: string | null };
+    return {
+      linkedCount: Number(res.linked_count) || 0,
+      error: res.error || null
+    };
   } catch (err: any) {
     console.warn('linkPastOrdersToCustomer notice:', err);
     return { linkedCount: 0, error: err?.message || null };
@@ -158,17 +142,14 @@ export async function getUserOrders(
 ): Promise<Order[]> {
   if (!customerId) return [];
 
-  // Silently link any past guest orders matching email/phone
+  // Link any past guest orders server-side before reading own orders
   if (email || phone) {
-    linkPastOrdersToCustomer(customerId, email, phone).catch(() => {});
+    await linkPastOrdersToCustomer(customerId, email, phone).catch(() => {});
   }
 
   try {
-    const cleanEmail = email?.trim().toLowerCase();
-    const cleanPhone = phone?.trim().replace(/[\s\-()]/g, '');
-
-    // 1. Fetch orders directly belonging to customer_id
-    const { data: ownOrders, error: ownErr } = await supabase
+    // 1. Fetch orders directly belonging to customer_id (no guest full-table scan)
+    const { data: ownOrders } = await supabase
       .from('orders')
       .select(`
         id,
@@ -197,61 +178,7 @@ export async function getUserOrders(
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false });
 
-    // 2. Fetch guest orders matching email or phone
-    let guestMatches: any[] = [];
-    if (cleanEmail || cleanPhone) {
-      const { data: unassignedOrders } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          order_number,
-          status,
-          currency,
-          subtotal,
-          total,
-          tracking_number,
-          created_at,
-          delivered_at,
-          notes,
-          payment_method,
-          payment_status,
-          shipping_address_snapshot,
-          items:order_items(
-            id,
-            product_name,
-            variant_title,
-            unit_price,
-            quantity,
-            total_price,
-            image_url
-          )
-        `)
-        .is('customer_id', null)
-        .order('created_at', { ascending: false });
-
-      if (unassignedOrders && unassignedOrders.length > 0) {
-        guestMatches = unassignedOrders.filter((row) => {
-          const addr = (row.shipping_address_snapshot as any) || {};
-          const addrEmail = String(addr.email || '').toLowerCase();
-          const addrPhone = String(addr.phone || '').replace(/[\s\-()]/g, '');
-          const notes = String(row.notes || '').toLowerCase();
-          return (
-            (cleanEmail && addrEmail === cleanEmail) ||
-            (cleanEmail && notes.includes(cleanEmail)) ||
-            (cleanPhone && addrPhone && (addrPhone.includes(cleanPhone) || cleanPhone.includes(addrPhone))) ||
-            (cleanPhone && cleanPhone.length >= 8 && addrPhone.endsWith(cleanPhone.slice(-8)))
-          );
-        });
-      }
-    }
-
-    const combinedMap = new Map<string, any>();
-    (ownOrders || []).forEach((o) => combinedMap.set(o.id, o));
-    guestMatches.forEach((o) => {
-      if (!combinedMap.has(o.id)) combinedMap.set(o.id, o);
-    });
-
-    const allRows = Array.from(combinedMap.values());
+    const allRows = ownOrders || [];
     if (allRows.length === 0) return [];
 
     // 3. Apply live cloud status updates from store_settings
@@ -315,22 +242,39 @@ export async function lookupGuestOrder(
   const cleanEmail = email.trim().toLowerCase();
 
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*, order_items(*)')
-      .eq('order_number', cleanNum)
-      .limit(1)
-      .single();
+    // Prefer server-verified SECURITY DEFINER RPC (works even when orders SELECT RLS blocks guest rows)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('lookup_guest_order', {
+      p_order_number: cleanNum,
+      p_email: cleanEmail
+    });
 
-    if (error || !data) return null;
+    let data: any = rpcData;
 
-    // Validate email
-    const addrEmail = String((data.shipping_address_snapshot as any)?.email || '').toLowerCase();
-    const notesEmail = String(data.notes || '').toLowerCase();
-    
-    if (addrEmail !== cleanEmail && !notesEmail.includes(cleanEmail)) {
-      return null; // Not authorized
+    // Backwards-compatible fallback ONLY if the RPC has not yet been deployed (PGRST202)
+    if (rpcError) {
+      const isMissingRpc =
+        rpcError.code === 'PGRST202' ||
+        String(rpcError.message || '').toLowerCase().includes('could not find the function');
+      if (!isMissingRpc) return null;
+
+      const { data: legacyData, error: legacyErr } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('order_number', cleanNum)
+        .limit(1)
+        .single();
+
+      if (legacyErr || !legacyData) return null;
+
+      const addrEmail = String((legacyData.shipping_address_snapshot as any)?.email || '').toLowerCase();
+      const notesEmail = String(legacyData.notes || '').toLowerCase();
+      if (addrEmail !== cleanEmail && !notesEmail.includes(cleanEmail)) {
+        return null;
+      }
+      data = legacyData;
     }
+
+    if (!data) return null;
 
     // Convert to Order type
     const items: OrderItem[] = (data.order_items || []).map((itemRow: any) => {
