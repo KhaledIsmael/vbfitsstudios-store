@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getOrderById, type OrderDetail } from '../lib/orders';
+import { createSafeImageErrorHandler, getOptimizedImageUrl, DEFAULT_PRODUCT_FALLBACK } from '../lib/image';
 import { isWithinReturnWindow, hasExistingReturnRequest, RETURN_WINDOW_DAYS, createReturnRequest, RETURN_REASONS, type ReturnReason, REFUND_METHODS, type RefundMethod } from '../lib/returns';
 import { Smartphone, AtSign, Landmark, CreditCard } from 'lucide-react';
 
@@ -416,9 +417,13 @@ export const OrderTrackPage: React.FC = () => {
               {order.items.map((item) => (
                 <div key={item.id} className="flex items-center gap-4 p-4 bg-white">
                   <div className="w-14 h-18 bg-[#F5F5F5] border border-[#EAEAEA] flex-shrink-0 overflow-hidden">
-                    <img src={item.image} alt={item.name}
+                    <img src={getOptimizedImageUrl(item.image, { width: 480 }) || DEFAULT_PRODUCT_FALLBACK} alt={item.name}
+                      loading="lazy"
+                      decoding="async"
+                      width={56}
+                      height={72}
                       className="w-full h-full object-contain p-1 mix-blend-multiply"
-                      onError={(e) => { (e.target as HTMLImageElement).src = '/assets/products/black-shirt.jpeg'; }} />
+                      onError={createSafeImageErrorHandler(DEFAULT_PRODUCT_FALLBACK)} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-xs font-semibold text-black uppercase tracking-wider truncate">{item.name}</h3>

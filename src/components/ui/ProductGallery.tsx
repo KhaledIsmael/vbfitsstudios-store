@@ -142,6 +142,9 @@ const PrimaryViewer: React.FC<PrimaryViewerProps> = ({ item, productName, viewer
       src={item.url}
       alt={item.altText || productName}
       placement="pdp-main"
+      loading="eager"
+      decoding="sync"
+      fetchPriority="high"
       className="flex-1 border border-spec-border"
     >
       {/* Slot — e.g. wishlist button */}
@@ -166,7 +169,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   const items: MediaItem[] =
     mediaItems && mediaItems.length > 0
       ? mediaItems
-      : [{ url: '/assets/products/black-shirt.jpeg', type: 'image', displayOrder: 0 }];
+      : [{ url: '/assets/products/black-shirt.webp', type: 'image', displayOrder: 0 }];
 
   // Clamp selectedIndex in case it's stale after colorway switch
   const safeIndex = Math.max(0, Math.min(selectedIndex || 0, items.length - 1));
@@ -244,6 +247,9 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
                     src={imgSrc}
                     alt={item.altText || `${productName} view ${idx + 1}`}
                     placement="pdp-main"
+                    loading={idx === 0 ? 'eager' : 'lazy'}
+                    decoding={idx === 0 ? 'sync' : 'async'}
+                    fetchPriority={idx === 0 ? 'high' : 'low'}
                     className="w-full h-full"
                   />
                 )}

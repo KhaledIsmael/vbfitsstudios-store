@@ -48,7 +48,7 @@ export const AdminHeroEditor: React.FC = () => {
     handleChange(id, 'media_type', mediaType);
     
     setSaving(`upload-${id}`);
-    const res = await uploadAdminMedia(file);
+    const res = await uploadAdminMedia(file, { folder: 'hero' });
     if (res.url) {
       handleChange(id, 'media_url', res.url);
       

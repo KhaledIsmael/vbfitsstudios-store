@@ -48,7 +48,7 @@ const FALLBACK_SLIDES: HeroBanner[] = [
   {
     id: 'fallback-2',
     media_type: 'image',
-    media_url: '/assets/products/black-shirt.jpeg',
+    media_url: '/assets/products/black-shirt.webp',
     season_tag: 'NEW ARRIVALS 2026',
     title: 'The Washed Black Edition',
     subtitle: 'Custom-milled 340 GSM organic cotton. Signature ornate baroque sleeve art.',
@@ -60,7 +60,7 @@ const FALLBACK_SLIDES: HeroBanner[] = [
   {
     id: 'fallback-3',
     media_type: 'image',
-    media_url: '/assets/products/white-shirt.jpeg',
+    media_url: '/assets/products/white-shirt.webp',
     season_tag: 'COLLECTION ESSENTIALS',
     title: 'The Optic White Edition',
     subtitle: 'Royal indigo botanical sleeve embellishments. Effortless drape and fit.',

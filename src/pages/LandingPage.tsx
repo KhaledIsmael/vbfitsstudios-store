@@ -5,6 +5,12 @@ import { BRAND_CONFIG, PRODUCTS, type Product } from '../config/assets';
 import { fetchHeroBanners } from '../lib/heroBanners';
 import { getFilteredProducts } from '../lib/products';
 import { ProductCard } from '../components/ui/ProductCard';
+import {
+  getOptimizedImageUrl,
+  getResponsiveSrcSet,
+  createSafeImageErrorHandler,
+  DEFAULT_HERO_FALLBACK
+} from '../lib/image';
 
 interface HeroData {
   image: string;
@@ -71,11 +77,16 @@ export const LandingPage: React.FC = () => {
         {/* Render image only when data is loaded, use object-cover to fix spacing */}
         {heroData && (
           <img
-            src={heroData.image}
+            src={getOptimizedImageUrl(heroData.image, { width: 1600 }) || DEFAULT_HERO_FALLBACK}
+            srcSet={getResponsiveSrcSet(heroData.image) || undefined}
+            sizes="100vw"
             alt={heroData.name}
+            width={1920}
+            height={860}
             fetchPriority="high"
             decoding="sync"
             loading="eager"
+            onError={createSafeImageErrorHandler(DEFAULT_HERO_FALLBACK)}
             className="absolute inset-0 w-full h-full object-cover object-top"
           />
         )}

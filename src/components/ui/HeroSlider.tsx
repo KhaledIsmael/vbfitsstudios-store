@@ -2,6 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchHeroBanners } from '../../lib/heroBanners';
 import type { HeroBanner } from '../../lib/heroBanners';
+import {
+  getOptimizedImageUrl,
+  getResponsiveSrcSet,
+  createSafeImageErrorHandler,
+  DEFAULT_HERO_FALLBACK
+} from '../../lib/image';
 
 const SLIDE_INTERVAL_MS = 6000;
 
@@ -36,13 +42,18 @@ const SlideImage: React.FC<SlideImageProps> = ({ slide, isActive, isFirst, enter
         />
       ) : (
           <img
-            src={slide.media_url}
+            src={getOptimizedImageUrl(slide.media_url, { width: 1600 }) || DEFAULT_HERO_FALLBACK}
+            srcSet={getResponsiveSrcSet(slide.media_url) || undefined}
+            sizes="100vw"
             alt={slide.title}
+            width={1920}
+            height={850}
             className={imgClass}
             draggable={false}
             loading={isFirst ? 'eager' : 'lazy'}
             decoding={isFirst ? 'sync' : 'async'}
             fetchPriority={isFirst ? 'high' : 'low'}
+            onError={createSafeImageErrorHandler(DEFAULT_HERO_FALLBACK)}
           />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-black/25 pointer-events-none" />

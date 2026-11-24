@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getUserOrders } from '../lib/orders';
+import { createSafeImageErrorHandler, getOptimizedImageUrl, DEFAULT_PRODUCT_FALLBACK } from '../lib/image';
 import type { Order } from '../lib/orders';
 import {
   getUserAddresses,
@@ -1236,13 +1237,13 @@ export const ProfilePage: React.FC = () => {
                             className="w-4 h-4 border-[#CCCCCC] rounded-none accent-black"
                           />
                           <div className="w-10 h-12 bg-[#F5F5F5] flex-shrink-0 overflow-hidden">
-                            <img src={item.image} alt={item.name}
+                            <img src={getOptimizedImageUrl(item.image, { width: 480 }) || DEFAULT_PRODUCT_FALLBACK} alt={item.name}
                               className="w-full h-full object-contain mix-blend-multiply"
                               loading="lazy"
                               decoding="async"
                               width={40}
                               height={48}
-                              onError={(e) => { (e.target as HTMLImageElement).src = '/assets/products/black-shirt.jpeg'; }}
+                              onError={createSafeImageErrorHandler(DEFAULT_PRODUCT_FALLBACK)}
                             />
                           </div>
                           <div className="flex-1 min-w-0">

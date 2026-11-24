@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getOrderById, type OrderDetail } from '../lib/orders';
+import { createSafeImageErrorHandler, getOptimizedImageUrl, DEFAULT_PRODUCT_FALLBACK } from '../lib/image';
 
 // ─── Delivery window helper ────────────────────────────────────────────────────
 // Returns e.g. "Mon, Sep 22 – Wed, Sep 24"
@@ -218,16 +219,14 @@ export const OrderConfirmationPage: React.FC = () => {
                   {/* Thumbnail */}
                   <div className="w-16 h-20 bg-[#F5F5F5] border border-[#EAEAEA] flex-shrink-0 overflow-hidden">
                     <img
-                      src={item.image}
+                      src={getOptimizedImageUrl(item.image, { width: 480 }) || DEFAULT_PRODUCT_FALLBACK}
                       alt={item.name}
                       className="w-full h-full object-contain p-1 mix-blend-multiply"
                       loading="lazy"
                       decoding="async"
                       width={64}
                       height={80}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/assets/products/black-shirt.jpeg';
-                      }}
+                      onError={createSafeImageErrorHandler(DEFAULT_PRODUCT_FALLBACK)}
                     />
                   </div>
                   {/* Details */}

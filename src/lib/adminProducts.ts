@@ -1,6 +1,7 @@
 import { adminSupabase, supabase } from './supabaseClient';
 import { PRODUCTS, type Product } from '../config/assets';
 import { DEFAULT_TSHIRT_SIZE_CHART, type ProductSizeChart } from '../types/sizeChart';
+import { optimizeImageVariantsForUpload, LEGACY_STORAGE_BUCKET } from './image';
 
 const LOCAL_STORAGE_CATALOG_KEY = 'vbfits_catalog_overrides';
 
@@ -405,54 +406,57 @@ async function _syncProductToStoreSettings(client: any, id: string, partial: Par
 
 /**
  * Upload an image, GIF, or video file to Supabase Storage ('product-media' bucket)
- * and return the public URL.
+ * with WebP compression, responsive width variants (-480w/-800w/-1200w or -1600w),
+ * and 1-year immutable cacheControl ('31536000').
  */
-export async function uploadAdminMedia(file: File): Promise<{ url: string | null; error: string | null }> {
+export async function uploadAdminMedia(
+  file: File,
+  options?: { folder?: 'products' | 'hero' }
+): Promise<{ url: string | null; error: string | null }> {
   const client = adminSupabase || supabase;
   try {
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const folder = options?.folder || 'products';
+    const targetWidths = folder === 'hero' ? [1600, 800, 480] : [1200, 800, 480];
     const cleanName = file.name
       .replace(/\.[^/.]+$/, '')
       .replace(/[^a-zA-Z0-9_-]/g, '-')
       .toLowerCase();
-    const fileName = `${Date.now()}-${cleanName}.${ext}`;
-    const filePath = `products/${fileName}`;
+    const stamp = Date.now();
 
-    const { data: uploadData, error: uploadError } = await client.storage
-      .from('product-media')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
+    const variants = await optimizeImageVariantsForUpload(file, targetWidths, 0.82);
+    let primaryUrl: string | null = null;
 
-    if (uploadError) {
-      console.warn('Storage upload error (falling back to base64 for permanent demo storage):', uploadError);
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve({ url: reader.result as string, error: null });
-        };
-        reader.onerror = () => {
-          resolve({ url: null, error: uploadError.message });
-        };
-        reader.readAsDataURL(file);
-      });
+    for (let i = 0; i < variants.length; i++) {
+      const variant = variants[i];
+      const suffix = variant.width > 0 ? `-${variant.width}w` : '';
+      const filePath = `${folder}/${stamp}-${cleanName}${suffix}.${variant.ext}`;
+
+      const { data: uploadData, error: uploadError } = await client.storage
+        .from(LEGACY_STORAGE_BUCKET)
+        .upload(filePath, variant.blob, {
+          cacheControl: '31536000',
+          contentType: variant.contentType,
+          upsert: false
+        });
+
+      if (uploadError) {
+        if (i === 0) {
+          return { url: null, error: uploadError.message };
+        }
+        continue;
+      }
+
+      if (i === 0) {
+        const { data: publicUrlData } = client.storage
+          .from(LEGACY_STORAGE_BUCKET)
+          .getPublicUrl(uploadData.path);
+        primaryUrl = publicUrlData.publicUrl;
+      }
     }
 
-    const { data: publicUrlData } = client.storage
-      .from('product-media')
-      .getPublicUrl(uploadData.path);
-
-    return { url: publicUrlData.publicUrl, error: null };
+    return { url: primaryUrl, error: primaryUrl ? null : 'Upload failed.' };
   } catch (err: any) {
-    console.warn('uploadAdminMedia exception (falling back to base64):', err);
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve({ url: reader.result as string, error: null });
-      };
-      reader.readAsDataURL(file);
-    });
+    return { url: null, error: err?.message || 'Storage upload failed.' };
   }
 }
 

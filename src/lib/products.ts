@@ -71,7 +71,7 @@ function mapSupabaseToProduct(row: SupabaseProductRow): Product {
   const finalImages =
     flatImages.length > 0
       ? flatImages
-      : ['/assets/products/black-shirt.jpeg', '/assets/hero/hero.jpg'];
+      : ['/assets/products/black-shirt.webp', '/assets/hero/hero.webp'];
 
   const finalMediaItems =
     mediaItems.length > 0
